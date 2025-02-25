@@ -10,16 +10,21 @@ interface Workout {
   title: string;
 }
 
+interface NutritionEntry {
+  date: string;
+}
+
 export function WorkoutsCalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [nutritionDates, setNutritionDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchWorkouts();
+    fetchData();
   }, [currentDate]);
 
-  const fetchWorkouts = async () => {
+  const fetchData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -48,10 +53,21 @@ export function WorkoutsCalendarView() {
 
       if (workoutsError) throw workoutsError;
 
+      // Fetch nutrition entries for the current month
+      const { data: nutritionData, error: nutritionError } = await supabase
+        .from('client_nutrition')
+        .select('date')
+        .eq('client_id', clientData.id)
+        .gte('date', startDate.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0]);
+
+      if (nutritionError) throw nutritionError;
+
       setWorkouts(workoutsData || []);
+      setNutritionDates((nutritionData || []).map(entry => entry.date));
     } catch (error: any) {
-      console.error('Error fetching workouts:', error);
-      toast.error('Ошибка при загрузке тренировок');
+      console.error('Error fetching data:', error);
+      toast.error('Ошибка при загрузке данных');
     } finally {
       setLoading(false);
     }
@@ -102,6 +118,16 @@ export function WorkoutsCalendarView() {
              workoutDate.getMonth() === date.getMonth() &&
              workoutDate.getFullYear() === date.getFullYear();
     });
+  };
+
+  const hasNutritionEntry = (date: Date) => {
+    // Convert date to YYYY-MM-DD format
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+    
+    return nutritionDates.includes(dateString);
   };
 
   const isToday = (date: Date) => {
@@ -165,6 +191,7 @@ export function WorkoutsCalendarView() {
             {/* Calendar Days */}
             {getMonthDays().map(({ date, isCurrentMonth }, index) => {
               const dayWorkouts = getDayWorkouts(date);
+              const hasNutrition = hasNutritionEntry(date);
               const isCurrentDay = isToday(date);
               const hasWorkouts = dayWorkouts.length > 0;
 
@@ -177,13 +204,18 @@ export function WorkoutsCalendarView() {
                     ${hasWorkouts && isCurrentMonth ? 'bg-orange-50/20' : ''}
                     ${index % 7 === 6 ? 'border-r-0' : ''}`}
                 >
-                  <div className={`flex items-center justify-end gap-1 mb-1
+                  <div className={`flex items-center justify-end gap-1
                     ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}`}
                   >
                     <span className="text-xs md:text-sm">{date.getDate()}</span>
-                    {hasWorkouts && isCurrentMonth && (
-                      <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-orange-500"></div>
-                    )}
+                    <div className="flex gap-0.5">
+                      {hasWorkouts && isCurrentMonth && (
+                        <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full bg-orange-500"></div>
+                      )}
+                      {hasNutrition && isCurrentMonth && (
+                        <div className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full bg-green-500"></div>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-0.5 md:space-y-1">
                     {dayWorkouts.map(workout => (

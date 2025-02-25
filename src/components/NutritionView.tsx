@@ -14,10 +14,10 @@ interface PhotoPreview {
 interface NutritionEntry {
   id: string;
   date: string;
-  proteins: number;
-  fats: number;
-  carbs: number;
-  water: number;
+  proteins: number | null;
+  fats: number | null;
+  carbs: number | null;
+  water: number | null;
   photos: string[];
 }
 
@@ -30,10 +30,11 @@ export function NutritionView() {
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id'>>({
     date: new Date().toISOString().split('T')[0],
-    proteins: 0,
-    fats: 0,
-    carbs: 0,
-    water: 0
+    proteins: null,
+    fats: null,
+    carbs: null,
+    water: null,
+    photos: []
   });
   const navigate = useNavigate();
 
@@ -73,7 +74,6 @@ export function NutritionView() {
               .from('client-photos')
               .getPublicUrl(`nutrition-photos/${clientData.id}/${entry.date}/${file.name}`);
               
-            console.log('Supabase public URL:', publicUrl);
             return publicUrl;
           });
 
@@ -144,17 +144,20 @@ export function NutritionView() {
 
       if (clientError) throw clientError;
 
+      // Преобразуем null в 0 только при отправке данных
+      const dataToSave = {
+        proteins: newEntry.proteins || 0,
+        fats: newEntry.fats || 0,
+        carbs: newEntry.carbs || 0,
+        water: newEntry.water || 0
+      };
+
       const existingEntry = entries.find(entry => entry.date === newEntry.date);
 
       if (existingEntry) {
         const { error: updateError } = await supabase
           .from('client_nutrition')
-          .update({
-            proteins: newEntry.proteins,
-            fats: newEntry.fats,
-            carbs: newEntry.carbs,
-            water: newEntry.water
-          })
+          .update(dataToSave)
           .eq('id', existingEntry.id);
 
         if (updateError) throw updateError;
@@ -165,10 +168,7 @@ export function NutritionView() {
           .insert({
             client_id: clientData.id,
             date: newEntry.date,
-            proteins: newEntry.proteins,
-            fats: newEntry.fats,
-            carbs: newEntry.carbs,
-            water: newEntry.water
+            ...dataToSave
           });
 
         if (insertError) throw insertError;
@@ -199,10 +199,11 @@ export function NutritionView() {
       
       setNewEntry({
         date: new Date().toISOString().split('T')[0],
-        proteins: 0,
-        fats: 0,
-        carbs: 0,
-        water: 0
+        proteins: null,
+        fats: null,
+        carbs: null,
+        water: null,
+        photos: []
       });
       setSelectedFiles([]);
     } catch (error: any) {
@@ -256,11 +257,27 @@ export function NutritionView() {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    
+    let parsedValue: number | null = null;
+    if (value !== '') {
+      parsedValue = parseFloat(value);
+      if (isNaN(parsedValue)) {
+        parsedValue = null;
+      }
+    }
+    
+    setNewEntry({
+      ...newEntry,
+      [name]: parsedValue
+    });
+  };
+
   const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
 
   return (
     <SidebarLayout
-      title="Питание"
       menuItems={menuItems}
       variant="bottom"
       backTo="/client"
@@ -293,9 +310,11 @@ export function NutritionView() {
                   type="number"
                   min="0"
                   step="1"
-                  value={newEntry.proteins}
-                  onChange={(e) => setNewEntry({ ...newEntry, proteins: parseInt(e.target.value) || 0 })}
+                  name="proteins"
+                  value={newEntry.proteins === null ? '' : newEntry.proteins}
+                  onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
                 />
               </div>
               <div>
@@ -306,9 +325,11 @@ export function NutritionView() {
                   type="number"
                   min="0"
                   step="1"
-                  value={newEntry.fats}
-                  onChange={(e) => setNewEntry({ ...newEntry, fats: parseInt(e.target.value) || 0 })}
+                  name="fats"
+                  value={newEntry.fats === null ? '' : newEntry.fats}
+                  onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
                 />
               </div>
               <div>
@@ -319,22 +340,26 @@ export function NutritionView() {
                   type="number"
                   min="0"
                   step="1"
-                  value={newEntry.carbs}
-                  onChange={(e) => setNewEntry({ ...newEntry, carbs: parseInt(e.target.value) || 0 })}
+                  name="carbs"
+                  value={newEntry.carbs === null ? '' : newEntry.carbs}
+                  onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Вода (л)
+                  Вода (мл)
                 </label>
                 <input
                   type="number"
                   min="0"
-                  step="0.1"
-                  value={newEntry.water}
-                  onChange={(e) => setNewEntry({ ...newEntry, water: parseFloat(e.target.value) || 0 })}
+                  step="100"
+                  name="water"
+                  value={newEntry.water === null ? '' : newEntry.water}
+                  onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
                 />
               </div>
               <div className="flex items-end">
@@ -402,7 +427,7 @@ export function NutritionView() {
                         <span>Б: {entry.proteins}г</span>
                         <span>Ж: {entry.fats}г</span>
                         <span>У: {entry.carbs}г</span>
-                        <span>Вода: {entry.water}л</span>
+                        <span>Вода: {entry.water}мл</span>
                       </div>
                     </div>
                     <button

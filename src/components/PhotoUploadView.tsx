@@ -68,27 +68,16 @@ export function PhotoUploadView() {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
 
-      // Get client profile
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', user?.id)
-        .single();
-
-      if (clientError) throw clientError;
-
-      // Get server timestamp
-      const { data: timestamp, error: timestampError } = await supabase
-        .rpc('get_server_timestamp');
-
-      if (timestampError) throw timestampError;
+      // Получаем текущее время для добавления в имя файла
+      const now = new Date();
+      const timestamp = now.getTime();
 
       // Upload each file
-      const serverTime = new Date(timestamp).getTime();
       const uploadPromises = selectedFiles.map(async ({ file }, index) => {
         const fileExt = file.name.split('.').pop();
-        const uniqueId = crypto.randomUUID();
-        const fileName = `${clientData.id}-${serverTime + index}-${uniqueId}.${fileExt}`;
+        
+        // Используем метку времени в имени файла для упорядочивания
+        const fileName = `${timestamp + index}-${crypto.randomUUID()}.${fileExt}`;
         const filePath = `progress-photos/${fileName}`;
 
         const { error: uploadError } = await supabase.storage

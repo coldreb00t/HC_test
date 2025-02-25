@@ -2,25 +2,54 @@ import React, { useState, useEffect } from 'react';
 import { 
   Dumbbell, 
   Activity,
-  Bell,
   Plus,
   Camera,
   X,
   Apple,
-  Target,
   Scale,
   Heart,
   ChevronRight,
   ChevronLeft,
   Trophy,
   Calendar,
-  User,
-  LogOut
+  Moon,
+  Droplets,
+  Home
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
+import { useClientNavigation } from '../lib/navigation';
+import { WorkoutProgramModal } from './WorkoutProgramModal';
+
+interface Exercise {
+  id: string;
+  name: string;
+  description?: string;
+  video_url?: string;
+  sets: {
+    set_number: number;
+    reps: string;
+    weight: string;
+  }[];
+  notes?: string;
+}
+
+interface Program {
+  id: string;
+  title: string;
+  description?: string;
+  exercises: Exercise[];
+}
+
+interface NextWorkout {
+  id: string;
+  start_time: string;
+  title: string;
+  training_program_id?: string;
+  program?: Program | null;
+}
 
 interface Achievement {
   title: string;
@@ -31,22 +60,116 @@ interface Achievement {
   bgImage?: string;
 }
 
-interface NextWorkout {
-  id: string;
-  start_time: string;
-  title: string;
-}
-
 export function ClientDashboard() {
   const navigate = useNavigate();
+  const [nextWorkout, setNextWorkout] = useState<NextWorkout | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFabMenu, setShowFabMenu] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [nextWorkout, setNextWorkout] = useState<NextWorkout | null>(null);
-  const [userProfile, setUserProfile] = useState<{firstName: string; lastName: string} | null>(null);
+  const [showWorkoutModal, setShowWorkoutModal] = useState(false);
 
-  // Enhanced achievements data with brand colors
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Auth error:', userError);
+        toast.error('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
+        navigate('/login');
+        return;
+      }
+
+      if (!user) {
+        toast.error('Пожалуйста, войдите в систему');
+        navigate('/login');
+        return;
+      }
+
+      // Get client profile
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (clientError) {
+        if (clientError.code === 'PGRST116') {
+          toast.error('Профиль клиента не найден');
+          return;
+        }
+        throw clientError;
+      }
+
+      // Get next workout
+      const { data: workoutData, error: workoutError } = await supabase
+        .from('workouts')
+        .select('id, start_time, title, training_program_id')
+        .eq('client_id', clientData.id)
+        .gt('start_time', new Date().toISOString())
+        .order('start_time')
+        .limit(1)
+        .single();
+
+      if (workoutError && workoutError.code !== 'PGRST116') throw workoutError;
+
+      if (workoutData) {
+        // Создаем базовую информацию о тренировке без загрузки программы
+        // Программа будет загружена непосредственно в модальном окне
+        setNextWorkout({
+          id: workoutData.id,
+          start_time: workoutData.start_time,
+          title: workoutData.title,
+          training_program_id: workoutData.training_program_id,
+          program: null // Устанавливаем null, программа будет загружена в модальном окне по требованию
+        });
+      } else {
+        setNextWorkout(null);
+      }
+    } catch (error: any) {
+      console.error('Error fetching dashboard data:', error);
+      if (error.message === 'Failed to fetch') {
+        toast.error('Ошибка подключения к серверу. Пожалуйста, проверьте подключение к интернету.');
+      } else {
+        toast.error('Ошибка при загрузке данных');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMenuItemClick = (action: string) => {
+    setShowFabMenu(false);
+    switch (action) {
+      case 'activity':
+        navigate('/client/activity/new');
+        break;
+      case 'photo':
+        navigate('/client/progress-photo/new');
+        break;
+      case 'measurements':
+        navigate('/client/measurements/new');
+        break;
+      case 'nutrition':
+        navigate('/client/nutrition/new');
+        break;
+    }
+  };
+
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % achievements.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + achievements.length) % achievements.length);
+  };
+
   const achievements: Achievement[] = [
     {
       title: "Тренировки",
@@ -81,187 +204,6 @@ export function ClientDashboard() {
       bgImage: "https://images.unsplash.com/photo-1526401485004-46910ecc8e51?auto=format&fit=crop&q=80"
     }
   ];
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('Auth error:', userError);
-        toast.error('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
-        navigate('/login');
-        return;
-      }
-
-      if (!user) {
-        toast.error('Пожалуйста, войдите в систему');
-        navigate('/login');
-        return;
-      }
-
-      const { data: clientData, error: clientError } = await supabase
-        .from('client_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (clientError) {
-        if (clientError.code === 'PGRST116') {
-          toast.error('Профиль клиента не найден');
-          return;
-        }
-        throw clientError;
-      }
-
-      if (clientData.next_workout) {
-        setNextWorkout(clientData.next_workout);
-      }
-
-    } catch (error: any) {
-      console.error('Error fetching dashboard data:', error);
-      if (error.message === 'Failed to fetch') {
-        toast.error('Ошибка подключения к серверу. Пожалуйста, проверьте подключение к интернету.');
-      } else {
-        toast.error('Ошибка при загрузке данных');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFabClick = () => {
-    setShowFabMenu(!showFabMenu);
-  };
-
-  const handleMenuItemClick = (action: string) => {
-    setShowFabMenu(false);
-    switch (action) {
-      case 'activity':
-        navigate('/client/activity/new');
-        break;
-      case 'photo':
-        navigate('/client/progress-photo/new');
-        break;
-      case 'measurements':
-        navigate('/client/measurements/new');
-        break;
-      case 'nutrition':
-        navigate('/client/nutrition/new');
-        break;
-    }
-  };
-
-  const menuItems = [
-    {
-      icon: <Dumbbell className="w-7.5 h-7.5" />,
-      label: '',
-      onClick: () => navigate('/client/workouts')
-    },
-    {
-      icon: <Activity className="w-7.5 h-7.5" />,
-      label: '',
-      onClick: () => navigate('/client/activity')
-    },
-    {
-      icon: (
-        <div className="relative -mt-8">
-          <div 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleFabClick();
-            }}
-            className="w-14 h-14 bg-[#ff8502] rounded-full flex items-center justify-center text-white shadow-lg hover:bg-[#ff9933] transition-colors cursor-pointer"
-          >
-            {showFabMenu ? (
-              <X className="w-7.5 h-7.5" />
-            ) : (
-              <Plus className="w-7.5 h-7.5" />
-            )}
-          </div>
-          {showFabMenu && (
-            <div className="absolute bottom-16 -left-24 bg-white rounded-lg shadow-lg overflow-hidden w-48">
-              <div className="py-2">
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMenuItemClick('activity');
-                  }}
-                  className="w-full px-4 py-2 text-left hover:bg-[#dddddd] flex items-center space-x-2 cursor-pointer"
-                >
-                  <Activity className="w-5 h-5 text-[#ff8502]" />
-                  <span>Активность</span>
-                </div>
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMenuItemClick('photo');
-                  }}
-                  className="w-full px-4 py-2 text-left hover:bg-[#dddddd] flex items-center space-x-2 cursor-pointer"
-                >
-                  <Camera className="w-5 h-5 text-[#606060]" />
-                  <span>Фото прогресса</span>
-                </div>
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMenuItemClick('measurements');
-                  }}
-                  className="w-full px-4 py-2 text-left hover:bg-[#dddddd] flex items-center space-x-2 cursor-pointer"
-                >
-                  <Scale className="w-5 h-5 text-[#ff8502]" />
-                  <span>Замеры</span>
-                </div>
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMenuItemClick('nutrition');
-                  }}
-                  className="w-full px-4 py-2 text-left hover:bg-[#dddddd] flex items-center space-x-2 cursor-pointer"
-                >
-                  <Apple className="w-5 h-5 text-[#606060]" />
-                  <span>Питание</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ),
-      label: '',
-      onClick: () => {}
-    },
-    {
-      icon: <Camera className="w-7.5 h-7.5" />,
-      label: '',
-      onClick: () => navigate('/client/progress')
-    },
-    {
-      icon: <Apple className="w-7.5 h-7.5" />,
-      label: '',
-      onClick: () => navigate('/client/nutrition')
-    }
-  ];
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % achievements.length);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + achievements.length) % achievements.length);
-  };
-
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      navigate('/login');
-    } catch (error: any) {
-      console.error('Error signing out:', error);
-      toast.error('Ошибка при выходе из системы');
-    }
-  };
 
   return (
     <SidebarLayout
@@ -343,19 +285,19 @@ export function ClientDashboard() {
       </div>
 
       {/* Next Workout Card */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Моя следующая тренировка</h2>
-          <Calendar className="w-5 h-5 text-[#606060]" />
+          <Calendar className="w-5 h-5 text-gray-400" />
         </div>
 
         {loading ? (
-          <div className="flex justify-center p-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ff8502]"></div>
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
           </div>
         ) : (
           <button
-            onClick={() => navigate('/client/workouts')}
+            onClick={() => setShowWorkoutModal(true)}
             className="w-full flex items-center justify-between p-4 bg-[#dddddd] rounded-lg hover:bg-[#d0d0d0] transition-colors"
           >
             <div className="flex items-center">
@@ -384,6 +326,22 @@ export function ClientDashboard() {
           </button>
         )}
       </div>
+
+      {/* Workout Program Modal */}
+      {nextWorkout && showWorkoutModal && (
+        <WorkoutProgramModal
+          isOpen={showWorkoutModal}
+          onClose={() => setShowWorkoutModal(false)}
+          program={nextWorkout.program}
+          title={nextWorkout.title}
+          time={new Date(nextWorkout.start_time).toLocaleString('ru-RU', {
+            weekday: 'long',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+          training_program_id={nextWorkout.training_program_id}
+        />
+      )}
     </SidebarLayout>
   );
 }

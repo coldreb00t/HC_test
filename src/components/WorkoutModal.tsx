@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Info, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -9,21 +9,30 @@ interface Client {
   last_name: string;
 }
 
+interface Program {
+  id: string;
+  title: string;
+  description?: string;
+  exercises: {
+    id: string;
+    name: string;
+    description?: string;
+    sets: {
+      set_number: number;
+      reps: string;
+      weight: string;
+    }[];
+    notes?: string;
+  }[];
+}
+
 interface Workout {
   id: string;
   client_id: string;
   title: string;
   start_time: string;
   end_time: string;
-}
-
-interface Program {
-  id: string;
-  title: string;
-  description: string;
-  exercises: {
-    name: string;
-  }[];
+  training_program_id?: string;
 }
 
 interface WorkoutModalProps {
@@ -51,18 +60,26 @@ export function WorkoutModal({
   clientId 
 }: WorkoutModalProps) {
   const [clients, setClients] = useState<Client[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(false);
+  const [programLoading, setProgramLoading] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
     title: '',
     startTime: '',
     duration: 60,
-    date: ''
+    date: '',
+    programId: ''
   });
+  const [clientPrograms, setClientPrograms] = useState<Program[]>([]);
+  const [showProgramWarning, setShowProgramWarning] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       fetchClients();
+      fetchPrograms();
+      setShowProgramWarning(false);
+      
       if (workout) {
         // If editing, set form data from workout
         const workoutDate = new Date(workout.start_time);
@@ -75,16 +92,18 @@ export function WorkoutModal({
           title: workout.title,
           startTime: startTime,
           duration: duration,
-          date: workoutDate.toISOString().split('T')[0]
+          date: workoutDate.toISOString().split('T')[0],
+          programId: workout.training_program_id || ''
         });
+
+        if (workout.client_id) {
+          fetchClientPrograms(workout.client_id);
+        }
       } else {
         // If creating new, set default time to next available hour
         const defaultTime = new Date(selectedDate);
         const currentHour = defaultTime.getHours();
         
-        // If current hour is before working hours, set to start of working hours
-        // If current hour is after working hours, set to start of working hours next day
-        // If current hour is within working hours, use current hour
         let hour = currentHour;
         if (currentHour < WORKING_HOURS.start) {
           hour = WORKING_HOURS.start;
@@ -100,11 +119,60 @@ export function WorkoutModal({
           title: program ? `Тренировка: ${program.title}` : 'Персональная тренировка',
           startTime: defaultTime.toTimeString().slice(0, 5),
           duration: 60,
-          date: defaultTime.toISOString().split('T')[0]
+          date: defaultTime.toISOString().split('T')[0],
+          programId: program?.id || ''
         });
+
+        if (clientId) {
+          fetchClientPrograms(clientId);
+        }
       }
     }
   }, [isOpen, selectedDate, workout, program, clientId]);
+
+  // Загружаем программы, назначенные клиенту
+  const fetchClientPrograms = async (clientId: string) => {
+    try {
+      setProgramLoading(true);
+      const { data, error } = await supabase
+        .from('client_programs')
+        .select(`
+          program_id,
+          training_programs (
+            id, 
+            title,
+            description
+          )
+        `)
+        .eq('client_id', clientId)
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      const formattedPrograms = data
+        ?.filter(item => item.training_programs) // убедимся, что программа существует
+        .map(item => ({
+          id: item.training_programs.id,
+          title: item.training_programs.title,
+          description: item.training_programs.description,
+          exercises: [] // мы не загружаем упражнения здесь для оптимизации
+        })) || [];
+
+      setClientPrograms(formattedPrograms);
+
+      // Автоматически выбираем программу, если она всего одна
+      if (formattedPrograms.length === 1 && !formData.programId) {
+        updateFormWithProgram(formattedPrograms[0].id);
+      }
+
+      // Показываем предупреждение, если нет доступных программ
+      setShowProgramWarning(formattedPrograms.length === 0);
+    } catch (error: any) {
+      console.error('Error fetching client programs:', error);
+    } finally {
+      setProgramLoading(false);
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -118,6 +186,80 @@ export function WorkoutModal({
     } catch (error: any) {
       toast.error('Ошибка при загрузке списка клиентов');
       console.error('Error fetching clients:', error);
+    }
+  };
+
+  const fetchPrograms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('training_programs')
+        .select(`
+          id,
+          title,
+          description,
+          program_exercises (
+            id,
+            exercise_order,
+            notes,
+            strength_exercises (
+              id,
+              name,
+              description
+            ),
+            exercise_sets (
+              set_number,
+              reps,
+              weight
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedPrograms = data?.map(program => ({
+        id: program.id,
+        title: program.title,
+        description: program.description,
+        exercises: (program.program_exercises || [])
+          .sort((a, b) => a.exercise_order - b.exercise_order)
+          .map(ex => ({
+            id: ex.strength_exercises.id,
+            name: ex.strength_exercises.name,
+            description: ex.strength_exercises.description,
+            notes: ex.notes,
+            sets: (ex.exercise_sets || [])
+              .sort((a, b) => a.set_number - b.set_number)
+              .map(set => ({
+                set_number: set.set_number,
+                reps: set.reps,
+                weight: set.weight
+              }))
+          }))
+      })) || [];
+
+      setPrograms(formattedPrograms);
+    } catch (error: any) {
+      console.error('Error fetching programs:', error);
+      toast.error('Ошибка при загрузке программ тренировок');
+    }
+  };
+
+  // Обновляем форму при выборе программы
+  const updateFormWithProgram = (programId: string) => {
+    // Найти программу из всех программ или программ клиента
+    const program = [...programs, ...clientPrograms].find(p => p.id === programId);
+    if (program) {
+      setFormData({
+        ...formData,
+        programId: programId,
+        title: `Тренировка: ${program.title}`
+      });
+    } else {
+      setFormData({
+        ...formData,
+        programId: programId
+      });
     }
   };
 
@@ -149,15 +291,32 @@ export function WorkoutModal({
         throw new Error(`Тренировка должна закончиться до ${WORKING_HOURS.end}:00`);
       }
 
+      const workoutData = {
+        client_id: formData.clientId,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        title: formData.title || 'Персональная тренировка',
+        training_program_id: formData.programId || null
+      };
+
+      // Проверка наличия программы и отображение предупреждения
+      if (!formData.programId) {
+        const confirmNoProgram = window.confirm(
+          'Вы не выбрали программу тренировок. Продолжить без программы?'
+        );
+        if (!confirmNoProgram) {
+          setLoading(false);
+          return;
+        }
+      }
+
       if (workout) {
         // Update existing workout
         const { error: updateError } = await supabase
           .from('workouts')
           .update({
-            client_id: formData.clientId,
-            start_time: startDateTime.toISOString(),
-            end_time: endDateTime.toISOString(),
-            title: formData.title || 'Персональная тренировка',
+            ...workoutData,
+            trainer_id: user.id
           })
           .eq('id', workout.id);
 
@@ -168,11 +327,8 @@ export function WorkoutModal({
         const { error: insertError } = await supabase
           .from('workouts')
           .insert({
-            client_id: formData.clientId,
-            trainer_id: user.id,
-            start_time: startDateTime.toISOString(),
-            end_time: endDateTime.toISOString(),
-            title: formData.title || 'Персональная тренировка',
+            ...workoutData,
+            trainer_id: user.id
           });
 
         if (insertError) throw insertError;
@@ -189,6 +345,11 @@ export function WorkoutModal({
     }
   };
 
+  const handleClientChange = (clientId: string) => {
+    setFormData({ ...formData, clientId });
+    fetchClientPrograms(clientId);
+  };
+
   if (!isOpen) return null;
 
   // Generate time options for the select
@@ -200,8 +361,11 @@ export function WorkoutModal({
     }
   }
 
+  // Определяем, какие программы показывать
+  const availablePrograms = clientPrograms.length > 0 ? clientPrograms : programs;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md relative">
         <button
           onClick={onClose}
@@ -222,7 +386,7 @@ export function WorkoutModal({
             <select
               required
               value={formData.clientId}
-              onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+              onChange={(e) => handleClientChange(e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={!!clientId}
             >
@@ -233,6 +397,44 @@ export function WorkoutModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Блок программы с визуальным выделением */}
+          <div className="border-2 border-orange-100 rounded-lg p-4 bg-orange-50">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Программа тренировки
+            </label>
+            {programLoading ? (
+              <div className="py-2 text-sm text-gray-500">Загрузка программ...</div>
+            ) : (
+              <>
+                {showProgramWarning && (
+                  <div className="flex items-start gap-2 mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-yellow-700">
+                      У клиента нет активных программ тренировок. Пожалуйста, создайте программу тренировок для клиента 
+                      перед планированием тренировки или выберите программу из общего списка.
+                    </p>
+                  </div>
+                )}
+                <select
+                  value={formData.programId}
+                  onChange={(e) => updateFormWithProgram(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="">Выберите программу</option>
+                  {availablePrograms.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.title}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center mt-1 text-xs text-gray-500">
+                  <Info className="w-3 h-3 mr-1" />
+                  Программа тренировки будет доступна клиенту
+                </div>
+              </>
+            )}
           </div>
 
           <div>
@@ -297,13 +499,20 @@ export function WorkoutModal({
             </select>
           </div>
 
-          {program && (
+          {formData.programId && (
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
               <h3 className="font-medium text-gray-700 mb-2">Упражнения:</h3>
               <ul className="list-disc list-inside text-sm text-gray-600">
-                {program.exercises.map((exercise, index) => (
-                  <li key={index}>{exercise.name}</li>
-                ))}
+                {programs
+                  .find(p => p.id === formData.programId)
+                  ?.exercises.map((exercise, index) => (
+                    <li key={index}>{exercise.name}</li>
+                  ))}
+                {clientPrograms
+                  .find(p => p.id === formData.programId)
+                  ?.exercises.map((exercise, index) => (
+                    <li key={index}>{exercise.name}</li>
+                  ))}
               </ul>
             </div>
           )}

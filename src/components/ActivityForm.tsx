@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Activity, Heart, Moon, Droplets, Smile, Clock, Plus, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, Heart, Moon, Smile, Clock, Plus, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -7,13 +7,14 @@ import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 
 interface ActivityEntry {
+  id?: string;
   activity_type: string;
   duration_minutes: number;
 }
 
 interface DailyStatsData {
   sleep_hours: number;
-  water_ml: number;
+  water_ml: number; // Оставляем в интерфейсе, но скрываем в UI
   mood: 'great' | 'good' | 'neutral' | 'bad' | 'terrible';
   stress_level: number;
   notes: string;
@@ -37,13 +38,100 @@ export function ActivityForm() {
   }]);
   const [dailyStats, setDailyStats] = useState<DailyStatsData>({
     sleep_hours: 0,
-    water_ml: 0,
+    water_ml: 0, // По умолчанию ставим 0, но в UI это поле будет скрыто
     mood: 'neutral',
     stress_level: 5,
     notes: ''
   });
   const [loading, setLoading] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [existingStatsId, setExistingStatsId] = useState<string | null>(null);
+  const [existingActivities, setExistingActivities] = useState<ActivityEntry[]>([]);
+
+  useEffect(() => {
+    // Проверяем, есть ли уже данные за сегодня
+    checkExistingStats();
+  }, []);
+
+  const checkExistingStats = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        toast.error('Пожалуйста, войдите в систему');
+        navigate('/login');
+        return;
+      }
+
+      // Get client profile
+      const { data: clients, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user?.id);
+
+      if (clientError) throw clientError;
+
+      if (!clients || clients.length === 0) {
+        toast.error('Профиль клиента не найден');
+        return;
+      }
+
+      const clientId = clients[0].id;
+      const today = new Date().toISOString().split('T')[0];
+
+      // 1. Проверяем, есть ли уже запись за сегодня в client_daily_stats
+      const { data: existingStats, error: statsError } = await supabase
+        .from('client_daily_stats')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('date', today)
+        .single();
+
+      if (statsError) {
+        if (statsError.code !== 'PGRST116') { // Not found
+          console.error("Ошибка при поиске статистики:", statsError);
+        }
+        // Если запись не найдена, продолжаем с пустыми данными
+      } else if (existingStats) {
+        // Если запись найдена, загружаем данные
+        setExistingStatsId(existingStats.id);
+        setDailyStats({
+          sleep_hours: existingStats.sleep_hours,
+          water_ml: existingStats.water_ml,
+          mood: existingStats.mood,
+          stress_level: existingStats.stress_level,
+          notes: existingStats.notes || ''
+        });
+      }
+
+      // 2. Отдельно получаем существующие активности
+      const { data: activities, error: activitiesError } = await supabase
+        .from('client_activities')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('date', today);
+
+      if (activitiesError) {
+        console.error("Ошибка при загрузке активностей:", activitiesError);
+      } else if (activities && activities.length > 0) {
+        // Сохраняем существующие активности
+        const existingActs = activities.map(activity => ({
+          id: activity.id,
+          activity_type: activity.activity_type,
+          duration_minutes: activity.duration_minutes
+        }));
+        setExistingActivities(existingActs);
+        
+        // Для формы показываем новую пустую активность
+        setActivities([{
+          activity_type: '',
+          duration_minutes: 30
+        }]);
+      }
+    } catch (error: any) {
+      console.error('Error checking existing stats:', error);
+      toast.error('Ошибка при загрузке данных');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,54 +161,104 @@ export function ActivityForm() {
       const clientId = clients[0].id;
       const today = new Date().toISOString().split('T')[0];
 
-      // First, delete any existing activities for today
-      const { error: deleteError } = await supabase
-        .from('client_activities')
-        .delete()
-        .eq('client_id', clientId)
-        .eq('date', today);
-
-      if (deleteError) throw deleteError;
-
       // Insert or update daily stats using upsert
-      const { error: statsError } = await supabase
-        .from('client_daily_stats')
-        .upsert({
-          client_id: clientId,
-          date: today,
-          ...dailyStats
+      let statsId = existingStatsId;
+      
+      // Если у нас есть ID существующей записи, обновляем её
+      if (existingStatsId) {
+        const { data: updatedStats, error: updateError } = await supabase
+          .from('client_daily_stats')
+          .update({
+            sleep_hours: dailyStats.sleep_hours,
+            water_ml: dailyStats.water_ml, // Сохраняем значение, даже если поле скрыто в UI
+            mood: dailyStats.mood,
+            stress_level: dailyStats.stress_level,
+            notes: dailyStats.notes
+          })
+          .eq('id', existingStatsId)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        statsId = updatedStats.id;
+      } 
+      // Иначе создаем новую запись
+      else {
+        const { data: newStats, error: insertError } = await supabase
+          .from('client_daily_stats')
+          .insert({
+            client_id: clientId,
+            date: today,
+            sleep_hours: dailyStats.sleep_hours,
+            water_ml: dailyStats.water_ml, // Сохраняем значение, даже если поле скрыто в UI
+            mood: dailyStats.mood,
+            stress_level: dailyStats.stress_level,
+            notes: dailyStats.notes
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        statsId = newStats.id;
+      }
+
+      // Обработка активностей
+      // Фильтруем только валидные активности из формы
+      const validActivities = activities.filter(a => a.activity_type && a.duration_minutes > 0);
+      
+      if (validActivities.length > 0) {
+        // Создаем объект для группировки активностей по типу
+        const activityMap = new Map<string, number>();
+        
+        // Сначала добавляем существующие активности в карту
+        existingActivities.forEach(activity => {
+          const currentDuration = activityMap.get(activity.activity_type) || 0;
+          activityMap.set(activity.activity_type, currentDuration + activity.duration_minutes);
         });
-
-      if (statsError) throw statsError;
-
-      // Insert new activities
-      const activitiesData = activities
-        .filter(a => a.activity_type && a.duration_minutes > 0)
-        .map(activity => ({
+        
+        // Затем добавляем новые активности
+        validActivities.forEach(activity => {
+          const currentDuration = activityMap.get(activity.activity_type) || 0;
+          activityMap.set(activity.activity_type, currentDuration + activity.duration_minutes);
+        });
+        
+        // Удаляем старые активности
+        if (existingActivities.length > 0) {
+          const existingIds = existingActivities.map(a => a.id).filter(id => id !== undefined);
+          
+          if (existingIds.length > 0) {
+            const { error: deleteError } = await supabase
+              .from('client_activities')
+              .delete()
+              .in('id', existingIds as string[]);
+            
+            if (deleteError) throw deleteError;
+          }
+        }
+        
+        // Создаем новые записи на основе сгруппированных данных
+        const newActivities = Array.from(activityMap.entries()).map(([type, duration]) => ({
           client_id: clientId,
           date: today,
-          ...activity
+          activity_type: type,
+          duration_minutes: duration
         }));
-
-      if (activitiesData.length > 0) {
-        const { error: activitiesError } = await supabase
+        
+        // Вставляем новые записи
+        const { error: insertError } = await supabase
           .from('client_activities')
-          .insert(activitiesData);
-
-        if (activitiesError) throw activitiesError;
+          .insert(newActivities);
+        
+        if (insertError) throw insertError;
       }
 
       toast.success('Активность сохранена');
       
-      // Reset form
+      // Обновляем данные
+      checkExistingStats();
+      
+      // Сбрасываем форму для новой активности
       setActivities([{ activity_type: '', duration_minutes: 30 }]);
-      setDailyStats({
-        sleep_hours: 0,
-        water_ml: 0,
-        mood: 'neutral',
-        stress_level: 5,
-        notes: ''
-      });
     } catch (error: any) {
       console.error('Error saving activity:', error);
       toast.error('Ошибка при сохранении активности');
@@ -163,6 +301,19 @@ export function ActivityForm() {
     if (level <= 8) return 'Высокий';
     return 'Максимальный';
   };
+  
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    if (hours === 0) {
+      return `${minutes} мин`;
+    } else if (remainingMinutes === 0) {
+      return `${hours} ч`;
+    } else {
+      return `${hours} ч ${remainingMinutes} мин`;
+    }
+  };
 
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
@@ -193,9 +344,30 @@ export function ActivityForm() {
       <div className="p-2 md:p-4">
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-6">
           <div className="flex items-center justify-between mb-4 md:mb-6">
-            <h2 className="text-lg md:text-xl font-semibold">Добавить активность</h2>
+            <h2 className="text-lg md:text-xl font-semibold">
+              {existingStatsId ? 'Редактировать активность' : 'Добавить активность'}
+            </h2>
             <Activity className="w-5 h-5 md:w-6 md:h-6 text-gray-400" />
           </div>
+          
+          {/* Существующие активности за сегодня */}
+          {existingActivities.length > 0 && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Уже добавлено сегодня:</h3>
+              <div className="space-y-2">
+                {existingActivities.map((activity, idx) => (
+                  <div key={idx} className="flex items-center bg-white p-2 rounded border border-gray-200">
+                    <Activity className="w-4 h-4 text-orange-500 mr-2" />
+                    <span className="flex-1">{activity.activity_type}</span>
+                    <span className="text-sm text-gray-500">{formatDuration(activity.duration_minutes)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                Новые активности того же типа будут суммированы с существующими
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
             {/* Activities Section */}
@@ -291,23 +463,7 @@ export function ActivityForm() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Количество воды (мл)
-                  </label>
-                  <div className="relative">
-                    <Droplets className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5" />
-                    <input
-                      type="number"
-                      min="0"
-                      step="100"
-                      value={dailyStats.water_ml}
-                      onChange={(e) => setDailyStats({ ...dailyStats, water_ml: parseInt(e.target.value) || 0 })}
-                      className="w-full pl-9 md:pl-10 pr-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      placeholder="2000"
-                    />
-                  </div>
-                </div>
+                {/* Поле для воды скрыто */}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -373,7 +529,7 @@ export function ActivityForm() {
               disabled={loading}
               className="w-full bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 text-sm md:text-base"
             >
-              {loading ? 'Сохранение...' : 'Сохранить активность'}
+              {loading ? 'Сохранение...' : (existingStatsId ? 'Обновить активность' : 'Сохранить активность')}
             </button>
           </form>
         </div>

@@ -24,13 +24,14 @@ export function ProgressPhotosView() {
 
   const fetchPhotos = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       // Get client profile
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
-        .select('id, photo_url')
+        .select('id')
         .eq('user_id', user.id)
         .single();
 
@@ -47,53 +48,51 @@ export function ProgressPhotosView() {
 
       if (storageError) throw storageError;
 
-      // Filter files for this client and get their URLs
-      const clientPhotos = files
-        ?.filter(file => file.name.startsWith(clientData.id))
-        .map(file => {
-          const { data: { publicUrl } } = supabase.storage
-            .from('client-photos')
-            .getPublicUrl(`progress-photos/${file.name}`);
-
-          // Extract timestamp from filename (format: clientId-timestamp-uuid.ext)
-          const parts = file.name.split('-');
-          if (parts.length >= 2) {
-            const timestamp = parseInt(parts[1]);
-            if (!isNaN(timestamp)) {
-              const date = new Date(timestamp);
-              return {
-                url: publicUrl,
-                filename: file.name,
-                date: date.toLocaleString('ru-RU', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              };
-            }
+      // Get and process all files
+      const clientPhotos = [];
+      
+      for (const file of files || []) {
+        // Получаем URL для каждого файла независимо от формата имени
+        const { data } = supabase.storage
+          .from('client-photos')
+          .getPublicUrl(`progress-photos/${file.name}`);
+        
+        const publicUrl = data.publicUrl;
+        
+        // Используем дату создания файла вместо парсинга имени
+        const date = new Date();
+        
+        // Если есть временная метка в имени файла, пробуем её использовать
+        // Современный формат: clientId-timestamp-uuid.ext
+        const timestampRegex = /-(\d+)-/;
+        const match = file.name.match(timestampRegex);
+        
+        if (match && match[1]) {
+          const timestamp = parseInt(match[1]);
+          if (!isNaN(timestamp)) {
+            date.setTime(timestamp);
           }
-
-          // Get current server timestamp for files without valid timestamp
-          return {
-            url: publicUrl,
-            filename: file.name,
-            date: new Date().toLocaleString('ru-RU', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })
-          };
-        })
-        .sort((a, b) => {
-          // Sort by date in descending order (newest first)
-          const dateA = new Date(a.date.split(',')[0].split('.').reverse().join('-'));
-          const dateB = new Date(b.date.split(',')[0].split('.').reverse().join('-'));
-          return dateB.getTime() - dateA.getTime();
-        }) || [];
+        }
+        
+        clientPhotos.push({
+          url: publicUrl,
+          filename: file.name,
+          date: date.toLocaleString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        });
+      }
+      
+      // Sort photos by date (newest first)
+      clientPhotos.sort((a, b) => {
+        const dateA = new Date(a.date.split(',')[0].split('.').reverse().join('-'));
+        const dateB = new Date(b.date.split(',')[0].split('.').reverse().join('-'));
+        return dateB.getTime() - dateA.getTime();
+      });
 
       setPhotos(clientPhotos);
     } catch (error: any) {
@@ -116,7 +115,6 @@ export function ProgressPhotosView() {
 
       if (error) throw error;
 
-      // Update local state to remove the deleted photo
       setPhotos(photos => photos.filter(photo => photo.filename !== filename));
       toast.success('Фото удалено');
     } catch (error: any) {
@@ -138,7 +136,7 @@ export function ProgressPhotosView() {
         navigate('/client/measurements/new');
         break;
       case 'nutrition':
-        navigate('/client/nutrition/new');
+        navigate('/client/nutrition');
         break;
     }
   };
@@ -156,7 +154,7 @@ export function ProgressPhotosView() {
         <div className="bg-white rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Фото прогресса</h2>
-            <Calendar className="w-5 h-5 text-gray-400" />
+            <Camera className="w-5 h-5 text-gray-400" />
           </div>
 
           {loading ? (
@@ -183,7 +181,8 @@ export function ProgressPhotosView() {
                     <img
                       src={photo.url}
                       alt={`Progress photo ${photo.date}`}
-                      className="w-full rounded-lg"
+                      className="w-full h-[300px] object-contain rounded-lg"
+                      loading="lazy"
                     />
                   </div>
                 </div>
