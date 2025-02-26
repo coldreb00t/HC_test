@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Share2, Download, Camera, Copy, Instagram, Facebook, Twitter, Send } from 'lucide-react';
+import { X, Share2, Download, Copy, Instagram, Send } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import toast from 'react-hot-toast';
 
@@ -108,39 +108,42 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
     }
   };
 
+  // Улучшенная функция для Instagram Stories
   const handleInstagramShare = () => {
     if (!shareableImage) return;
 
-    // Для Instagram рекомендуется использовать Stories API, но здесь просто скопируем изображение
-    handleCopyImage();
-    toast('Изображение скопировано! Теперь вы можете вставить его в Instagram Stories', {
-      icon: '📱',
-      duration: 4000
+    // Проверяем, есть ли у пользователя приложение Instagram
+    // URL для открытия Instagram Stories
+    const instagramURL = `instagram://story`;
+    
+    // Сначала пробуем копировать изображение в буфер обмена
+    handleCopyImage().then(() => {
+      // Затем пробуем открыть Instagram
+      window.location.href = instagramURL;
+      
+      // Показываем подсказку
+      toast('Изображение скопировано! Вставьте его в Instagram Stories', {
+        icon: '📱',
+        duration: 5000
+      });
     });
   };
 
-  const handleFacebookShare = () => {
-    // Facebook требует URL для шеринга, поэтому мы не можем напрямую поделиться изображением
-    // Альтернативный вариант - скопировать изображение
-    handleCopyImage();
-    toast('Изображение скопировано! Теперь вы можете вставить его в пост Facebook', {
-      icon: '📱',
-      duration: 4000
-    });
-  };
-
-  const handleTwitterShare = () => {
-    const text = `Мое достижение в фитнесе: ${achievement.title} - ${achievement.value}!`;
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
+  // Улучшенная функция для Telegram
   const handleTelegramShare = () => {
     if (!shareableImage) return;
 
-    handleCopyImage();
-    toast('Изображение скопировано! Откройте Telegram, нажмите на камеру в верхней части экрана и вставьте изображение из буфера обмена для добавления в Stories', {
-      icon: '📱',
-      duration: 5000
+    // Телеграм не открывает stories напрямую, но можно сделать кроссплатформенное решение
+    // 1. Копируем изображение в буфер обмена
+    handleCopyImage().then(() => {
+      // 2. Пробуем открыть Telegram
+      window.location.href = 'https://t.me/share/url?url=hardcase.app&text=Мое%20достижение%20в%20HARDCASE';
+      
+      // 3. Показываем инструкцию
+      toast('Изображение скопировано! Вставьте его в сообщение Telegram', {
+        icon: '✉️',
+        duration: 5000
+      });
     });
   };
 
@@ -213,34 +216,20 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
               
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Поделиться в соцсетях</h3>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Кнопка для Instagram Stories */}
                   <button 
                     onClick={handleInstagramShare}
-                    className="flex flex-col items-center justify-center gap-1 p-3 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
+                    className="flex flex-col items-center justify-center gap-1 p-4 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
                   >
                     <Instagram className="w-6 h-6" />
-                    <span className="text-xs">Instagram</span>
+                    <span className="text-xs">Instagram Stories</span>
                   </button>
                   
-                  <button 
-                    onClick={handleFacebookShare}
-                    className="flex flex-col items-center justify-center gap-1 p-3 bg-blue-600 text-white rounded-lg hover:opacity-90 transition-opacity"
-                  >
-                    <Facebook className="w-6 h-6" />
-                    <span className="text-xs">Facebook</span>
-                  </button>
-                  
-                  <button 
-                    onClick={handleTwitterShare}
-                    className="flex flex-col items-center justify-center gap-1 p-3 bg-blue-400 text-white rounded-lg hover:opacity-90 transition-opacity"
-                  >
-                    <Twitter className="w-6 h-6" />
-                    <span className="text-xs">Twitter</span>
-                  </button>
-
+                  {/* Кнопка для Telegram */}
                   <button 
                     onClick={handleTelegramShare}
-                    className="flex flex-col items-center justify-center gap-1 p-3 bg-sky-500 text-white rounded-lg hover:opacity-90 transition-opacity"
+                    className="flex flex-col items-center justify-center gap-1 p-4 bg-blue-500 text-white rounded-lg hover:opacity-90 transition-opacity"
                   >
                     <Send className="w-6 h-6" />
                     <span className="text-xs">Telegram</span>
