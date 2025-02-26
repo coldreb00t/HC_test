@@ -131,12 +131,12 @@ export function AuthForm() {
         `}
       </style>
 
-      <div className="min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url(/src/data/HardCase_phostyle_7.png)` }}>
+      <div className="min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url(/HardCase_phostyle_7.png)` }}>
         <div className="flex flex-col items-center justify-center p-4 min-h-screen">
           {/* Логотип в центре сверху */}
           <div className="mb-8">
             <img
-              src="/src/data/HardCase_Logo.png"
+              src="/HardCase_Logo.png"
               alt="HARD CASE Logo"
               className="w-65 mx-auto"
             />
