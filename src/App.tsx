@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthForm } from './components/AuthForm';
 import { ClientDashboard } from './components/ClientDashboard';
 import { ClientWorkoutsView } from './components/ClientWorkoutsView';
-import { WorkoutDetailsView } from './components/WorkoutDetailsView'; // Import the new component
+import { WorkoutDetailsView } from './components/WorkoutDetailsView';
 import { PhotoUploadView } from './components/PhotoUploadView';
 import { ProgressPhotosView } from './components/ProgressPhotosView';
 import { MeasurementsUploadView } from './components/MeasurementsUploadView';
@@ -15,6 +15,7 @@ import { ClientProfile } from './components/ClientProfile';
 import { ExercisesView } from './components/ExercisesView';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ActivityForm } from './components/ActivityForm';
+import { AchievementsView } from './components/AchievementsView';
 
 function App() {
   return (
@@ -73,6 +74,11 @@ function App() {
         <Route path="/client/activity/new" element={
           <ProtectedRoute allowedRole="client">
             <ActivityForm />
+          </ProtectedRoute>
+        } />
+        <Route path="/client/achievements" element={
+          <ProtectedRoute allowedRole="client">
+            <AchievementsView />
           </ProtectedRoute>
         } />
 

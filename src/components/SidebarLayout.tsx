@@ -15,6 +15,7 @@ interface SidebarLayoutProps {
   backTo?: string;
   onBack?: () => void;
   variant?: 'sidebar' | 'bottom';
+  customHeader?: React.ReactNode;
 }
 
 export function SidebarLayout({ 
@@ -22,7 +23,8 @@ export function SidebarLayout({
   menuItems, 
   backTo, 
   onBack,
-  variant = 'sidebar' 
+  variant = 'sidebar',
+  customHeader
 }: SidebarLayoutProps) {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -65,41 +67,45 @@ export function SidebarLayout({
     return (
       <div className="min-h-screen bg-gray-100 pb-16">
         {/* Header */}
-        <div className="bg-white shadow-sm">
-          <div className="px-4 py-3 flex justify-between items-center">
-            {backTo && (
-              <button 
-                onClick={handleBack}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </button>
-            )}
-            <div className="flex-1 text-center">
-              <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
-            </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <User className="w-5 h-5 text-gray-600" />
-              </button>
-              
-              {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Выйти
-                  </button>
-                </div>
+        {customHeader ? (
+          customHeader
+        ) : (
+          <div className="bg-white shadow-sm">
+            <div className="px-4 py-3 flex justify-between items-center">
+              {backTo && (
+                <button 
+                  onClick={handleBack}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
               )}
+              <div className="flex-1 text-center">
+                <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+                >
+                  <User className="w-5 h-5 text-gray-600" />
+                </button>
+                
+                {showProfileMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Выйти
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Main content */}
         <div className="p-4">
@@ -132,40 +138,44 @@ export function SidebarLayout({
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Mobile header */}
-      <div className="lg:hidden flex items-center justify-between p-4 bg-white shadow-sm">
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-2 hover:bg-gray-50 rounded-lg"
-          style={iconWrapperStyle}
-        >
-          {isSidebarOpen 
-            ? <X className="w-6 h-6" style={iconStyle} /> 
-            : <Menu className="w-6 h-6" style={iconStyle} />}
-        </button>
-        <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
-        </div>
-        <div className="relative">
+      {customHeader ? (
+        customHeader
+      ) : (
+        <div className="lg:hidden flex items-center justify-between p-4 bg-white shadow-sm">
           <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 hover:bg-gray-50 rounded-lg"
+            style={iconWrapperStyle}
           >
-            <User className="w-5 h-5 text-gray-600" />
+            {isSidebarOpen 
+              ? <X className="w-6 h-6" style={iconStyle} /> 
+              : <Menu className="w-6 h-6" style={iconStyle} />}
           </button>
-          
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
-              <button
-                onClick={handleLogout}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Выйти
-              </button>
-            </div>
-          )}
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+            >
+              <User className="w-5 h-5 text-gray-600" />
+            </button>
+            
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Выйти
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Sidebar */}
       <div className={`fixed top-0 left-0 w-64 h-full bg-white shadow-lg transition-transform duration-300 ease-in-out z-50

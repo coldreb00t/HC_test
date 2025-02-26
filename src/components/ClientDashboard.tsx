@@ -14,7 +14,10 @@ import {
   Calendar,
   Moon,
   Droplets,
-  Home
+  Home,
+  User,
+  LogOut,
+  TrendingUp
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -67,6 +70,7 @@ export function ClientDashboard() {
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -141,6 +145,17 @@ export function ClientDashboard() {
       setLoading(false);
     }
   };
+  
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+      toast.error('Ошибка при выходе из системы');
+    }
+  };
 
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
@@ -205,10 +220,52 @@ export function ClientDashboard() {
     }
   ];
 
+  // Кастомный компонент топ-бара с добавленным дроп-даун меню
+  const CustomHeader = (
+    <div className="bg-white shadow-sm">
+      <div className="px-4 py-3 flex justify-between items-center">
+        <div className="flex-1 text-center">
+          <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
+        </div>
+        <div className="relative">
+          <button
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+          >
+            <User className="w-5 h-5 text-gray-600" />
+          </button>
+          
+          {showProfileMenu && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  navigate('/client/achievements');
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Достижения и прогресс
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Выйти
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <SidebarLayout
       menuItems={menuItems}
       variant="bottom"
+      customHeader={CustomHeader}
     >
       {/* Full-screen Achievements Slider */}
       <div className="bg-white rounded-xl shadow-sm mb-4 overflow-hidden">
