@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { 
   Trophy, 
   TrendingUp, 
@@ -19,7 +20,6 @@ import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
 
 interface ClientData {
   id: string;
@@ -46,8 +46,8 @@ interface WorkoutStats {
   totalExercises: number;
   totalSets: number;
   totalVolume: number; // в кг
-  favoriteExercises: { name: string; count: number }[];
-  workoutsPerMonth: { month: string; count: number }[];
+  favoriteExercises: {name: string, count: number}[];
+  workoutsPerMonth: {month: string, count: number}[];
   completionRate: number;
   streakDays: number;
 }
@@ -60,10 +60,10 @@ interface ProgressPhoto {
 interface ActivityStats {
   totalActivities: number;
   totalDuration: number; // в минутах
-  typesDistribution: { type: string; duration: number }[];
+  typesDistribution: {type: string, duration: number}[];
   averageSleep: number;
   averageStress: number;
-  moodDistribution: { mood: string; count: number }[];
+  moodDistribution: {mood: string, count: number}[];
 }
 
 interface NutritionStats {
@@ -86,10 +86,10 @@ export function AchievementsView() {
   const [nutritionStats, setNutritionStats] = useState<NutritionStats | null>(null);
   const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto | null>(null);
   const [lastPhoto, setLastPhoto] = useState<ProgressPhoto | null>(null);
-  const [achievements, setAchievements] = useState<{ title: string; description: string; icon: React.ReactNode; achieved: boolean; value?: string }[]>([]);
+  const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition'>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedAchievement, setSelectedAchievement] = useState<{ title: string; description: string; icon: React.ReactNode; value: string } | null>(null);
+  const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
 
   useEffect(() => {
     fetchClientData();
@@ -196,7 +196,7 @@ export function AchievementsView() {
 
       if (namesError) throw namesError;
 
-      // Расчет статистики
+      // Расчет базовых метрик
       const totalWorkouts = workouts?.length || 0;
       const completedWorkouts = completions?.filter(c => c.completed).length || 0;
       const completionRate = totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0;
@@ -208,7 +208,7 @@ export function AchievementsView() {
       // Подсчет общего количества подходов
       const totalSets = exerciseCompletions?.reduce((sum, ec) => sum + (ec.completed_sets?.length || 0), 0) || 0;
 
-      // Подсчет общего объема нагрузки (вес × повторения × подходы)
+      // Подсчет общего объема нагрузки (вес × повторения)
       const totalVolume = exerciseSets?.reduce((sum, set) => {
         const reps = parseInt(set.reps) || 0;
         const weight = parseFloat(set.weight) || 0;
@@ -275,7 +275,6 @@ export function AchievementsView() {
       setWorkoutStats(stats);
     } catch (error) {
       console.error('Error fetching workout stats:', error);
-      toast.error('Ошибка при загрузке статистики тренировок');
     }
   };
 
@@ -418,8 +417,8 @@ export function AchievementsView() {
         title: "Первые шаги",
         description: "Завершена первая тренировка",
         icon: <Dumbbell className="w-5 h-5 text-orange-500" />,
-        achieved: workoutStats ? workoutStats.completedWorkouts > 0 : false,
-        value: workoutStats && workoutStats.completedWorkouts > 0 ? "Достигнуто!" : "Не выполнено"
+        achieved: true,
+        value: "Достигнуто!"
       },
       {
         title: "Регулярность",
@@ -448,20 +447,13 @@ export function AchievementsView() {
         icon: <LineChart className="w-5 h-5 text-orange-500" />,
         achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false,
         value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней"
-      },
-      {
-        title: "Стабильность",
-        description: "Серия тренировок 7 дней подряд",
-        icon: <Target className="w-5 h-5 text-orange-500" />,
-        achieved: workoutStats ? workoutStats.streakDays >= 7 : false,
-        value: workoutStats ? `${workoutStats.streakDays}/7 дней` : "0/7 дней"
       }
     ];
 
     setAchievements(achievementsList);
   };
-
-  const handleShareAchievement = (achievement: { title: string; description: string; icon: React.ReactNode; achieved: boolean; value?: string }) => {
+  
+  const handleShareAchievement = (achievement: {title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}) => {
     if (!achievement.achieved) {
       toast.error('Вы еще не достигли этой цели');
       return;
@@ -476,7 +468,7 @@ export function AchievementsView() {
     setShowShareModal(true);
   };
 
-  const getMeasurementChange = (field: string): { value: number; percent: number; direction: 'up' | 'down' | 'none' } => {
+  const getMeasurementChange = (field: string): { value: number, percent: number, direction: 'up' | 'down' | 'none' } => {
     if (measurements.length < 2) {
       return { value: 0, percent: 0, direction: 'none' };
     }
@@ -545,7 +537,7 @@ export function AchievementsView() {
           </div>
           <div className="flex justify-between items-center mt-2">
             <div className={`text-xs font-medium ${achievement.achieved ? 'text-orange-500' : 'text-gray-400'}`}>
-              {achievement.value}
+              {achievement.achieved ? 'Достигнуто' : 'В процессе'}
             </div>
             {achievement.achieved && (
               <button
@@ -700,22 +692,6 @@ export function AchievementsView() {
             <div className="text-2xl font-bold text-blue-500">{workoutStats?.completionRate.toFixed(0) || 0}%</div>
             <div className="text-sm text-gray-600">Процент завершения</div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-purple-500">{workoutStats?.totalExercises || 0}</div>
-            <div className="text-sm text-gray-600">Уникальных упражнений</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-teal-500">{workoutStats?.totalSets || 0}</div>
-            <div className="text-sm text-gray-600">Всего подходов</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-indigo-500">{Math.round(workoutStats?.totalVolume || 0)} кг</div>
-            <div className="text-sm text-gray-600">Общий объем</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-yellow-500">{workoutStats?.streakDays || 0}</div>
-            <div className="text-sm text-gray-600">Дней в серии</div>
-          </div>
         </div>
         
         {workoutStats?.workoutsPerMonth && workoutStats.workoutsPerMonth.length > 0 && (
@@ -740,20 +716,6 @@ export function AchievementsView() {
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {workoutStats?.favoriteExercises && workoutStats.favoriteExercises.length > 0 && (
-          <div className="mt-6">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Любимые упражнения</h4>
-            <div className="space-y-2">
-              {workoutStats.favoriteExercises.map((exercise, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span>{exercise.name}</span>
-                  <span className="text-gray-600">{exercise.count} раз</span>
-                </div>
-              ))}
             </div>
           </div>
         )}
