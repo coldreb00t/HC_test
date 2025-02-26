@@ -71,6 +71,15 @@ export function ClientDashboard() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // Состояния для обработки свайпа
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+
+  // Минимальное расстояние свайпа для смены слайда (в пикселях)
+  const minSwipeDistance = 50;
 
   useEffect(() => {
     fetchDashboardData();
@@ -175,6 +184,50 @@ export function ClientDashboard() {
     }
   };
 
+  // Обработчики свайпа
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+    setIsSwiping(true);
+    setSwipeOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+    
+    const currentPosition = e.targetTouches[0].clientX;
+    setTouchEnd(currentPosition);
+    
+    // Расчет смещения для анимации во время свайпа
+    const offset = currentPosition - touchStart;
+    setSwipeOffset(offset);
+  };
+
+  const handleTouchEnd = () => {
+    setIsSwiping(false);
+    
+    if (!touchStart || !touchEnd) {
+      setSwipeOffset(0);
+      return;
+    }
+    
+    const distance = touchEnd - touchStart;
+    const isLeftSwipe = distance < -minSwipeDistance;
+    const isRightSwipe = distance > minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      // Свайп влево - следующий слайд
+      nextSlide();
+    } else if (isRightSwipe) {
+      // Свайп вправо - предыдущий слайд
+      prevSlide();
+    }
+    
+    // Сброс позиций касания
+    setTouchStart(null);
+    setTouchEnd(null);
+    setSwipeOffset(0);
+  };
+
   const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
 
   const nextSlide = () => {
@@ -267,12 +320,19 @@ export function ClientDashboard() {
       variant="bottom"
       customHeader={CustomHeader}
     >
-      {/* Full-screen Achievements Slider */}
+      {/* Full-screen Achievements Slider с поддержкой свайпа */}
       <div className="bg-white rounded-xl shadow-sm mb-4 overflow-hidden">
         <div className="relative h-[calc(85vh-16rem)]">
           <div 
             className="absolute inset-0 flex transition-transform duration-500 ease-in-out"
-            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+            style={{ 
+              transform: isSwiping 
+                ? `translateX(calc(-${currentSlide * 100}% + ${swipeOffset}px))` 
+                : `translateX(-${currentSlide * 100}%)`
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             {achievements.map((achievement, index) => (
               <div 
