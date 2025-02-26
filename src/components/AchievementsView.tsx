@@ -41,26 +41,26 @@ interface Measurement {
 }
 
 interface WorkoutStats {
-  totalWorkouts: number;
-  completedWorkouts: number;
-  totalExercises: number;
-  totalSets: number;
-  totalReps: number;
-  totalVolume: number; // в кг
-  currentMonthVolume: number;
-  previousMonthVolume: number;
-  currentMonthSets: number;
-  previousMonthSets: number;
-  currentMonthReps: number;
-  previousMonthReps: number;
-  volumeGrowth: number; // percentage
-  setsGrowth: number; // percentage
-  repsGrowth: number; // percentage
-  favoriteExercises: {name: string, count: number}[];
-  workoutsPerMonth: {month: string, count: number}[];
-  completionRate: number;
-  streakDays: number;
-}
+    totalWorkouts: number;
+    completedWorkouts: number;
+    totalExercises: number;
+    totalSets: number;
+    totalReps: number;
+    totalVolume: number; // in kg
+    currentMonthVolume: number;
+    previousMonthVolume: number;
+    currentMonthSets: number;
+    previousMonthSets: number;
+    currentMonthReps: number;
+    previousMonthReps: number;
+    volumeGrowth: number; // percentage
+    setsGrowth: number; // percentage
+    repsGrowth: number; // percentage
+    favoriteExercises: {name: string, count: number}[];
+    workoutsPerMonth: {month: string, count: number}[];
+    completionRate: number;
+    streakDays: number;
+  }
 
 interface ProgressPhoto {
   url: string;
@@ -178,29 +178,29 @@ export function AchievementsView() {
       // Start and end dates for previous month
       const previousMonthStart = new Date(previousYear, previousMonth, 1);
       const previousMonthEnd = new Date(previousYear, previousMonth + 1, 0);
-
+  
       // 1. Fetch all completed workouts
       const { data: workouts, error: workoutsError } = await supabase
         .from('workouts')
         .select('id, start_time, title, training_program_id')
         .eq('client_id', clientId);
-
+  
       if (workoutsError) throw workoutsError;
-
+  
       // 2. Get workout completions to determine which workouts were completed
       const { data: completions, error: completionsError } = await supabase
         .from('workout_completions')
         .select('*')
         .eq('client_id', clientId);
-
+  
       if (completionsError) throw completionsError;
-
+  
       // Filter completed workouts
       const completedWorkoutIds = completions
         ?.filter(c => c.completed)
         .map(c => c.workout_id) || [];
         
-      const completedWorkouts = workouts
+      const completedWorkoutsArray = workouts
         ?.filter(w => completedWorkoutIds.includes(w.id)) || [];
         
       // 3. Get all exercise completions for completed workouts
@@ -209,7 +209,7 @@ export function AchievementsView() {
         .select('*')
         .eq('client_id', clientId)
         .in('workout_id', completedWorkoutIds);
-
+  
       if (exerciseError) throw exerciseError;
       
       // 4. Get details for each exercise to calculate weight, sets, reps
@@ -225,7 +225,7 @@ export function AchievementsView() {
       let previousMonthReps = 0;
       
       // Process each completed workout
-      for (const workout of completedWorkouts) {
+      for (const workout of completedWorkoutsArray) {
         const workoutDate = new Date(workout.start_time);
         const isCurrentMonth = workoutDate >= currentMonthStart && workoutDate <= currentMonthEnd;
         const isPreviousMonth = workoutDate >= previousMonthStart && workoutDate <= previousMonthEnd;
@@ -305,7 +305,7 @@ export function AchievementsView() {
       const repsGrowth = previousMonthReps > 0 
         ? ((currentMonthReps - previousMonthReps) / previousMonthReps) * 100 
         : 0;
-
+  
       // Group workouts by month for the chart
       const workoutsByMonth: {[key: string]: number} = {};
       workouts?.forEach(workout => {
@@ -313,23 +313,23 @@ export function AchievementsView() {
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         workoutsByMonth[monthKey] = (workoutsByMonth[monthKey] || 0) + 1;
       });
-
+  
       const workoutsPerMonth = Object.entries(workoutsByMonth).map(([month, count]) => ({
         month,
         count
       })).sort((a, b) => a.month.localeCompare(b.month));
-
+  
       // Calculate other statistics
       const totalWorkouts = workouts?.length || 0;
-      const completedWorkouts = completedWorkoutIds.length;
-      const completionRate = totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0;
+      const completedWorkoutsCount = completedWorkoutIds.length; // Changed variable name here
+      const completionRate = totalWorkouts > 0 ? (completedWorkoutsCount / totalWorkouts) * 100 : 0;
       
       // TODO: Calculate favorite exercises (most often completed)
       // This would require additional queries to get exercise names
-
+  
       const stats: WorkoutStats = {
         totalWorkouts,
-        completedWorkouts,
+        completedWorkouts: completedWorkoutsCount, // Use the count here
         totalExercises: exerciseCompletions?.length || 0,
         totalSets,
         totalReps,
@@ -348,7 +348,7 @@ export function AchievementsView() {
         completionRate,
         streakDays: 0 // Placeholder for now
       };
-
+  
       setWorkoutStats(stats);
     } catch (error) {
       console.error('Error fetching workout stats:', error);
