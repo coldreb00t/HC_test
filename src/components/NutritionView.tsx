@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Apple, Plus, Trash2, Upload, X, Fire } from 'lucide-react';
+import { Apple, Plus, Trash2, Upload, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
@@ -17,7 +17,6 @@ interface NutritionEntry {
   proteins: number | null;
   fats: number | null;
   carbs: number | null;
-  calories: number | null; // Added calories field
   water: number | null;
   photos: string[];
 }
@@ -34,7 +33,6 @@ export function NutritionView() {
     proteins: null,
     fats: null,
     carbs: null,
-    calories: null, // Added calories field initialization
     water: null,
     photos: []
   });
@@ -49,7 +47,6 @@ export function NutritionView() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Get client ID
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('id')
@@ -152,7 +149,6 @@ export function NutritionView() {
         proteins: newEntry.proteins || 0,
         fats: newEntry.fats || 0,
         carbs: newEntry.carbs || 0,
-        calories: newEntry.calories || 0, // Added calories to saved data
         water: newEntry.water || 0
       };
 
@@ -206,7 +202,6 @@ export function NutritionView() {
         proteins: null,
         fats: null,
         carbs: null,
-        calories: null, // Reset calories field
         water: null,
         photos: []
       });
@@ -279,26 +274,6 @@ export function NutritionView() {
     });
   };
 
-  // Calculate calories from macros when they change
-  useEffect(() => {
-    if (newEntry.proteins !== null || newEntry.fats !== null || newEntry.carbs !== null) {
-      // Calories from macros: protein=4 kcal/g, carbs=4 kcal/g, fat=9 kcal/g
-      const proteinCalories = (newEntry.proteins || 0) * 4;
-      const carbCalories = (newEntry.carbs || 0) * 4;
-      const fatCalories = (newEntry.fats || 0) * 9;
-      
-      const calculatedCalories = proteinCalories + carbCalories + fatCalories;
-      
-      // Only auto-update if user hasn't manually set a value
-      if (newEntry.calories === null) {
-        setNewEntry(prev => ({
-          ...prev,
-          calories: calculatedCalories > 0 ? calculatedCalories : null
-        }));
-      }
-    }
-  }, [newEntry.proteins, newEntry.carbs, newEntry.fats]);
-
   const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
 
   return (
@@ -315,7 +290,7 @@ export function NutritionView() {
           </div>
 
           <form onSubmit={handleSubmit} className="mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Дата
@@ -367,22 +342,6 @@ export function NutritionView() {
                   step="1"
                   name="carbs"
                   value={newEntry.carbs === null ? '' : newEntry.carbs}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <Fire className="w-4 h-4 mr-1 text-orange-500" />
-                  Калории (ккал)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  name="calories"
-                  value={newEntry.calories === null ? '' : newEntry.calories}
                   onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   placeholder="0"
@@ -464,14 +423,10 @@ export function NutritionView() {
                   <div className="bg-gray-50 p-4 flex justify-between items-center">
                     <div>
                       <h3 className="font-medium">{new Date(entry.date).toLocaleDateString('ru-RU')}</h3>
-                      <div className="mt-1 text-sm text-gray-500 space-x-4 flex flex-wrap gap-2">
+                      <div className="mt-1 text-sm text-gray-500 space-x-4">
                         <span>Б: {entry.proteins}г</span>
                         <span>Ж: {entry.fats}г</span>
                         <span>У: {entry.carbs}г</span>
-                        <span className="flex items-center">
-                          <Fire className="w-3 h-3 mr-1 text-orange-500" />
-                          {entry.calories || (entry.proteins * 4 + entry.fats * 9 + entry.carbs * 4)} ккал
-                        </span>
                         <span>Вода: {entry.water}мл</span>
                       </div>
                     </div>
