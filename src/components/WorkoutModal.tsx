@@ -298,12 +298,18 @@ export function WorkoutModal({
       if (userError) throw userError;
       console.log('User from supabase.auth.getUser():', data);
 
-      if (!data || !data.user || !data.user.id) {
-        throw new Error('Не удалось получить идентификатор тренера. Пожалуйста, войдите в систему заново.');
+      // Проверка на наличие валидного trainerId
+      const trainerId = data?.user?.id;
+      if (!trainerId || typeof trainerId !== 'string' || trainerId.trim() === '') {
+        throw new Error('Не удалось определить идентификатор тренера. Пожалуйста, войдите в систему заново.');
       }
-
-      const trainerId = data.user.id;
       console.log('Trainer ID:', trainerId);
+
+      // Проверка на наличие валидного clientId
+      if (!formData.clientId || formData.clientId.trim() === '') {
+        throw new Error('Клиент не выбран');
+      }
+      console.log('Client ID:', formData.clientId);
 
       if (!formData.date) throw new Error('Дата не указана');
       if (!formData.startTime) throw new Error('Время начала не указано');
