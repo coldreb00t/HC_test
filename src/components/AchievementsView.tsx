@@ -12,8 +12,10 @@ import {
   ArrowDown, 
   Minus,
   Camera,
-  LineChart
+  LineChart,
+  Share2
 } from 'lucide-react';
+import { ShareAchievementModal } from './ShareAchievementModal';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
@@ -83,8 +85,10 @@ export function AchievementsView() {
   const [nutritionStats, setNutritionStats] = useState<NutritionStats | null>(null);
   const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto | null>(null);
   const [lastPhoto, setLastPhoto] = useState<ProgressPhoto | null>(null);
-  const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean}[]>([]);
+  const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition'>('overview');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
 
   useEffect(() => {
     fetchClientData();
@@ -358,35 +362,55 @@ export function AchievementsView() {
         title: "Первые шаги",
         description: "Завершена первая тренировка",
         icon: <Dumbbell className="w-5 h-5 text-orange-500" />,
-        achieved: true
+        achieved: true,
+        value: "Достигнуто!"
       },
       {
         title: "Регулярность",
         description: "10 тренировок посещено",
         icon: <Calendar className="w-5 h-5 text-orange-500" />,
-        achieved: workoutStats ? workoutStats.totalWorkouts >= 10 : false
+        achieved: workoutStats ? workoutStats.totalWorkouts >= 10 : false,
+        value: workoutStats ? `${workoutStats.totalWorkouts}/10 тренировок` : "0/10 тренировок"
       },
       {
         title: "Прогресс",
         description: "Первое измерение тела",
         icon: <Scale className="w-5 h-5 text-orange-500" />,
-        achieved: measurements.length > 0
+        achieved: measurements.length > 0,
+        value: measurements.length > 0 ? "Достигнуто!" : "Не выполнено"
       },
       {
         title: "Активность",
         description: "Регулярная ежедневная активность в течение недели",
         icon: <Activity className="w-5 h-5 text-orange-500" />,
-        achieved: activityStats ? activityStats.totalActivities >= 7 : false
+        achieved: activityStats ? activityStats.totalActivities >= 7 : false,
+        value: activityStats ? `${activityStats.totalActivities}/7 дней` : "0/7 дней"
       },
       {
         title: "Питание",
         description: "Ведение дневника питания в течение недели",
         icon: <LineChart className="w-5 h-5 text-orange-500" />,
-        achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false
+        achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false,
+        value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней"
       }
     ];
 
     setAchievements(achievementsList);
+  };
+  
+  const handleShareAchievement = (achievement: {title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}) => {
+    if (!achievement.achieved) {
+      toast.error('Вы еще не достигли этой цели');
+      return;
+    }
+    
+    setSelectedAchievement({
+      title: achievement.title,
+      description: achievement.description,
+      icon: achievement.icon,
+      value: achievement.value || 'Достигнуто!'
+    });
+    setShowShareModal(true);
   };
 
   const getMeasurementChange = (field: string): { value: number, percent: number, direction: 'up' | 'down' | 'none' } => {
@@ -458,8 +482,19 @@ export function AchievementsView() {
               </p>
             </div>
           </div>
-          <div className={`mt-1 text-xs font-medium ${achievement.achieved ? 'text-orange-500' : 'text-gray-400'}`}>
-            {achievement.achieved ? 'Достигнуто' : 'В процессе'}
+          <div className="flex justify-between items-center mt-2">
+            <div className={`text-xs font-medium ${achievement.achieved ? 'text-orange-500' : 'text-gray-400'}`}>
+              {achievement.achieved ? 'Достигнуто' : 'В процессе'}
+            </div>
+            {achievement.achieved && (
+              <button
+                onClick={() => handleShareAchievement(achievement)}
+                className="p-1.5 bg-orange-100 rounded-full hover:bg-orange-200 transition-colors"
+                title="Поделиться достижением"
+              >
+                <Share2 className="w-4 h-4 text-orange-500" />
+              </button>
+            )}
           </div>
         </div>
       ))}
@@ -985,6 +1020,16 @@ export function AchievementsView() {
           )}
         </div>
       </div>
+      
+      {/* Модальное окно для шеринга достижений */}
+      {showShareModal && selectedAchievement && (
+        <ShareAchievementModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          achievement={selectedAchievement}
+          userName={clientData ? `${clientData.first_name} ${clientData.last_name}` : 'Пользователь HARDCASE'}
+        />
+      )}
     </SidebarLayout>
   );
 }
