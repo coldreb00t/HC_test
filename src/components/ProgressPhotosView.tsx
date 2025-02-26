@@ -12,6 +12,22 @@ interface ProgressPhoto {
   filename: string;
 }
 
+// Функция для проверки принадлежности файла клиенту
+const verifyFileOwnership = (fileName: string, clientId: string): boolean => {
+  // Проверка: Имя файла должно начинаться с ID клиента
+  return fileName.startsWith(`${clientId}-`);
+};
+
+// Функция для предотвращения кэширования изображений
+const getUncachedImageUrl = (url: string) => {
+  const cacheBreaker = `cache=${Date.now()}`;
+  if (url.includes('?')) {
+    return `${url}&${cacheBreaker}`;
+  } else {
+    return `${url}?${cacheBreaker}`;
+  }
+};
+
 export function ProgressPhotosView() {
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,77 +40,143 @@ export function ProgressPhotosView() {
 
   const fetchPhotos = async () => {
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      setLoading(true);
+      console.log('Fetching progress photos for current client');
 
-      // Get client profile
+      // 1. Получаем текущего пользователя
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error('Auth error:', userError);
+        throw new Error('Не авторизован');
+      }
+      
+      console.log('Current user:', user.id);
+
+      // 2. Получаем профиль клиента
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('id')
         .eq('user_id', user.id)
         .single();
 
-      if (clientError) throw clientError;
-
-      // Get all photos from storage
-      const { data: files, error: storageError } = await supabase.storage
-        .from('client-photos')
-        .list('progress-photos', {
-          limit: 100,
-          offset: 0,
-          sortBy: { column: 'name', order: 'desc' }
-        });
-
-      if (storageError) throw storageError;
-
-      // Get and process all files
-      const clientPhotos = [];
-      
-      for (const file of files || []) {
-        // Получаем URL для каждого файла независимо от формата имени
-        const { data } = supabase.storage
-          .from('client-photos')
-          .getPublicUrl(`progress-photos/${file.name}`);
-        
-        const publicUrl = data.publicUrl;
-        
-        // Используем дату создания файла вместо парсинга имени
-        const date = new Date();
-        
-        // Если есть временная метка в имени файла, пробуем её использовать
-        // Современный формат: clientId-timestamp-uuid.ext
-        const timestampRegex = /-(\d+)-/;
-        const match = file.name.match(timestampRegex);
-        
-        if (match && match[1]) {
-          const timestamp = parseInt(match[1]);
-          if (!isNaN(timestamp)) {
-            date.setTime(timestamp);
-          }
-        }
-        
-        clientPhotos.push({
-          url: publicUrl,
-          filename: file.name,
-          date: date.toLocaleString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        });
+      if (clientError) {
+        console.error('Client error:', clientError);
+        throw clientError;
       }
       
-      // Sort photos by date (newest first)
-      clientPhotos.sort((a, b) => {
-        const dateA = new Date(a.date.split(',')[0].split('.').reverse().join('-'));
-        const dateB = new Date(b.date.split(',')[0].split('.').reverse().join('-'));
-        return dateB.getTime() - dateA.getTime();
-      });
+      const clientId = clientData.id;
+      console.log('Client ID:', clientId);
 
-      setPhotos(clientPhotos);
+      // 3. Получаем список файлов из хранилища
+      const { data: files, error: storageError } = await supabase.storage
+        .from('client-photos')
+        .list('progress-photos');
+
+      if (storageError) {
+        console.error('Storage error:', storageError);
+        throw storageError;
+      }
+      
+      console.log('All files in progress-photos:', files);
+
+      // 4. Фильтруем файлы, строго проверяя, что имя начинается с clientId
+      const clientIdRegex = new RegExp(`^${clientId}-`);
+      const clientFiles = files?.filter(file => clientIdRegex.test(file.name));
+      
+      console.log('Files for this client:', clientFiles);
+
+      // 5. Обрабатываем каждый файл
+      const processedPhotos = await Promise.all(
+        (clientFiles || []).map(async file => {
+          try {
+            // Дополнительная проверка принадлежности файла
+            if (!verifyFileOwnership(file.name, clientId)) {
+              console.warn(`Skipping file ${file.name} as it doesn't belong to client ${clientId}`);
+              return null;
+            }
+            
+            // Получаем публичный URL файла
+            const { data: { publicUrl } } = supabase.storage
+              .from('client-photos')
+              .getPublicUrl(`progress-photos/${file.name}`);
+            
+            // Парсим timestamp из имени файла (формат: clientId-timestamp-uuid.ext)
+            const parts = file.name.split('-');
+            
+            // Проверяем корректность timestamp
+            let photoDate;
+            if (parts.length >= 2) {
+              // Извлекаем timestamp из имени файла (вторая часть после разделителя)
+              const timestamp = parseInt(parts[1]);
+              
+              // Проверка валидности timestamp - должен быть положительным числом с разумным размером
+              if (!isNaN(timestamp) && timestamp > 946684800000) { // 01.01.2000 как минимальная дата
+                photoDate = new Date(timestamp);
+                console.log(`Valid timestamp ${timestamp} parsed as ${photoDate}`);
+              } else {
+                console.log(`Invalid timestamp ${timestamp} in filename ${file.name}, using current date`);
+                // Используем текущую дату, если timestamp невалидный
+                photoDate = new Date();
+              }
+            } else {
+              console.log(`Filename ${file.name} doesn't contain enough parts for parsing timestamp, using current date`);
+              photoDate = new Date();
+            }
+            
+            // Проверка валидности даты после парсинга
+            if (isNaN(photoDate.getTime())) {
+              console.log(`Invalid date object from timestamp, using current date`);
+              photoDate = new Date();
+            }
+            
+            // Форматируем дату в локальном формате
+            const formattedDate = photoDate.toLocaleString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            
+            console.log(`File ${file.name} date: ${formattedDate}`);
+            
+            return {
+              url: publicUrl,
+              filename: file.name,
+              date: formattedDate
+            };
+          } catch (error) {
+            console.error(`Error processing file ${file.name}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // 6. Фильтруем неудачные записи и сортируем по дате (новые сверху)
+      const validPhotos = processedPhotos
+        .filter((photo): photo is ProgressPhoto => photo !== null)
+        .sort((a, b) => {
+          try {
+            // Более надежный парсинг даты в формате ДД.ММ.ГГГГ, ЧЧ:ММ
+            const parseDate = (dateStr: string) => {
+              const [datePart, timePart] = dateStr.split(', ');
+              const [day, month, year] = datePart.split('.').map(Number);
+              const [hours, minutes] = timePart.split(':').map(Number);
+              return new Date(year, month - 1, day, hours, minutes);
+            };
+            
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            
+            return dateB.getTime() - dateA.getTime();
+          } catch (error) {
+            console.error('Error sorting photos by date:', error);
+            return 0;
+          }
+        });
+      
+      console.log('Final processed photos:', validPhotos);
+      setPhotos(validPhotos);
     } catch (error: any) {
       console.error('Error fetching photos:', error);
       toast.error('Ошибка при загрузке фотографий');
@@ -154,7 +236,7 @@ export function ProgressPhotosView() {
         <div className="bg-white rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Фото прогресса</h2>
-            <Camera className="w-5 h-5 text-gray-400" />
+            <Calendar className="w-5 h-5 text-gray-400" />
           </div>
 
           {loading ? (
@@ -179,10 +261,18 @@ export function ProgressPhotosView() {
                   </div>
                   <div className="p-3">
                     <img
-                      src={photo.url}
+                      src={getUncachedImageUrl(photo.url)}
                       alt={`Progress photo ${photo.date}`}
                       className="w-full h-[300px] object-contain rounded-lg"
                       loading="lazy"
+                      onError={(e) => {
+                        console.error(`Error loading image: ${photo.url}`);
+                        // Повторная попытка загрузки с другим параметром кэша при ошибке
+                        const target = e.target as HTMLImageElement;
+                        const newSrc = getUncachedImageUrl(photo.url.split('?')[0]);
+                        console.log(`Retrying with URL: ${newSrc}`);
+                        target.src = newSrc;
+                      }}
                     />
                   </div>
                 </div>

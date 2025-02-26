@@ -55,52 +55,95 @@ export function PhotoUploadView() {
     }
   };
 
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0) {
-      toast.error('Пожалуйста, выберите фото');
+// Для PhotoUploadView.tsx и MeasurementsUploadView.tsx
+// Полностью заменяем функцию handleUpload
+
+const handleUpload = async () => {
+  if (selectedFiles.length === 0) {
+    toast.error('Пожалуйста, выберите фото');
+    return;
+  }
+
+  try {
+    setUploading(true);
+    console.log('Starting photo upload');
+
+    // 1. Получаем текущего пользователя
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.error('Auth error:', userError);
+      throw userError;
+    }
+    
+    if (!user) {
+      toast.error('Пожалуйста, войдите в систему');
+      navigate('/login');
       return;
     }
+    
+    console.log('Current user:', user.id);
 
-    try {
-      setUploading(true);
+    // 2. Получаем профиль клиента
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
 
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-
-      // Получаем текущее время для добавления в имя файла
-      const now = new Date();
-      const timestamp = now.getTime();
-
-      // Upload each file
-      const uploadPromises = selectedFiles.map(async ({ file }, index) => {
-        const fileExt = file.name.split('.').pop();
-        
-        // Используем метку времени в имени файла для упорядочивания
-        const fileName = `${timestamp + index}-${crypto.randomUUID()}.${fileExt}`;
-        const filePath = `progress-photos/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('client-photos')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) throw uploadError;
-      });
-
-      await Promise.all(uploadPromises);
-
-      toast.success('Фото успешно загружены');
-      navigate('/client/progress');
-    } catch (error: any) {
-      console.error('Error uploading photos:', error);
-      toast.error('Ошибка при загрузке фото');
-    } finally {
-      setUploading(false);
+    if (clientError) {
+      console.error('Client error:', clientError);
+      throw clientError;
     }
-  };
+    
+    const clientId = clientData.id;
+    console.log('Client ID:', clientId);
+
+    // 3. Загружаем каждый файл
+    const uploadPromises = selectedFiles.map(async ({ file }, index) => {
+      // Формируем имя файла с гарантированно корректной структурой
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const uniqueId = crypto.randomUUID();
+      const timestamp = Date.now() + index; // Используем текущее время + индекс для уникальности
+      
+      // Строго форматируем имя файла: clientId-timestamp-uuid.ext
+      const fileName = `${clientId}-${timestamp}-${uniqueId}.${fileExt}`;
+      
+      // Формируем путь к файлу (progress-photos или measurements-photos в зависимости от компонента)
+      const folderName = window.location.pathname.includes('measurements') ? 
+        'measurements-photos' : 'progress-photos';
+      const filePath = `${folderName}/${fileName}`;
+      
+      console.log(`Uploading file to ${filePath}`);
+
+      // Загружаем файл
+      const { error: uploadError } = await supabase.storage
+        .from('client-photos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
+      
+      return fileName;
+    });
+
+    const uploadedFiles = await Promise.all(uploadPromises);
+    console.log('Successfully uploaded files:', uploadedFiles);
+
+    toast.success('Фото успешно загружены');
+    navigate(window.location.pathname.includes('measurements') ? 
+      '/client/measurements' : '/client/progress');
+  } catch (error: any) {
+    console.error('Error uploading photos:', error);
+    toast.error('Ошибка при загрузке фото: ' + (error.message || error));
+  } finally {
+    setUploading(false);
+  }
+};
 
   const handleRemovePhoto = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));

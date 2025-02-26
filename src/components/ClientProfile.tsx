@@ -23,6 +23,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ProgramBuilder } from './ProgramBuilder';
 import { WorkoutModal } from './WorkoutModal';
 import { SidebarLayout } from './SidebarLayout';
+import { MedicalDataView } from './MedicalDataView';
 
 type TabType = 'program' | 'nutrition' | 'activity' | 'progress' | 'analysis';
 
@@ -113,6 +114,8 @@ export function ClientProfile() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [clientUserId, setClientUserId] = useState<string | null>(null);
+  const [clientRealId, setClientRealId] = useState<string | null>(null);
 
   const moodEmojis = {
     great: '😄',
@@ -145,6 +148,7 @@ export function ClientProfile() {
 
   useEffect(() => {
     if (clientId) {
+      console.log(`ClientProfile - clientId from URL: ${clientId}`);
       fetchClientData();
       if (activeTab === 'progress') {
         fetchPhotos();
@@ -155,14 +159,52 @@ export function ClientProfile() {
   const fetchClientData = async () => {
     try {
       setLoading(true);
-      const { data: clientData, error: clientError } = await supabase
+      console.log(`Fetching client data for ID: ${clientId}`);
+      
+      // Проверяем данные в client_profiles
+      const { data: clientProfileData, error: clientProfileError } = await supabase
         .from('client_profiles')
-        .select('*')
+        .select('*, user_id')
         .eq('id', clientId)
         .single();
 
-      if (clientError) throw clientError;
-      setClient(clientData);
+      if (clientProfileError) {
+        console.error('Error fetching client_profiles:', clientProfileError);
+      } else {
+        console.log('client_profiles data:', clientProfileData);
+        setClient(clientProfileData);
+        if (clientProfileData.user_id) {
+          setClientUserId(clientProfileData.user_id);
+        }
+      }
+      
+      // Проверяем также данные в clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('id, user_id')
+        .eq('id', clientId)
+        .single();
+        
+      if (clientsError) {
+        console.log('Trying to find client in clients table by user_id');
+        if (clientProfileData?.user_id) {
+          const { data: clientsByUserId, error: clientsByUserIdError } = await supabase
+            .from('clients')
+            .select('id, user_id')
+            .eq('user_id', clientProfileData.user_id)
+            .single();
+            
+          if (clientsByUserIdError) {
+            console.error('Error finding client by user_id:', clientsByUserIdError);
+          } else {
+            console.log('Found client by user_id:', clientsByUserId);
+            setClientRealId(clientsByUserId.id);
+          }
+        }
+      } else {
+        console.log('clients data:', clientsData);
+        setClientRealId(clientsData.id);
+      }
     } catch (error: any) {
       console.error('Error fetching client data:', error);
       toast.error('Ошибка при загрузке данных клиента');
@@ -171,88 +213,133 @@ export function ClientProfile() {
     }
   };
 
-  const fetchPhotos = async () => {
-    if (!clientId) return;
+const fetchPhotos = async () => {
+  if (!clientId) return;
 
-    try {
-      setLoadingPhotos(true);
-
-      const { data: files, error: storageError } = await supabase.storage
-        .from('client-photos')
-        .list('progress-photos', {
-          limit: 100,
-          offset: 0,
-          sortBy: { column: 'name', order: 'desc' }
-        });
-
-      if (storageError) throw storageError;
-
-      const photos = await Promise.all(
-        (files || [])
-          .filter(file => file.name.startsWith(clientId))
-          .map(async file => {
-            const parts = file.name.split('-');
-            if (parts.length >= 2) {
-              const timestamp = parseInt(parts[1]);
-              if (!isNaN(timestamp)) {
-                const date = new Date(timestamp);
-                const { data: { publicUrl } } = supabase.storage
-                  .from('client-photos')
-                  .getPublicUrl(`progress-photos/${file.name}`);
-                
-                return {
-                  url: publicUrl,
-                  filename: file.name,
-                  date: date.toLocaleString('ru-RU', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })
-                };
-              }
-            }
-            return null;
-          })
-      );
-
-      setProgressPhotos(
-        photos
-          .filter((photo): photo is ProgressPhoto => photo !== null)
-          .sort((a, b) => {
-            const dateA = new Date(a.date.split(',')[0].split('.').reverse().join('-'));
-            const dateB = new Date(b.date.split(',')[0].split('.').reverse().join('-'));
-            return dateB.getTime() - dateA.getTime();
-          })
-      );
-    } catch (error: any) {
-      console.error('Error fetching photos:', error);
-      toast.error('Ошибка при загрузке фотографий');
-    } finally {
-      setLoadingPhotos(false);
-    }
-  };
-
-  const handleDeletePhoto = async (filename: string) => {
-    if (!window.confirm('Вы уверены, что хотите удалить это фото?')) {
+  try {
+    setLoadingPhotos(true);
+    console.log(`Fetching photos for client: ${clientId}`);
+    
+    // 1. Сначала получаем из базы данных информацию о клиенте
+    const { data: clientData, error: clientError } = await supabase
+      .from('client_profiles')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .single();
+      
+    if (clientError) {
+      console.error('Error fetching client data:', clientError);
       return;
     }
-
-    try {
-      const { error } = await supabase.storage
+    
+    console.log('Client data:', clientData);
+    
+    // 2. Получаем список всех папок в хранилище (проверяем разные варианты)
+    const folderPaths = ['progress-photos'];
+    
+    const photosArray: ProgressPhoto[] = [];
+    
+    // 3. Для каждой папки получаем список файлов
+    for (const folderPath of folderPaths) {
+      const { data: files, error: storageError } = await supabase.storage
         .from('client-photos')
-        .remove([`progress-photos/${filename}`]);
-
-      if (error) throw error;
-
-      setProgressPhotos(photos => photos.filter(photo => photo.filename !== filename));
-      toast.success('Фото удалено');
-    } catch (error: any) {
-      console.error('Error deleting photo:', error);
-      toast.error('Ошибка при удалении фото');
+        .list(folderPath);
+        
+      if (storageError) {
+        console.error(`Error listing files in ${folderPath}:`, storageError);
+        continue;
+      }
+      
+      console.log(`All files in ${folderPath}:`, files);
+      
+      // 4. Строго фильтруем по точному совпадению clientId в начале имени файла
+      // Используем явное регулярное выражение, которое гарантирует, что clientId стоит в начале
+      const clientIdRegex = new RegExp(`^${clientId}-`);
+      const filteredFiles = files?.filter(file => clientIdRegex.test(file.name));
+      
+      console.log(`Files filtered for client ${clientId}:`, filteredFiles);
+      
+      if (!filteredFiles || filteredFiles.length === 0) continue;
+      
+      // 5. Обрабатываем файлы и добавляем в общий массив
+      for (const file of filteredFiles) {
+        try {
+          const { data: { publicUrl } } = supabase.storage
+            .from('client-photos')
+            .getPublicUrl(`${folderPath}/${file.name}`);
+          
+          // Парсим timestamp из имени файла
+          // Формат: clientId-timestamp-uuid.ext
+          const parts = file.name.split('-');
+          
+          // Правильно обрабатываем timestamp
+          let photoDate = new Date();
+          if (parts.length >= 2) {
+            const timestamp = parseInt(parts[1]);
+            if (!isNaN(timestamp) && timestamp > 0) {
+              photoDate = new Date(timestamp);
+            } else {
+              // Используем дату создания файла, если не можем распарсить из имени
+              photoDate = new Date(file.created_at || Date.now());
+            }
+          }
+          
+          // Форматируем дату в русском формате
+          const formattedDate = photoDate.toLocaleString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          
+          photosArray.push({
+            url: publicUrl,
+            filename: file.name,
+            date: formattedDate
+          });
+        } catch (error) {
+          console.error(`Error processing file ${file.name}:`, error);
+        }
+      }
     }
-  };
+    
+    // 6. Сортируем фотографии по дате от новых к старым
+    photosArray.sort((a, b) => {
+      const dateA = new Date(a.date.split(',')[0].split('.').reverse().join('-'));
+      const dateB = new Date(b.date.split(',')[0].split('.').reverse().join('-'));
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    console.log('Final photos array:', photosArray);
+    setProgressPhotos(photosArray);
+  } catch (error: any) {
+    console.error('Error fetching photos:', error);
+    toast.error('Ошибка при загрузке фотографий');
+  } finally {
+    setLoadingPhotos(false);
+  }
+};
+
+const handleDeletePhoto = async (filename: string) => {
+  if (!window.confirm('Вы уверены, что хотите удалить это фото?')) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.storage
+      .from('client-photos')
+      .remove([`progress-photos/${filename}`]);
+
+    if (error) throw error;
+
+    setProgressPhotos(photos => photos.filter(photo => photo.filename !== filename));
+    toast.success('Фото удалено');
+  } catch (error: any) {
+    console.error('Error deleting photo:', error);
+    toast.error('Ошибка при удалении фото');
+  }
+};
 
   const menuItems = [
     {
@@ -584,42 +671,40 @@ export function ClientProfile() {
     );
   };
 
-  const renderTabContent = () => {
-    if (loading) {
-      return (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
-        </div>
-      );
-    }
+// Обновляем функцию renderTabContent
+const renderTabContent = () => {
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
-    if (!client) {
-      return (
-        <div className="text-center py-8">
-          <p className="text-gray-600">Клиент не найден</p>
-        </div>
-      );
-    }
+  if (!client) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Клиент не найден</p>
+      </div>
+    );
+  }
 
-    switch (activeTab) {
-      case 'program':
-        return renderProgramContent();
-      case 'nutrition':
-        return renderNutritionContent();
-      case 'activity':
-        return renderActivityContent();
-      case 'progress':
-        return renderProgressContent();
-      case 'analysis':
-        return (
-          <div className="text-center py-8">
-            <p className="text-gray-600">Раздел в разработке</p>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
+  switch (activeTab) {
+    case 'program':
+      return renderProgramContent();
+    case 'nutrition':
+      return renderNutritionContent();
+    case 'activity':
+      return renderActivityContent();
+    case 'progress':
+      return renderProgressContent();
+    case 'analysis':
+      // Используем новый компонент для отображения медицинских данных
+      return <MedicalDataView clientId={clientId!} />;
+    default:
+      return null;
+  }
+};
 
   if (loading) {
     return (
