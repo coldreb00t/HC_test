@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Share2, Download, Camera, Copy, Instagram, Facebook, Twitter } from 'lucide-react';
+import { X, Share2, Download, Camera, Copy, Instagram, Facebook, Twitter, Send } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import toast from 'react-hot-toast';
 
@@ -134,6 +134,16 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
   };
 
+  const handleTelegramShare = () => {
+    if (!shareableImage) return;
+
+    handleCopyImage();
+    toast('Изображение скопировано! Откройте Telegram, нажмите на камеру в верхней части экрана и вставьте изображение из буфера обмена для добавления в Stories', {
+      icon: '📱',
+      duration: 5000
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -203,7 +213,7 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
               
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Поделиться в соцсетях</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   <button 
                     onClick={handleInstagramShare}
                     className="flex flex-col items-center justify-center gap-1 p-3 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
@@ -226,6 +236,14 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
                   >
                     <Twitter className="w-6 h-6" />
                     <span className="text-xs">Twitter</span>
+                  </button>
+
+                  <button 
+                    onClick={handleTelegramShare}
+                    className="flex flex-col items-center justify-center gap-1 p-3 bg-sky-500 text-white rounded-lg hover:opacity-90 transition-opacity"
+                  >
+                    <Send className="w-6 h-6" />
+                    <span className="text-xs">Telegram</span>
                   </button>
                 </div>
               </div>
