@@ -71,6 +71,7 @@ interface NutritionStats {
   averageProteins: number;
   averageFats: number;
   averageCarbs: number;
+  averageCalories: number; // Добавлено поле для среднего значения калорий
   averageWater: number;
 }
 
@@ -284,6 +285,7 @@ export function AchievementsView() {
       const totalProteins = data?.reduce((acc, entry) => acc + (entry.proteins || 0), 0) || 0;
       const totalFats = data?.reduce((acc, entry) => acc + (entry.fats || 0), 0) || 0;
       const totalCarbs = data?.reduce((acc, entry) => acc + (entry.carbs || 0), 0) || 0;
+      const totalCalories = data?.reduce((acc, entry) => acc + (entry.calories || 0), 0) || 0; // Добавлено для суммы калорий
       const totalWater = data?.reduce((acc, entry) => acc + (entry.water || 0), 0) || 0;
 
       const stats: NutritionStats = {
@@ -291,6 +293,7 @@ export function AchievementsView() {
         averageProteins: entriesCount > 0 ? totalProteins / entriesCount : 0,
         averageFats: entriesCount > 0 ? totalFats / entriesCount : 0,
         averageCarbs: entriesCount > 0 ? totalCarbs / entriesCount : 0,
+        averageCalories: entriesCount > 0 ? totalCalories / entriesCount : 0, // Добавлено среднее значение калорий
         averageWater: entriesCount > 0 ? totalWater / entriesCount : 0
       };
 
@@ -825,7 +828,7 @@ export function AchievementsView() {
             <h3 className="font-semibold">Питание</h3>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-orange-500">{nutritionStats.entriesCount}</div>
               <div className="text-sm text-gray-600">Записей о питании</div>
@@ -840,7 +843,11 @@ export function AchievementsView() {
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-green-500">{nutritionStats.averageCarbs.toFixed(0)} г</div>
-              <div className="text-sm text-gray-600">Среднее углеводов</div>
+              <div className="text-sm text-gray-600">Средние углеводы</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-purple-500">{nutritionStats.averageCalories.toFixed(0)} ккал</div> {/* Добавлено отображение калорий */}
+              <div className="text-sm text-gray-600">Средние калории</div>
             </div>
           </div>
           
