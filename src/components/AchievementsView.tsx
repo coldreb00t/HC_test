@@ -45,7 +45,17 @@ interface WorkoutStats {
   completedWorkouts: number;
   totalExercises: number;
   totalSets: number;
+  totalReps: number;
   totalVolume: number; // в кг
+  currentMonthVolume: number;
+  previousMonthVolume: number;
+  currentMonthSets: number;
+  previousMonthSets: number;
+  currentMonthReps: number;
+  previousMonthReps: number;
+  volumeGrowth: number; // percentage
+  setsGrowth: number; // percentage
+  repsGrowth: number; // percentage
   favoriteExercises: {name: string, count: number}[];
   workoutsPerMonth: {month: string, count: number}[];
   completionRate: number;
@@ -74,6 +84,8 @@ interface NutritionStats {
   averageWater: number;
 }
 
+type TabType = 'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition';
+
 export function AchievementsView() {
   const navigate = useNavigate();
   const [showFabMenu, setShowFabMenu] = useState(false);
@@ -86,7 +98,7 @@ export function AchievementsView() {
   const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto | null>(null);
   const [lastPhoto, setLastPhoto] = useState<ProgressPhoto | null>(null);
   const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition'>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
 
@@ -150,7 +162,24 @@ export function AchievementsView() {
 
   const fetchWorkoutStats = async (clientId: string) => {
     try {
-      // Get all workouts for the client
+      // Get current date information for month comparisons
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      // Calculate previous month (handling January properly)
+      const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      
+      // Start and end dates for current month
+      const currentMonthStart = new Date(currentYear, currentMonth, 1);
+      const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0);
+      
+      // Start and end dates for previous month
+      const previousMonthStart = new Date(previousYear, previousMonth, 1);
+      const previousMonthEnd = new Date(previousYear, previousMonth + 1, 0);
+
+      // 1. Fetch all completed workouts
       const { data: workouts, error: workoutsError } = await supabase
         .from('workouts')
         .select('id, start_time, title, training_program_id')
@@ -158,7 +187,7 @@ export function AchievementsView() {
 
       if (workoutsError) throw workoutsError;
 
-      // Get workout completions
+      // 2. Get workout completions to determine which workouts were completed
       const { data: completions, error: completionsError } = await supabase
         .from('workout_completions')
         .select('*')
@@ -166,20 +195,118 @@ export function AchievementsView() {
 
       if (completionsError) throw completionsError;
 
-      // Get exercise completions
+      // Filter completed workouts
+      const completedWorkoutIds = completions
+        ?.filter(c => c.completed)
+        .map(c => c.workout_id) || [];
+        
+      const completedWorkouts = workouts
+        ?.filter(w => completedWorkoutIds.includes(w.id)) || [];
+        
+      // 3. Get all exercise completions for completed workouts
       const { data: exerciseCompletions, error: exerciseError } = await supabase
         .from('exercise_completions')
         .select('*')
-        .eq('client_id', clientId);
+        .eq('client_id', clientId)
+        .in('workout_id', completedWorkoutIds);
 
       if (exerciseError) throw exerciseError;
+      
+      // 4. Get details for each exercise to calculate weight, sets, reps
+      // We need to join with exercise_sets to get the weight and reps information
+      let totalVolume = 0;
+      let currentMonthVolume = 0;
+      let previousMonthVolume = 0;
+      let totalSets = 0;
+      let totalReps = 0;
+      let currentMonthSets = 0;
+      let previousMonthSets = 0;
+      let currentMonthReps = 0;
+      let previousMonthReps = 0;
+      
+      // Process each completed workout
+      for (const workout of completedWorkouts) {
+        const workoutDate = new Date(workout.start_time);
+        const isCurrentMonth = workoutDate >= currentMonthStart && workoutDate <= currentMonthEnd;
+        const isPreviousMonth = workoutDate >= previousMonthStart && workoutDate <= previousMonthEnd;
+        
+        // Find completions for this workout
+        const workoutCompletions = exerciseCompletions?.filter(c => c.workout_id === workout.id) || [];
+        
+        for (const completion of workoutCompletions) {
+          // Get exercise sets data
+          const { data: exerciseData, error: exerciseDataError } = await supabase
+            .from('program_exercises')
+            .select(`
+              id,
+              exercise_sets (
+                set_number,
+                reps,
+                weight
+              )
+            `)
+            .eq('exercise_id', completion.exercise_id)
+            .eq('program_id', workout.training_program_id)
+            .single();
+            
+          if (exerciseDataError && exerciseDataError.code !== 'PGRST116') {
+            console.error('Error fetching exercise data:', exerciseDataError);
+            continue;
+          }
+          
+          if (!exerciseData || !exerciseData.exercise_sets) continue;
+          
+          // Calculate volume (weight * reps * sets) for completed sets
+          let exerciseVolume = 0;
+          let exerciseSets = 0;
+          let exerciseReps = 0;
+          
+          completion.completed_sets.forEach((completed, index) => {
+            if (completed && exerciseData.exercise_sets[index]) {
+              const set = exerciseData.exercise_sets[index];
+              const reps = parseInt(set.reps) || 0;
+              const weight = parseFloat(set.weight) || 0;
+              
+              // Calculate volume for this set
+              const setVolume = reps * weight;
+              exerciseVolume += setVolume;
+              exerciseSets += 1;
+              exerciseReps += reps;
+            }
+          });
+          
+          // Add to totals
+          totalVolume += exerciseVolume;
+          totalSets += exerciseSets;
+          totalReps += exerciseReps;
+          
+          // Add to monthly totals
+          if (isCurrentMonth) {
+            currentMonthVolume += exerciseVolume;
+            currentMonthSets += exerciseSets;
+            currentMonthReps += exerciseReps;
+          } else if (isPreviousMonth) {
+            previousMonthVolume += exerciseVolume;
+            previousMonthSets += exerciseSets;
+            previousMonthReps += exerciseReps;
+          }
+        }
+      }
+      
+      // Calculate growth percentages
+      const volumeGrowth = previousMonthVolume > 0 
+        ? ((currentMonthVolume - previousMonthVolume) / previousMonthVolume) * 100 
+        : 0;
+        
+      const setsGrowth = previousMonthSets > 0 
+        ? ((currentMonthSets - previousMonthSets) / previousMonthSets) * 100 
+        : 0;
+        
+      const repsGrowth = previousMonthReps > 0 
+        ? ((currentMonthReps - previousMonthReps) / previousMonthReps) * 100 
+        : 0;
 
-      // Calculate statistics
-      const totalWorkouts = workouts?.length || 0;
-      const completedWorkouts = completions?.filter(c => c.completed).length || 0;
-      const completionRate = totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0;
-
-      // Group workouts by month
+      // Group workouts by month for the chart
       const workoutsByMonth: {[key: string]: number} = {};
       workouts?.forEach(workout => {
         const date = new Date(workout.start_time);
@@ -192,17 +319,34 @@ export function AchievementsView() {
         count
       })).sort((a, b) => a.month.localeCompare(b.month));
 
-      // Placeholder data for now (would need more complex queries for actual data)
+      // Calculate other statistics
+      const totalWorkouts = workouts?.length || 0;
+      const completedWorkouts = completedWorkoutIds.length;
+      const completionRate = totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0;
+      
+      // TODO: Calculate favorite exercises (most often completed)
+      // This would require additional queries to get exercise names
+
       const stats: WorkoutStats = {
         totalWorkouts,
         completedWorkouts,
-        totalExercises: 0, // Placeholder
-        totalSets: 0, // Placeholder
-        totalVolume: 0, // Placeholder
-        favoriteExercises: [], // Placeholder
+        totalExercises: exerciseCompletions?.length || 0,
+        totalSets,
+        totalReps,
+        totalVolume,
+        currentMonthVolume,
+        previousMonthVolume,
+        currentMonthSets,
+        previousMonthSets,
+        currentMonthReps,
+        previousMonthReps,
+        volumeGrowth,
+        setsGrowth,
+        repsGrowth,
+        favoriteExercises: [], // Placeholder for now
         workoutsPerMonth,
         completionRate,
-        streakDays: 0 // Placeholder
+        streakDays: 0 // Placeholder for now
       };
 
       setWorkoutStats(stats);
@@ -638,6 +782,134 @@ export function AchievementsView() {
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="text-2xl font-bold text-blue-500">{workoutStats?.completionRate.toFixed(0) || 0}%</div>
             <div className="text-sm text-gray-600">Процент завершения</div>
+          </div>
+        </div>
+        
+        {/* New section for volume stats */}
+        <div className="mt-6 border-t pt-6">
+          <h4 className="text-sm font-medium text-gray-700 mb-4">Статистика по весу и подходам</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Total volume card */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm text-gray-600">Общий объем</span>
+                {workoutStats?.volumeGrowth !== 0 && (
+                  <div className="flex items-center text-xs">
+                    {workoutStats?.volumeGrowth > 0 ? (
+                      <span className="text-green-500 flex items-center">
+                        <ArrowUp className="w-3 h-3 mr-1" />
+                        {Math.abs(workoutStats?.volumeGrowth).toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-red-500 flex items-center">
+                        <ArrowDown className="w-3 h-3 mr-1" />
+                        {Math.abs(workoutStats?.volumeGrowth).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="text-2xl font-bold text-orange-500">
+                {workoutStats?.totalVolume.toFixed(0) || 0} кг
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Текущий месяц: {workoutStats?.currentMonthVolume.toFixed(0) || 0} кг
+              </div>
+              <div className="text-xs text-gray-500">
+                Прошлый месяц: {workoutStats?.previousMonthVolume.toFixed(0) || 0} кг
+              </div>
+            </div>
+            
+            {/* Total sets card */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm text-gray-600">Подходы</span>
+                {workoutStats?.setsGrowth !== 0 && (
+                  <div className="flex items-center text-xs">
+                    {workoutStats?.setsGrowth > 0 ? (
+                      <span className="text-green-500 flex items-center">
+                        <ArrowUp className="w-3 h-3 mr-1" />
+                        {Math.abs(workoutStats?.setsGrowth).toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-red-500 flex items-center">
+                        <ArrowDown className="w-3 h-3 mr-1" />
+                        {Math.abs(workoutStats?.setsGrowth).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="text-2xl font-bold text-orange-500">
+                {workoutStats?.totalSets || 0}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Текущий месяц: {workoutStats?.currentMonthSets || 0}
+              </div>
+              <div className="text-xs text-gray-500">
+                Прошлый месяц: {workoutStats?.previousMonthSets || 0}
+              </div>
+            </div>
+            
+            {/* Total reps card */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm text-gray-600">Повторения</span>
+                {workoutStats?.repsGrowth !== 0 && (
+                  <div className="flex items-center text-xs">
+                    {workoutStats?.repsGrowth > 0 ? (
+                      <span className="text-green-500 flex items-center">
+                        <ArrowUp className="w-3 h-3 mr-1" />
+                        {Math.abs(workoutStats?.repsGrowth).toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-red-500 flex items-center">
+                        <ArrowDown className="w-3 h-3 mr-1" />
+                        {Math.abs(workoutStats?.repsGrowth).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="text-2xl font-bold text-orange-500">
+                {workoutStats?.totalReps || 0}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Текущий месяц: {workoutStats?.currentMonthReps || 0}
+              </div>
+              <div className="text-xs text-gray-500">
+                Прошлый месяц: {workoutStats?.previousMonthReps || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Volume progress chart */}
+        <div className="mt-6">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Прогресс по объему (кг)</h4>
+          <div className="bg-gray-100 rounded-lg p-4 h-40">
+            {/* Here you can implement a chart showing volume progress over time */}
+            {/* For simplicity, let's create a basic bar chart showing current vs previous month */}
+            <div className="h-full flex items-end justify-center gap-12">
+              <div className="flex flex-col items-center">
+                <div 
+                  className="w-16 bg-orange-300 rounded-t"
+                  style={{ 
+                    height: `${Math.min(100, (workoutStats?.previousMonthVolume || 0) / (Math.max(workoutStats?.currentMonthVolume || 0, workoutStats?.previousMonthVolume || 0) || 1) * 100)}%` 
+                  }}
+                ></div>
+                <div className="mt-2 text-xs text-gray-600">Прошлый</div>
+              </div>
+              <div className="flex flex-col items-center">
+                <div 
+                  className="w-16 bg-orange-500 rounded-t"
+                  style={{ 
+                    height: `${Math.min(100, (workoutStats?.currentMonthVolume || 0) / (Math.max(workoutStats?.currentMonthVolume || 0, workoutStats?.previousMonthVolume || 0) || 1) * 100)}%` 
+                  }}
+                ></div>
+                <div className="mt-2 text-xs text-gray-600">Текущий</div>
+              </div>
+            </div>
           </div>
         </div>
         
