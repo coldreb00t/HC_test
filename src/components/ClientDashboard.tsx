@@ -54,6 +54,7 @@ interface NextWorkout {
   program?: Program | null;
 }
 
+// Расширенный интерфейс достижения с мотивационной фразой
 interface Achievement {
   title: string;
   description: string;
@@ -61,6 +62,29 @@ interface Achievement {
   value: string;
   color: string;
   bgImage?: string;
+  motivationalPhrase: string; // Добавлено поле для мотивационной фразы
+}
+
+// Расширенный интерфейс для хранения статистики пользователя
+interface UserStats {
+  workouts: {
+    totalCount: number;
+    completedCount: number;
+    totalVolume: number; // в кг
+  };
+  activities: {
+    totalMinutes: number;
+    types: {[key: string]: number};
+  };
+  measurements: {
+    currentWeight: number | null;
+    initialWeight: number | null;
+    weightChange: number | null;
+  };
+  achievements: {
+    total: number;
+    completed: number;
+  };
 }
 
 export function ClientDashboard() {
@@ -71,6 +95,14 @@ export function ClientDashboard() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // Состояние для хранения статистики
+  const [userStats, setUserStats] = useState<UserStats>({
+    workouts: { totalCount: 0, completedCount: 0, totalVolume: 0 },
+    activities: { totalMinutes: 0, types: {} },
+    measurements: { currentWeight: null, initialWeight: null, weightChange: null },
+    achievements: { total: 5, completed: 0 }
+  });
   
   // Состояния для обработки свайпа
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -85,25 +117,21 @@ export function ClientDashboard() {
     fetchDashboardData();
   }, []);
 
+  // Обновленная функция для загрузки данных дашборда
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       
+      // Получаем текущего пользователя
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('Auth error:', userError);
+      if (userError || !user) {
+        if (userError) console.error('Auth error:', userError);
         toast.error('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
         navigate('/login');
         return;
       }
 
-      if (!user) {
-        toast.error('Пожалуйста, войдите в систему');
-        navigate('/login');
-        return;
-      }
-
-      // Get client profile
+      // Получаем профиль клиента
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('id')
@@ -118,31 +146,17 @@ export function ClientDashboard() {
         throw clientError;
       }
 
-      // Get next workout
-      const { data: workoutData, error: workoutError } = await supabase
-        .from('workouts')
-        .select('id, start_time, title, training_program_id')
-        .eq('client_id', clientData.id)
-        .gt('start_time', new Date().toISOString())
-        .order('start_time')
-        .limit(1)
-        .single();
+      // Одновременно загружаем все данные через Promise.all
+      await Promise.all([
+        fetchNextWorkout(clientData.id),
+        fetchWorkoutStats(clientData.id),
+        fetchActivityStats(clientData.id),
+        fetchMeasurementStats(clientData.id)
+      ]);
+      
+      // Подсчет достижений должен идти после того, как другие данные загружены
+      await fetchAchievementsStats(clientData.id);
 
-      if (workoutError && workoutError.code !== 'PGRST116') throw workoutError;
-
-      if (workoutData) {
-        // Создаем базовую информацию о тренировке без загрузки программы
-        // Программа будет загружена непосредственно в модальном окне
-        setNextWorkout({
-          id: workoutData.id,
-          start_time: workoutData.start_time,
-          title: workoutData.title,
-          training_program_id: workoutData.training_program_id,
-          program: null // Устанавливаем null, программа будет загружена в модальном окне по требованию
-        });
-      } else {
-        setNextWorkout(null);
-      }
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
       if (error.message === 'Failed to fetch') {
@@ -152,6 +166,252 @@ export function ClientDashboard() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Функция для получения данных о следующей тренировке
+  const fetchNextWorkout = async (clientId: string) => {
+    const { data: workoutData, error: workoutError } = await supabase
+      .from('workouts')
+      .select('id, start_time, title, training_program_id')
+      .eq('client_id', clientId)
+      .gt('start_time', new Date().toISOString())
+      .order('start_time')
+      .limit(1)
+      .single();
+
+    if (workoutError && workoutError.code !== 'PGRST116') throw workoutError;
+
+    if (workoutData) {
+      setNextWorkout({
+        id: workoutData.id,
+        start_time: workoutData.start_time,
+        title: workoutData.title,
+        training_program_id: workoutData.training_program_id,
+        program: null
+      });
+    } else {
+      setNextWorkout(null);
+    }
+  };
+
+  // Функция для получения статистики тренировок
+  const fetchWorkoutStats = async (clientId: string) => {
+    try {
+      // Получаем тренировки клиента
+      const { data: workouts, error: workoutsError } = await supabase
+        .from('workouts')
+        .select('id, start_time')
+        .eq('client_id', clientId);
+
+      if (workoutsError) throw workoutsError;
+
+      // Получаем завершенные тренировки
+      const { data: completions, error: completionsError } = await supabase
+        .from('workout_completions')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('completed', true);
+
+      if (completionsError) throw completionsError;
+
+      // Получаем выполненные упражнения для расчета общего объема
+      const { data: exerciseCompletions, error: exerciseError } = await supabase
+        .from('exercise_completions')
+        .select('*')
+        .eq('client_id', clientId);
+
+      if (exerciseError) throw exerciseError;
+
+      // Расчет общего объема тренировок (вес × повторения)
+      let totalVolume = 0;
+
+      if (exerciseCompletions && exerciseCompletions.length > 0) {
+        // Получаем данные о подходах для расчета объема
+        const workoutIds = completions?.map(c => c.workout_id) || [];
+        
+        const { data: workoutDetails } = await supabase
+          .from('workouts')
+          .select('id, training_program_id')
+          .in('id', workoutIds);
+        
+        const programIds = workoutDetails
+          ?.map(w => w.training_program_id)
+          .filter(Boolean) || [];
+        
+        const { data: programExercises } = await supabase
+          .from('program_exercises')
+          .select(`
+            exercise_id,
+            exercise_sets (set_number, reps, weight)
+          `)
+          .in('program_id', programIds);
+        
+        // Подсчет общего объема
+        if (programExercises) {
+          exerciseCompletions.forEach(completion => {
+            if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
+              const exercise = programExercises.find(pe => pe.exercise_id === completion.exercise_id);
+              
+              if (exercise && exercise.exercise_sets) {
+                completion.completed_sets.forEach((isCompleted, index) => {
+                  if (isCompleted && exercise.exercise_sets[index]) {
+                    const set = exercise.exercise_sets[index];
+                    // Парсим повторения (может быть диапазон "8-12")
+                    let reps = 0;
+                    if (set.reps) {
+                      const repsStr = set.reps.toString();
+                      if (repsStr.includes('-')) {
+                        const [min, max] = repsStr.split('-').map(Number);
+                        reps = Math.round((min + max) / 2);
+                      } else {
+                        reps = parseInt(repsStr) || 0;
+                      }
+                    }
+                    
+                    // Парсим вес
+                    const weight = parseFloat(set.weight || '0') || 0;
+                    
+                    // Добавляем к общему объему
+                    totalVolume += reps * weight;
+                  }
+                });
+              }
+            }
+          });
+        }
+      }
+
+      // Обновляем статистику тренировок
+      setUserStats(prev => ({
+        ...prev,
+        workouts: {
+          totalCount: workouts?.length || 0,
+          completedCount: completions?.length || 0,
+          totalVolume: Math.round(totalVolume) // Округляем до целого числа кг
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching workout stats:', error);
+    }
+  };
+
+  // Функция для получения статистики активности
+  const fetchActivityStats = async (clientId: string) => {
+    try {
+      // Получаем данные о бытовой активности
+      const { data: activities, error: activitiesError } = await supabase
+        .from('client_activities')
+        .select('*')
+        .eq('client_id', clientId);
+
+      if (activitiesError) throw activitiesError;
+
+      // Подсчет общего времени и группировка по типам
+      let totalMinutes = 0;
+      const activityTypes: {[key: string]: number} = {};
+
+      if (activities) {
+        activities.forEach(activity => {
+          totalMinutes += activity.duration_minutes;
+          
+          // Группируем по типам активности
+          if (!activityTypes[activity.activity_type]) {
+            activityTypes[activity.activity_type] = 0;
+          }
+          activityTypes[activity.activity_type] += activity.duration_minutes;
+        });
+      }
+
+      // Обновляем статистику активности
+      setUserStats(prev => ({
+        ...prev,
+        activities: {
+          totalMinutes,
+          types: activityTypes
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching activity stats:', error);
+    }
+  };
+
+  // Функция для получения статистики измерений
+  const fetchMeasurementStats = async (clientId: string) => {
+    try {
+      // Получаем данные о замерах, отсортированные по дате
+      const { data: measurements, error: measurementsError } = await supabase
+        .from('client_measurements')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('date', { ascending: true });
+
+      if (measurementsError) throw measurementsError;
+
+      // Вычисляем начальный и текущий вес, а также изменение
+      let initialWeight = null;
+      let currentWeight = null;
+      let weightChange = null;
+
+      if (measurements && measurements.length > 0) {
+        initialWeight = measurements[0].weight;
+        currentWeight = measurements[measurements.length - 1].weight;
+        
+        if (initialWeight !== null && currentWeight !== null) {
+          weightChange = currentWeight - initialWeight;
+        }
+      }
+
+      // Обновляем статистику измерений
+      setUserStats(prev => ({
+        ...prev,
+        measurements: {
+          initialWeight,
+          currentWeight,
+          weightChange
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching measurement stats:', error);
+    }
+  };
+
+  // Функция для получения статистики достижений
+  const fetchAchievementsStats = async (clientId: string) => {
+    try {
+      // Здесь можно получить достижения из базы данных
+      // Пока используем простую логику на основе уже полученных данных
+      
+      // Считаем количество выполненных достижений на основе статистики
+      let completedAchievements = 0;
+      
+      // Добавляем логику подсчета достижений
+      // Например, если пользователь выполнил хотя бы 5 тренировок
+      if (userStats.workouts.completedCount >= 5) completedAchievements++;
+      
+      // Если суммарный объем тренировок больше 1000 кг
+      if (userStats.workouts.totalVolume >= 1000) completedAchievements++;
+      
+      // Если общее время активности больше 10 часов (600 минут)
+      if (userStats.activities.totalMinutes >= 600) completedAchievements++;
+      
+      // Если есть измерения веса
+      if (userStats.measurements.currentWeight !== null) completedAchievements++;
+      
+      // Если есть снижение веса (для целей похудения)
+      if (userStats.measurements.weightChange !== null && 
+          userStats.measurements.weightChange < 0) completedAchievements++;
+      
+      // Обновляем статистику достижений
+      setUserStats(prev => ({
+        ...prev,
+        achievements: {
+          total: 5, // Фиксированное количество возможных достижений
+          completed: completedAchievements
+        }
+      }));
+    } catch (error) {
+      console.error('Error calculating achievements stats:', error);
     }
   };
   
@@ -238,40 +498,77 @@ export function ClientDashboard() {
     setCurrentSlide((prev) => (prev - 1 + achievements.length) % achievements.length);
   };
 
-  const achievements: Achievement[] = [
-    {
-      title: "Тренировки",
-      description: "Количество тренировок за месяц",
-      icon: <Dumbbell className="w-12 h-12 text-white" />,
-      value: "12",
-      color: "bg-[#ff8502]",
-      bgImage: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&q=80"
-    },
-    {
-      title: "Общий вес",
-      description: "Суммарный вес на тренировках",
-      icon: <Scale className="w-12 h-12 text-white" />,
-      value: "1500 кг",
-      color: "bg-[#606060]",
-      bgImage: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80"
-    },
-    {
-      title: "Активность",
-      description: "Минуты активности за месяц",
-      icon: <Activity className="w-12 h-12 text-white" />,
-      value: "960 мин",
-      color: "bg-[#ff8502]",
-      bgImage: "https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&q=80"
-    },
-    {
-      title: "Достижения",
-      description: "Выполненные цели",
-      icon: <Trophy className="w-12 h-12 text-white" />,
-      value: "3/5",
-      color: "bg-[#606060]",
-      bgImage: "https://images.unsplash.com/photo-1526401485004-46910ecc8e51?auto=format&fit=crop&q=80"
-    }
-  ];
+  // Функция для формирования достижений на основе реальных данных
+  const getAchievements = (): Achievement[] => {
+    return [
+      {
+        title: "Тренировки",
+        description: "Выполнено тренировок",
+        icon: <Dumbbell className="w-12 h-12 text-white" />,
+        value: `${userStats.workouts.completedCount}`,
+        color: "bg-[#ff8502]",
+        bgImage: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&q=80",
+        motivationalPhrase: userStats.workouts.completedCount > 0 
+          ? "Каждая тренировка — это шаг к лучшей версии себя!" 
+          : "Начни свой путь к трансформации прямо сейчас!"
+      },
+      {
+        title: "Общий вес",
+        description: "Суммарная нагрузка",
+        icon: <Scale className="w-12 h-12 text-white" />,
+        value: `${userStats.workouts.totalVolume} кг`,
+        color: "bg-[#606060]",
+        bgImage: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80",
+        motivationalPhrase: userStats.workouts.totalVolume > 0 
+          ? "Сила растет с каждым поднятым килограммом!" 
+          : "Впереди миллионы килограммов, которые сделают тебя сильнее!"
+      },
+      {
+        title: "Активность",
+        description: "Время в движении",
+        icon: <Activity className="w-12 h-12 text-white" />,
+        value: `${Math.floor(userStats.activities.totalMinutes / 60)} ч ${userStats.activities.totalMinutes % 60} мин`,
+        color: "bg-[#ff8502]",
+        bgImage: "https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&q=80",
+        motivationalPhrase: userStats.activities.totalMinutes > 0 
+          ? "Движение — это жизнь, и каждая минута активности делает тебя здоровее!" 
+          : "Начни двигаться сегодня — и твоё тело скажет спасибо завтра!"
+      },
+      {
+        title: "Прогресс веса",
+        description: userStats.measurements.weightChange !== null 
+          ? userStats.measurements.weightChange < 0 
+            ? "Снижение веса" 
+            : "Изменение веса" 
+          : "Отслеживание веса",
+        icon: <TrendingUp className="w-12 h-12 text-white" />,
+        value: userStats.measurements.weightChange !== null 
+          ? `${Math.abs(userStats.measurements.weightChange).toFixed(1)} кг ${userStats.measurements.weightChange < 0 ? '↓' : '↑'}` 
+          : "Нет данных",
+        color: "bg-[#606060]",
+        bgImage: "https://images.unsplash.com/photo-1526401485004-46910ecc8e51?auto=format&fit=crop&q=80",
+        motivationalPhrase: userStats.measurements.weightChange !== null 
+          ? userStats.measurements.weightChange < 0 
+            ? "Отличный прогресс! Продолжай двигаться к своей цели!" 
+            : "Твоё тело меняется. Помни, что мышцы весят больше жира!" 
+          : "Начни отслеживать изменения тела — и увидишь свой прогресс!"
+      },
+      {
+        title: "Достижения",
+        description: "Выполненные цели",
+        icon: <Trophy className="w-12 h-12 text-white" />,
+        value: `${userStats.achievements.completed}/${userStats.achievements.total}`,
+        color: "bg-[#ff8502]",
+        bgImage: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&q=80",
+        motivationalPhrase: userStats.achievements.completed > 0 
+          ? "Каждое достижение — это победа над собой вчерашним!" 
+          : "Ставь цели и достигай их. Путь к успеху начинается с первого шага!"
+      }
+    ];
+  };
+
+  // Получаем актуальные достижения
+  const achievements = getAchievements();
 
   // Кастомный компонент топ-бара с добавленным дроп-даун меню
   const CustomHeader = (
@@ -320,7 +617,7 @@ export function ClientDashboard() {
       variant="bottom"
       customHeader={CustomHeader}
     >
-      {/* Full-screen Achievements Slider с поддержкой свайпа */}
+      {/* Full-screen Achievements Slider с поддержкой свайпа и мотивационными фразами */}
       <div className="bg-white rounded-xl shadow-sm mb-4 overflow-hidden">
         <div className="relative h-[calc(85vh-16rem)]">
           <div 
@@ -360,9 +657,16 @@ export function ClientDashboard() {
                     <h3 className="text-xl md:text-3xl font-semibold mb-2">
                       {achievement.title}
                     </h3>
-                    <p className="text-base md:text-xl text-white/90">
+                    <p className="text-base md:text-xl text-white/90 mb-6">
                       {achievement.description}
                     </p>
+                    
+                    {/* Мотивационная фраза */}
+                    <div className="mt-4 bg-white/20 rounded-lg p-4 backdrop-blur-sm max-w-lg mx-auto">
+                      <p className="text-base md:text-lg italic text-white/95">
+                        "{achievement.motivationalPhrase}"
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
