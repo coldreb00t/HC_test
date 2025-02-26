@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Workout {
   id: string;
@@ -19,6 +20,7 @@ export function WorkoutsCalendarView() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [nutritionDates, setNutritionDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -144,6 +146,11 @@ export function WorkoutsCalendarView() {
     });
   };
 
+  // Handle click on a workout to view details
+  const handleWorkoutClick = (workoutId: string) => {
+    navigate(`/client/workouts/${workoutId}`);
+  };
+
   const weekDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
   return (
@@ -221,8 +228,9 @@ export function WorkoutsCalendarView() {
                     {dayWorkouts.map(workout => (
                       <div
                         key={workout.id}
-                        className="text-center p-0.5 md:p-1 bg-orange-100 text-orange-700 rounded text-xs md:text-sm"
+                        className="text-center p-0.5 md:p-1 bg-orange-100 text-orange-700 rounded text-xs md:text-sm cursor-pointer hover:bg-orange-200 transition-colors"
                         title={workout.title}
+                        onClick={() => handleWorkoutClick(workout.id)}
                       >
                         <span className="font-medium">
                           {formatWorkoutTime(workout.start_time)}

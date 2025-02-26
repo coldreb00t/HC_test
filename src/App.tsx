@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthForm } from './components/AuthForm';
 import { ClientDashboard } from './components/ClientDashboard';
 import { ClientWorkoutsView } from './components/ClientWorkoutsView';
+import { WorkoutDetailsView } from './components/WorkoutDetailsView'; // Import the new component
 import { PhotoUploadView } from './components/PhotoUploadView';
 import { ProgressPhotosView } from './components/ProgressPhotosView';
 import { MeasurementsUploadView } from './components/MeasurementsUploadView';
@@ -32,6 +33,11 @@ function App() {
         <Route path="/client/workouts" element={
           <ProtectedRoute allowedRole="client">
             <ClientWorkoutsView />
+          </ProtectedRoute>
+        } />
+        <Route path="/client/workouts/:workoutId" element={
+          <ProtectedRoute allowedRole="client">
+            <WorkoutDetailsView />
           </ProtectedRoute>
         } />
         <Route path="/client/progress-photo/new" element={

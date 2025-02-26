@@ -21,7 +21,7 @@ export function ClientWorkoutsView() {
         navigate('/client/measurements/new');
         break;
       case 'nutrition':
-        navigate('/client/nutrition/new');
+        navigate('/client/nutrition');
         break;
     }
   };
