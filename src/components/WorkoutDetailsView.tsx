@@ -5,18 +5,21 @@ import {
   Clock, 
   Calendar,
   CheckCircle,
-  XCircle
+  XCircle,
+  Play
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
+import { ExerciseVideoModal } from './ExerciseVideoModal';
 
 interface Exercise {
   id: string;
   name: string;
   description?: string;
+  video_url?: string;
   sets: {
     set_number: number;
     reps: string;
@@ -46,6 +49,8 @@ export function WorkoutDetailsView() {
   const [feedback, setFeedback] = useState('');
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<{name: string, video_url: string} | null>(null);
 
   useEffect(() => {
     if (workoutId) {
@@ -116,7 +121,8 @@ export function WorkoutDetailsView() {
             strength_exercises (
               id,
               name,
-              description
+              description,
+              video_url
             ),
             exercise_sets (
               set_number,
@@ -134,6 +140,7 @@ export function WorkoutDetailsView() {
           id: exercise.strength_exercises.id,
           name: exercise.strength_exercises.name,
           description: exercise.strength_exercises.description,
+          video_url: exercise.strength_exercises.video_url,
           notes: exercise.notes,
           sets: (exercise.exercise_sets || []).map(set => ({
             set_number: set.set_number,
@@ -279,6 +286,19 @@ export function WorkoutDetailsView() {
         break;
     }
   };
+  
+  const handleOpenVideo = (exercise: Exercise) => {
+    if (!exercise.video_url) {
+      toast.error('Видео для этого упражнения не доступно');
+      return;
+    }
+    
+    setSelectedExercise({
+      name: exercise.name,
+      video_url: exercise.video_url
+    });
+    setShowVideoModal(true);
+  };
 
   const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
   
@@ -406,9 +426,20 @@ export function WorkoutDetailsView() {
                         <Dumbbell className="w-5 h-5 text-orange-500" />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-500">#{exerciseIndex + 1}</span>
-                          <h4 className="font-medium text-gray-900">{exercise.name}</h4>
+                        <div className="flex items-center gap-2 justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">#{exerciseIndex + 1}</span>
+                            <h4 className="font-medium text-gray-900">{exercise.name}</h4>
+                          </div>
+                          {exercise.video_url && (
+                            <button
+                              onClick={() => handleOpenVideo(exercise)}
+                              className="p-1.5 bg-orange-100 rounded-full hover:bg-orange-200 transition-colors"
+                              title="Посмотреть видео техники"
+                            >
+                              <Play className="w-4 h-4 text-orange-500" />
+                            </button>
+                          )}
                         </div>
                         
                         {exercise.description && (
@@ -483,6 +514,16 @@ export function WorkoutDetailsView() {
           </button>
         </div>
       </div>
+      
+      {/* Модальное окно для просмотра видео */}
+      {showVideoModal && selectedExercise && (
+        <ExerciseVideoModal
+          isOpen={showVideoModal}
+          onClose={() => setShowVideoModal(false)}
+          videoUrl={selectedExercise.video_url}
+          exerciseName={selectedExercise.name}
+        />
+      )}
     </SidebarLayout>
   );
 }
