@@ -156,30 +156,30 @@ export function AchievementsView() {
         .from('workouts')
         .select('id, start_time, title, training_program_id')
         .eq('client_id', clientId);
-
+  
       if (workoutsError) throw workoutsError;
-
+  
       // Get workout completions
       const { data: completions, error: completionsError } = await supabase
         .from('workout_completions')
         .select('*')
         .eq('client_id', clientId);
-
+  
       if (completionsError) throw completionsError;
-
-      // Get exercise completions
+  
+      // Get exercise completions with their workout IDs
       const { data: exerciseCompletions, error: exerciseError } = await supabase
         .from('exercise_completions')
         .select('*')
         .eq('client_id', clientId);
-
+  
       if (exerciseError) throw exerciseError;
-
-      // Calculate statistics
+      
+      // Calculate basic stats
       const totalWorkouts = workouts?.length || 0;
       const completedWorkouts = completions?.filter(c => c.completed).length || 0;
       const completionRate = totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0;
-
+  
       // Group workouts by month
       const workoutsByMonth: {[key: string]: number} = {};
       workouts?.forEach(workout => {
@@ -187,25 +187,122 @@ export function AchievementsView() {
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         workoutsByMonth[monthKey] = (workoutsByMonth[monthKey] || 0) + 1;
       });
-
+  
       const workoutsPerMonth = Object.entries(workoutsByMonth).map(([month, count]) => ({
         month,
         count
       })).sort((a, b) => a.month.localeCompare(b.month));
-
-      // Placeholder data for now (would need more complex queries for actual data)
+      
+      // For advanced stats: collect all relevant exercise and workout data
+      let totalSets = 0;
+      let totalVolume = 0;
+      const exerciseFrequency: {[key: string]: {count: number, name: string}} = {};
+      
+      if (exerciseCompletions && exerciseCompletions.length > 0) {
+        // Get all workout IDs from completed workouts
+        const completedWorkoutIds = completions
+          ?.filter(c => c.completed)
+          .map(c => c.workout_id) || [];
+        
+        // Get training program IDs from these workouts
+        const { data: workoutDetails } = await supabase
+          .from('workouts')
+          .select('id, training_program_id')
+          .in('id', completedWorkoutIds);
+        
+        const programIds = workoutDetails
+          ?.map(w => w.training_program_id)
+          .filter(Boolean) || [];
+        
+        // Get exercise information for these programs
+        const { data: programExercises } = await supabase
+          .from('program_exercises')
+          .select(`
+            id,
+            exercise_id,
+            strength_exercises (id, name),
+            exercise_sets (set_number, reps, weight)
+          `)
+          .in('program_id', programIds);
+        
+        // Process each exercise completion
+        exerciseCompletions.forEach(completion => {
+          // Find exercise data
+          const exercise = programExercises?.find(pe => 
+            pe.strength_exercises && pe.strength_exercises.id === completion.exercise_id
+          );
+          
+          if (exercise && exercise.strength_exercises) {
+            // Add to frequency counter
+            const exerciseName = exercise.strength_exercises.name;
+            if (!exerciseFrequency[completion.exercise_id]) {
+              exerciseFrequency[completion.exercise_id] = {
+                count: 0,
+                name: exerciseName
+              };
+            }
+            exerciseFrequency[completion.exercise_id].count++;
+            
+            // Count completed sets and calculate volume
+            if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
+              completion.completed_sets.forEach((isCompleted, setIndex) => {
+                if (isCompleted) {
+                  // Increment total sets
+                  totalSets++;
+                  
+                  // Calculate volume if we have set data
+                  if (exercise.exercise_sets && exercise.exercise_sets[setIndex]) {
+                    const set = exercise.exercise_sets[setIndex];
+                    
+                    // Parse reps (handle ranges like "8-12")
+                    let reps = 0;
+                    if (set.reps) {
+                      const repsStr = set.reps.toString();
+                      if (repsStr.includes('-')) {
+                        // For ranges like "8-12", take average
+                        const [min, max] = repsStr.split('-').map(Number);
+                        reps = Math.round((min + max) / 2);
+                      } else {
+                        reps = parseInt(repsStr) || 0;
+                      }
+                    }
+                    
+                    // Parse weight
+                    const weight = parseFloat(set.weight || '0') || 0;
+                    
+                    // Add to total volume
+                    totalVolume += reps * weight;
+                  }
+                }
+              });
+            }
+          }
+        });
+      }
+      
+      // Get total unique exercises
+      const uniqueExerciseIds = Object.keys(exerciseFrequency);
+      const totalExercises = uniqueExerciseIds.length;
+      
+      // Get top 5 favorite exercises
+      const favoriteExercises = Object.values(exerciseFrequency)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+        .map(({ name, count }) => ({ name, count }));
+      
+      // Create workout stats object with real data
       const stats: WorkoutStats = {
         totalWorkouts,
         completedWorkouts,
-        totalExercises: 0, // Placeholder
-        totalSets: 0, // Placeholder
-        totalVolume: 0, // Placeholder
-        favoriteExercises: [], // Placeholder
+        totalExercises,
+        totalSets,
+        totalVolume: Math.round(totalVolume), // Round to nearest kg
+        favoriteExercises,
         workoutsPerMonth,
         completionRate,
-        streakDays: 0 // Placeholder
+        streakDays: 0 // For now we'll keep this as 0 (could be implemented separately)
       };
-
+  
       setWorkoutStats(stats);
     } catch (error) {
       console.error('Error fetching workout stats:', error);
@@ -644,6 +741,42 @@ export function AchievementsView() {
           </div>
         </div>
         
+        {/* Новый блок с расширенной статистикой */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-purple-500">{workoutStats?.totalExercises || 0}</div>
+            <div className="text-sm text-gray-600">Уникальных упражнений</div>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-indigo-500">{workoutStats?.totalSets || 0}</div>
+            <div className="text-sm text-gray-600">Всего подходов</div>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-pink-500">{workoutStats?.totalVolume || 0} кг</div>
+            <div className="text-sm text-gray-600">Общий объём</div>
+          </div>
+        </div>
+        
+        {/* Блок с любимыми упражнениями */}
+        {workoutStats?.favoriteExercises && workoutStats.favoriteExercises.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Любимые упражнения</h4>
+            <div className="space-y-2">
+              {workoutStats.favoriteExercises.map((exercise, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center">
+                    <Dumbbell className="w-4 h-4 text-orange-500 mr-2" />
+                    <span className="font-medium">{exercise.name}</span>
+                  </div>
+                  <span className="text-sm bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                    {exercise.count} {exercise.count === 1 ? 'раз' : 'раза'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         {workoutStats?.workoutsPerMonth && workoutStats.workoutsPerMonth.length > 0 && (
           <div className="mt-6">
             <h4 className="text-sm font-medium text-gray-700 mb-2">Тренировки по месяцам</h4>
@@ -654,7 +787,7 @@ export function AchievementsView() {
                 const monthIndex = parseInt(month) - 1;
                 const monthName = monthNames[monthIndex];
                 const maxCount = Math.max(...workoutStats.workoutsPerMonth.map(x => x.count));
-                const height = (item.count / maxCount) * 100;
+                const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
                 
                 return (
                   <div key={index} className="flex-1 flex flex-col items-center">
