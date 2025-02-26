@@ -159,7 +159,7 @@ export function WorkoutModal({
 
       initializeForm();
     }
-  }, [isOpen, selectedDate, workout, program, clientId]); // Исправлен массив зависимостей
+  }, [isOpen, selectedDate, workout, program, clientId]);
 
   const fetchClientPrograms = async (clientId: string) => {
     try {
@@ -294,11 +294,17 @@ export function WorkoutModal({
     setLoading(true);
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const { data, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
-      if (!user) throw new Error('Пользователь не аутентифицирован');
+      console.log('User from supabase.auth.getUser():', data);
 
-      // Проверка валидности данных
+      if (!data || !data.user || !data.user.id) {
+        throw new Error('Не удалось получить идентификатор тренера. Пожалуйста, войдите в систему заново.');
+      }
+
+      const trainerId = data.user.id;
+      console.log('Trainer ID:', trainerId);
+
       if (!formData.date) throw new Error('Дата не указана');
       if (!formData.startTime) throw new Error('Время начала не указано');
 
@@ -336,7 +342,10 @@ export function WorkoutModal({
         end_time: endDateTime.toISOString(),
         title: formData.title || 'Персональная тренировка',
         training_program_id: formData.programId || null,
+        trainer_id: trainerId,
       };
+
+      console.log('Workout data to be sent:', workoutData);
 
       if (!formData.programId) {
         const confirmNoProgram = window.confirm(
@@ -351,10 +360,7 @@ export function WorkoutModal({
       if (workout) {
         const { error: updateError } = await supabase
           .from('workouts')
-          .update({
-            ...workoutData,
-            trainer_id: user.id,
-          })
+          .update(workoutData)
           .eq('id', workout.id);
 
         if (updateError) throw updateError;
@@ -362,10 +368,7 @@ export function WorkoutModal({
       } else {
         const { error: insertError } = await supabase
           .from('workouts')
-          .insert({
-            ...workoutData,
-            trainer_id: user.id,
-          });
+          .insert(workoutData);
 
         if (insertError) throw insertError;
         toast.success('Тренировка запланирована');
