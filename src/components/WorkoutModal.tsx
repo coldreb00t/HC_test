@@ -78,6 +78,7 @@ export function WorkoutModal({
   useEffect(() => {
     if (isOpen) {
       console.log('WorkoutModal opened with selectedDate:', selectedDate);
+      console.log('Client ID from props:', clientId);
       fetchClients();
       fetchPrograms();
       setShowProgramWarning(false);
@@ -142,14 +143,16 @@ export function WorkoutModal({
           defaultTime.setHours(hour, 0, 0, 0);
           console.log('Default time after adjustment:', defaultTime);
 
-          setFormData({
-            clientId: clientId || '',
+          const newFormData = {
+            clientId: clientId || '', // Гарантируем, что clientId из пропсов применяется
             title: program ? `Тренировка: ${program.title}` : 'Персональная тренировка',
             startTime: defaultTime.toTimeString().slice(0, 5),
             duration: 60,
             date: defaultTime.toISOString().split('T')[0],
             programId: program?.id || '',
-          });
+          };
+          setFormData(newFormData);
+          console.log('Form data set to:', newFormData);
 
           if (clientId) {
             fetchClientPrograms(clientId);
@@ -298,15 +301,14 @@ export function WorkoutModal({
       if (userError) throw userError;
       console.log('User from supabase.auth.getUser():', data);
 
-      // Проверка на наличие валидного trainerId
       const trainerId = data?.user?.id;
       if (!trainerId || typeof trainerId !== 'string' || trainerId.trim() === '') {
         throw new Error('Не удалось определить идентификатор тренера. Пожалуйста, войдите в систему заново.');
       }
       console.log('Trainer ID:', trainerId);
 
-      // Проверка на наличие валидного clientId
-      if (!formData.clientId || formData.clientId.trim() === '') {
+      // Проверка clientId только если не передан через пропсы
+      if (!clientId && (!formData.clientId || formData.clientId.trim() === '')) {
         throw new Error('Клиент не выбран');
       }
       console.log('Client ID:', formData.clientId);
@@ -343,7 +345,7 @@ export function WorkoutModal({
       }
 
       const workoutData = {
-        client_id: formData.clientId,
+        client_id: clientId || formData.clientId, // Используем clientId из пропсов, если он есть
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
         title: formData.title || 'Персональная тренировка',
