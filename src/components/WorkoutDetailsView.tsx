@@ -220,16 +220,44 @@ export function WorkoutDetailsView() {
 
       if (clientError) throw clientError;
 
-      // Save workout completion status and feedback
-      const { error: completionError } = await supabase
+      // First check if a completion record already exists
+      const { data: existingCompletion, error: checkError } = await supabase
         .from('workout_completions')
-        .upsert({
-          workout_id: workout.id,
-          client_id: clientData.id,
-          completed: workout.completed,
-          feedback: feedback,
-          updated_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('workout_id', workout.id)
+        .eq('client_id', clientData.id)
+        .maybeSingle();
+        
+      if (checkError) throw checkError;
+      
+      // Update existing or insert new record
+      let completionError;
+      if (existingCompletion) {
+        // Update
+        const { error } = await supabase
+          .from('workout_completions')
+          .update({
+            completed: workout.completed,
+            feedback: feedback,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingCompletion.id);
+        
+        completionError = error;
+      } else {
+        // Insert
+        const { error } = await supabase
+          .from('workout_completions')
+          .insert({
+            workout_id: workout.id,
+            client_id: clientData.id,
+            completed: workout.completed,
+            feedback: feedback,
+            updated_at: new Date().toISOString()
+          });
+        
+        completionError = error;
+      }
 
       if (completionError) throw completionError;
 
