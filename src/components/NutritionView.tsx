@@ -17,6 +17,7 @@ interface NutritionEntry {
   proteins: number | null;
   fats: number | null;
   carbs: number | null;
+  calories: number | null; // Добавлено поле для калорий
   water: number | null;
   photos: string[];
 }
@@ -33,6 +34,7 @@ export function NutritionView() {
     proteins: null,
     fats: null,
     carbs: null,
+    calories: null, // Добавлено начальное значение для калорий
     water: null,
     photos: []
   });
@@ -149,6 +151,7 @@ export function NutritionView() {
         proteins: newEntry.proteins || 0,
         fats: newEntry.fats || 0,
         carbs: newEntry.carbs || 0,
+        calories: newEntry.calories || 0, // Добавлено для калорий
         water: newEntry.water || 0
       };
 
@@ -202,6 +205,7 @@ export function NutritionView() {
         proteins: null,
         fats: null,
         carbs: null,
+        calories: null, // Сброс значения калорий
         water: null,
         photos: []
       });
@@ -349,6 +353,21 @@ export function NutritionView() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Калории (ккал)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  name="calories"
+                  value={newEntry.calories === null ? '' : newEntry.calories}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Вода (мл)
                 </label>
                 <input
@@ -427,6 +446,7 @@ export function NutritionView() {
                         <span>Б: {entry.proteins}г</span>
                         <span>Ж: {entry.fats}г</span>
                         <span>У: {entry.carbs}г</span>
+                        <span>Ккал: {entry.calories}ккал</span> {/* Добавлено отображение калорий */}
                         <span>Вода: {entry.water}мл</span>
                       </div>
                     </div>
