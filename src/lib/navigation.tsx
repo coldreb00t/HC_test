@@ -1,7 +1,13 @@
 import { Dumbbell, Activity, Plus, X, Camera, Apple, Scale } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export const useClientNavigation = (showFabMenu: boolean, setShowFabMenu: (show: boolean) => void, handleMenuItemClick: (action: string) => void) => {
+// Обновить в src/lib/navigation.tsx
+export const useClientNavigation = (
+  showFabMenu: boolean, 
+  setShowFabMenu: (show: boolean) => void, 
+  handleMenuItemClick: (action: string) => void,
+  handleMeasurements?: () => void // Добавлен новый обработчик для замеров
+) => {
   const navigate = useNavigate();
 
   return [
@@ -75,7 +81,13 @@ export const useClientNavigation = (showFabMenu: boolean, setShowFabMenu: (show:
                       e.preventDefault();
                       e.stopPropagation();
                       setShowFabMenu(false);
-                      navigate('/client/measurements/new');
+                      // Используем новый обработчик для замеров, если он предоставлен
+                      if (handleMeasurements) {
+                        handleMeasurements();
+                      } else {
+                        // Старое поведение - навигация
+                        handleMenuItemClick('measurements');
+                      }
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >

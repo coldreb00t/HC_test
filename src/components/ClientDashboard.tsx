@@ -196,7 +196,11 @@ export function ClientDashboard() {
       setNextWorkout(null);
     }
   };
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
 
+  
   // Функция для получения статистики тренировок
   const fetchWorkoutStats = async (clientId: string) => {
     try {
@@ -490,7 +494,7 @@ export function ClientDashboard() {
     setSwipeOffset(0);
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % achievements.length);
