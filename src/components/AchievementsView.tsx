@@ -20,6 +20,7 @@ import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ClientData {
   id: string;
@@ -99,11 +100,9 @@ export function AchievementsView() {
     try {
       setLoading(true);
       
-      // Get user data
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Get client profile
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('*')
@@ -114,7 +113,6 @@ export function AchievementsView() {
       
       setClientData(clientData);
       
-      // Load data in parallel
       await Promise.all([
         fetchMeasurements(clientData.id),
         fetchWorkoutStats(clientData.id),
@@ -123,7 +121,6 @@ export function AchievementsView() {
         fetchProgressPhotos(clientData.id)
       ]);
       
-      // Generate achievements
       generateAchievements();
       
     } catch (error: any) {
@@ -151,7 +148,6 @@ export function AchievementsView() {
 
   const fetchWorkoutStats = async (clientId: string) => {
     try {
-      // Get all workouts for the client
       const { data: workouts, error: workoutsError } = await supabase
         .from('workouts')
         .select('id, start_time, title, training_program_id')
@@ -159,7 +155,6 @@ export function AchievementsView() {
   
       if (workoutsError) throw workoutsError;
   
-      // Get workout completions
       const { data: completions, error: completionsError } = await supabase
         .from('workout_completions')
         .select('*')
@@ -167,7 +162,6 @@ export function AchievementsView() {
   
       if (completionsError) throw completionsError;
   
-      // Get exercise completions with their workout IDs
       const { data: exerciseCompletions, error: exerciseError } = await supabase
         .from('exercise_completions')
         .select('*')
@@ -175,12 +169,10 @@ export function AchievementsView() {
   
       if (exerciseError) throw exerciseError;
       
-      // Calculate basic stats
       const totalWorkouts = workouts?.length || 0;
       const completedWorkouts = completions?.filter(c => c.completed).length || 0;
       const completionRate = totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0;
   
-      // Group workouts by month
       const workoutsByMonth: {[key: string]: number} = {};
       workouts?.forEach(workout => {
         const date = new Date(workout.start_time);
@@ -193,18 +185,15 @@ export function AchievementsView() {
         count
       })).sort((a, b) => a.month.localeCompare(b.month));
       
-      // For advanced stats: collect all relevant exercise and workout data
       let totalSets = 0;
       let totalVolume = 0;
       const exerciseFrequency: {[key: string]: {count: number, name: string}} = {};
       
       if (exerciseCompletions && exerciseCompletions.length > 0) {
-        // Get all workout IDs from completed workouts
         const completedWorkoutIds = completions
           ?.filter(c => c.completed)
           .map(c => c.workout_id) || [];
         
-        // Get training program IDs from these workouts
         const { data: workoutDetails } = await supabase
           .from('workouts')
           .select('id, training_program_id')
@@ -214,7 +203,6 @@ export function AchievementsView() {
           ?.map(w => w.training_program_id)
           .filter(Boolean) || [];
         
-        // Get exercise information for these programs
         const { data: programExercises } = await supabase
           .from('program_exercises')
           .select(`
@@ -225,15 +213,12 @@ export function AchievementsView() {
           `)
           .in('program_id', programIds);
         
-        // Process each exercise completion
         exerciseCompletions.forEach(completion => {
-          // Find exercise data
           const exercise = programExercises?.find(pe => 
             pe.strength_exercises && pe.strength_exercises.id === completion.exercise_id
           );
           
           if (exercise && exercise.strength_exercises) {
-            // Add to frequency counter
             const exerciseName = exercise.strength_exercises.name;
             if (!exerciseFrequency[completion.exercise_id]) {
               exerciseFrequency[completion.exercise_id] = {
@@ -243,34 +228,23 @@ export function AchievementsView() {
             }
             exerciseFrequency[completion.exercise_id].count++;
             
-            // Count completed sets and calculate volume
             if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
               completion.completed_sets.forEach((isCompleted, setIndex) => {
                 if (isCompleted) {
-                  // Increment total sets
                   totalSets++;
-                  
-                  // Calculate volume if we have set data
                   if (exercise.exercise_sets && exercise.exercise_sets[setIndex]) {
                     const set = exercise.exercise_sets[setIndex];
-                    
-                    // Parse reps (handle ranges like "8-12")
                     let reps = 0;
                     if (set.reps) {
                       const repsStr = set.reps.toString();
                       if (repsStr.includes('-')) {
-                        // For ranges like "8-12", take average
                         const [min, max] = repsStr.split('-').map(Number);
                         reps = Math.round((min + max) / 2);
                       } else {
                         reps = parseInt(repsStr) || 0;
                       }
                     }
-                    
-                    // Parse weight
                     const weight = parseFloat(set.weight || '0') || 0;
-                    
-                    // Add to total volume
                     totalVolume += reps * weight;
                   }
                 }
@@ -280,27 +254,24 @@ export function AchievementsView() {
         });
       }
       
-      // Get total unique exercises
       const uniqueExerciseIds = Object.keys(exerciseFrequency);
       const totalExercises = uniqueExerciseIds.length;
       
-      // Get top 5 favorite exercises
       const favoriteExercises = Object.values(exerciseFrequency)
         .sort((a, b) => b.count - a.count)
         .slice(0, 5)
         .map(({ name, count }) => ({ name, count }));
       
-      // Create workout stats object with real data
       const stats: WorkoutStats = {
         totalWorkouts,
         completedWorkouts,
         totalExercises,
         totalSets,
-        totalVolume: Math.round(totalVolume), // Round to nearest kg
+        totalVolume: Math.round(totalVolume),
         favoriteExercises,
         workoutsPerMonth,
         completionRate,
-        streakDays: 0 // For now we'll keep this as 0 (could be implemented separately)
+        streakDays: 0
       };
   
       setWorkoutStats(stats);
@@ -311,7 +282,6 @@ export function AchievementsView() {
 
   const fetchActivityStats = async (clientId: string) => {
     try {
-      // Get daily stats
       const { data: dailyStats, error: dailyStatsError } = await supabase
         .from('client_daily_stats')
         .select('*')
@@ -319,7 +289,6 @@ export function AchievementsView() {
 
       if (dailyStatsError) throw dailyStatsError;
 
-      // Get activities
       const { data: activities, error: activitiesError } = await supabase
         .from('client_activities')
         .select('*')
@@ -327,7 +296,6 @@ export function AchievementsView() {
 
       if (activitiesError) throw activitiesError;
 
-      // Group activities by type
       const activityTypes: {[key: string]: number} = {};
       activities?.forEach(activity => {
         activityTypes[activity.activity_type] = (activityTypes[activity.activity_type] || 0) + activity.duration_minutes;
@@ -338,7 +306,6 @@ export function AchievementsView() {
         duration
       })).sort((a, b) => b.duration - a.duration);
 
-      // Count moods
       const moods: {[key: string]: number} = {};
       dailyStats?.forEach(stat => {
         moods[stat.mood] = (moods[stat.mood] || 0) + 1;
@@ -349,7 +316,6 @@ export function AchievementsView() {
         count
       }));
 
-      // Calculate averages
       const totalSleep = dailyStats?.reduce((acc, stat) => acc + stat.sleep_hours, 0) || 0;
       const totalStress = dailyStats?.reduce((acc, stat) => acc + stat.stress_level, 0) || 0;
       const entriesCount = dailyStats?.length || 0;
@@ -382,7 +348,7 @@ export function AchievementsView() {
       const totalProteins = data?.reduce((acc, entry) => acc + (entry.proteins || 0), 0) || 0;
       const totalFats = data?.reduce((acc, entry) => acc + (entry.fats || 0), 0) || 0;
       const totalCarbs = data?.reduce((acc, entry) => acc + (entry.carbs || 0), 0) || 0;
-      const totalCalories = data?.reduce((acc, entry) => acc + (entry.calories || 0), 0) || 0; // Добавлено для суммы калорий
+      const totalCalories = data?.reduce((acc, entry) => acc + (entry.calories || 0), 0) || 0;
       const totalWater = data?.reduce((acc, entry) => acc + (entry.water || 0), 0) || 0;
 
       const stats: NutritionStats = {
@@ -390,7 +356,7 @@ export function AchievementsView() {
         averageProteins: entriesCount > 0 ? totalProteins / entriesCount : 0,
         averageFats: entriesCount > 0 ? totalFats / entriesCount : 0,
         averageCarbs: entriesCount > 0 ? totalCarbs / entriesCount : 0,
-        averageCalories: entriesCount > 0 ? totalCalories / entriesCount : 0, // Добавлено среднее значение калорий
+        averageCalories: entriesCount > 0 ? totalCalories / entriesCount : 0,
         averageWater: entriesCount > 0 ? totalWater / entriesCount : 0
       };
 
@@ -402,20 +368,17 @@ export function AchievementsView() {
 
   const fetchProgressPhotos = async (clientId: string) => {
     try {
-      // List files from storage
       const { data: files, error: storageError } = await supabase.storage
         .from('client-photos')
         .list('progress-photos');
 
       if (storageError) throw storageError;
 
-      // Filter files for this client
       const clientIdRegex = new RegExp(`^${clientId}-`);
       const clientFiles = files?.filter(file => clientIdRegex.test(file.name)) || [];
 
       if (clientFiles.length === 0) return;
 
-      // Sort by date (filename format: clientId-timestamp-uuid.ext)
       clientFiles.sort((a, b) => {
         const getTimestamp = (filename: string) => {
           const parts = filename.split('-');
@@ -424,7 +387,6 @@ export function AchievementsView() {
         return getTimestamp(a.name) - getTimestamp(b.name);
       });
 
-      // Get the first and last photo
       if (clientFiles.length > 0) {
         const firstFile = clientFiles[0];
         const lastFile = clientFiles[clientFiles.length - 1];
@@ -456,7 +418,6 @@ export function AchievementsView() {
   };
 
   const generateAchievements = () => {
-    // This would be better with actual logic based on the user's data
     const achievementsList = [
       {
         title: "Первые шаги",
@@ -524,7 +485,6 @@ export function AchievementsView() {
     const difference = last - first;
     const percentChange = first !== 0 ? (difference / first) * 100 : 0;
     
-    // For weight and waist, down is good. For others, up is good.
     const goodDirection = field === 'weight' || field === 'waist' ? 'down' : 'up';
     const direction = difference > 0 ? 'up' : difference < 0 ? 'down' : 'none';
     
@@ -555,7 +515,6 @@ export function AchievementsView() {
 
   const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
 
-  // Determine if there's enough data for meaningful statistics
   const hasEnoughData = 
     measurements.length > 0 || 
     (workoutStats && workoutStats.totalWorkouts > 0) || 
@@ -741,7 +700,6 @@ export function AchievementsView() {
           </div>
         </div>
         
-        {/* Новый блок с расширенной статистикой */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="text-2xl font-bold text-purple-500">{workoutStats?.totalExercises || 0}</div>
@@ -757,7 +715,6 @@ export function AchievementsView() {
           </div>
         </div>
         
-        {/* Блок с любимыми упражнениями */}
         {workoutStats?.favoriteExercises && workoutStats.favoriteExercises.length > 0 && (
           <div className="mt-6">
             <h4 className="text-sm font-medium text-gray-700 mb-3">Любимые упражнения</h4>
@@ -806,83 +763,103 @@ export function AchievementsView() {
     </div>
   );
 
-  const renderMeasurementsTab = () => (
-    <div className="space-y-6">
-      {measurements.length > 0 ? (
-        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center mb-4">
-            <Scale className="w-5 h-5 text-gray-500 mr-2" />
-            <h3 className="font-semibold">Измерения тела</h3>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вес (кг)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Талия (см)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Грудь (см)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Бедра (см)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Бицепс (см)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {measurements.map((measurement, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-2 px-3 text-sm">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
-                    <td className="py-2 px-3 text-sm">{measurement.weight || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{measurement.waist || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{measurement.chest || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{measurement.hips || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{measurement.biceps || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="mt-6">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Динамика веса</h4>
-            <div className="h-40 border-b border-l relative">
-              {measurements.map((measurement, index) => {
-                if (!measurement.weight) return null;
-                
-                const maxWeight = Math.max(...measurements.filter(m => m.weight).map(m => m.weight));
-                const minWeight = Math.min(...measurements.filter(m => m.weight).map(m => m.weight));
-                const range = maxWeight - minWeight;
-                const height = range > 0 ? ((measurement.weight - minWeight) / range) * 100 : 50;
-                const position = (index / (measurements.length - 1)) * 100;
-                
-                return (
-                  <div 
-                    key={index}
-                    className="absolute w-3 h-3 bg-orange-500 rounded-full -translate-x-1.5 -translate-y-1.5"
-                    style={{ 
-                      left: `${position}%`, 
-                      bottom: `${height}%` 
-                    }}
-                    title={`${new Date(measurement.date).toLocaleDateString('ru-RU')}: ${measurement.weight} кг`}
-                  ></div>
-                );
-              })}
+  const renderMeasurementsTab = () => {
+    // Подготовка данных для графиков
+    const chartData = measurements.map(measurement => ({
+      date: new Date(measurement.date).toLocaleDateString('ru-RU'),
+      weight: measurement.weight || null,
+      waist: measurement.waist || null,
+      chest: measurement.chest || null,
+      hips: measurement.hips || null,
+      biceps: measurement.biceps || null,
+    }));
+
+    // Функция рендеринга линейного графика
+    const renderLineChart = (field: string, title: string, unit: string, color: string) => {
+      const validData = chartData.filter(d => d[field] !== null);
+      if (validData.length === 0) return null;
+
+      return (
+        <div className="mt-6">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">{title}</h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <RechartsLineChart data={validData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis unit={` ${unit}`} />
+              <Tooltip formatter={(value: number) => `${value} ${unit}`} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey={field}
+                stroke={color}
+                name={title.split(' ')[1]} // Отображаем только имя параметра в легенде
+                activeDot={{ r: 8 }}
+              />
+            </RechartsLineChart>
+          </ResponsiveContainer>
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        {measurements.length > 0 ? (
+          <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+            <div className="flex items-center mb-4">
+              <Scale className="w-5 h-5 text-gray-500 mr-2" />
+              <h3 className="font-semibold">Измерения тела</h3>
             </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вес (кг)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Талия (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Грудь (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Бедра (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Бицепс (см)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {measurements.map((measurement, index) => (
+                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="py-2 px-3 text-sm">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
+                      <td className="py-2 px-3 text-sm">{measurement.weight || '-'}</td>
+                      <td className="py-2 px-3 text-sm">{measurement.waist || '-'}</td>
+                      <td className="py-2 px-3 text-sm">{measurement.chest || '-'}</td>
+                      <td className="py-2 px-3 text-sm">{measurement.hips || '-'}</td>
+                      <td className="py-2 px-3 text-sm">{measurement.biceps || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Линейные графики */}
+            {renderLineChart('weight', 'Динамика веса', 'кг', '#ff7300')}
+            {renderLineChart('waist', 'Динамика талии', 'см', '#387908')}
+            {renderLineChart('chest', 'Динамика груди', 'см', '#8884d8')}
+            {renderLineChart('hips', 'Динамика бедер', 'см', '#ff0000')}
+            {renderLineChart('biceps', 'Динамика бицепса', 'см', '#00c49f')}
           </div>
-        </div>
-      ) : (
-        <div className="bg-gray-50 rounded-lg p-6 text-center">
-          <Scale className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">Нет данных об измерениях</p>
-          <button
-            onClick={() => navigate('/client/measurements/new')}
-            className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-          >
-            Добавить измерения
-          </button>
-        </div>
-      )}
-    </div>
-  );
+        ) : (
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <Scale className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">Нет данных об измерениях</p>
+            <button
+              onClick={() => navigate('/client/measurements/new')}
+              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+            >
+              Добавить измерения
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderActivityTab = () => (
     <div className="space-y-6">
@@ -979,7 +956,7 @@ export function AchievementsView() {
               <div className="text-sm text-gray-600">Средние углеводы</div>
             </div>
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-purple-500">{nutritionStats.averageCalories.toFixed(0)} ккал</div> {/* Добавлено отображение калорий */}
+              <div className="text-2xl font-bold text-purple-500">{nutritionStats.averageCalories.toFixed(0)} ккал</div>
               <div className="text-sm text-gray-600">Средние калории</div>
             </div>
           </div>
@@ -1098,7 +1075,6 @@ export function AchievementsView() {
             </div>
           ) : (
             <>
-              {/* Tabs */}
               <div className="mb-6 overflow-x-auto scrollbar-hide">
                 <div className="flex space-x-1 min-w-max border-b">
                   <button
@@ -1154,14 +1130,12 @@ export function AchievementsView() {
                 </div>
               </div>
               
-              {/* Tab Content */}
               {renderTabContent()}
             </>
           )}
         </div>
       </div>
       
-      {/* Модальное окно для шеринга достижений */}
       {showShareModal && selectedAchievement && (
         <ShareAchievementModal
           isOpen={showShareModal}
