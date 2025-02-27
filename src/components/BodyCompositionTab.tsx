@@ -17,38 +17,30 @@ interface Measurement {
   [key: string]: any;
 }
 
-interface UploadedFile {
-  file_id: number;
-  user_id: string;
-  file_url: string;
-  uploaded_at: string;
-  filename: string;
-}
-
 interface BodyMeasurement {
   measurement_id: number;
   user_id: string;
   measurement_date: string;
-  age: number;
-  gender: string;
-  height_cm: number;
-  weight_kg: number;
-  bmi: number;
-  body_fat_percent: number;
-  fat_mass_kg: number;
-  skeletal_muscle_mass_kg: number;
-  visceral_fat_level: number;
-  basal_metabolic_rate_kcal: number;
-  inbody_score: number;
-  notes: string;
-  file_id: number;
+  age: number | null;
+  gender: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bmi: number | null;
+  body_fat_percent: number | null;
+  fat_mass_kg: number | null;
+  skeletal_muscle_mass_kg: number | null;
+  visceral_fat_level: number | null;
+  basal_metabolic_rate_kcal: number | null;
+  inbody_score: number | null;
+  notes: string | null;
+  file_id: number | null;
 }
 
 interface BodyCompositionData {
   date: string;
   bodyFatPercentage: number | null;
   muscleMass: number | null;
-  waterPercentage: number | null; // Можно добавить, если данные доступны
+  waterPercentage: number | null;
   bmi: number | null;
   visceralFatLevel: number | null;
   inbodyScore: number | null;
@@ -57,35 +49,37 @@ interface BodyCompositionData {
 interface BodyCompositionTabProps {
   clientId: string;
   measurements: Measurement[];
-  bodyMeasurements: BodyMeasurement[];
+  bodyMeasurements: BodyMeasurement[] | null | undefined;
 }
 
 export default function BodyCompositionTab({ clientId, measurements, bodyMeasurements }: BodyCompositionTabProps) {
   const navigate = useNavigate();
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [formData, setFormData] = useState({
+    measurementDate: '',
+    age: '',
+    gender: 'M' as const, // 'M' или 'F'
+    heightCm: '',
+    weightKg: '',
+    bodyFatPercent: '',
+    muscleMassKg: '',
+    visceralFatLevel: '',
+    bmi: '',
+    inbodyScore: '',
+    notes: '',
+  });
 
   useEffect(() => {
-    fetchBodyCompositionAndFiles();
+    fetchBodyCompositionData();
   }, [clientId, measurements, bodyMeasurements]);
 
-  const fetchBodyCompositionAndFiles = async () => {
+  const fetchBodyCompositionData = async () => {
     try {
       setLoading(true);
 
-      // Получаем данные о загруженных файлах
-      const { data: files, error: filesError } = await supabase
-        .from('uploaded_files')
-        .select('*')
-        .eq('user_id', clientId)
-        .order('uploaded_at', { ascending: true });
-
-      if (filesError) throw filesError;
-      setUploadedFiles(files || []);
-
       // Используем существующие данные из body_measurements или measurements
-      const compositionData = [...bodyMeasurements].map(measurement => ({
+      const compositionData = [...(bodyMeasurements || [])].map(measurement => ({
         date: new Date(measurement.measurement_date).toLocaleDateString('ru-RU'),
         bodyFatPercentage: measurement.body_fat_percent || null,
         muscleMass: measurement.skeletal_muscle_mass_kg || null,
@@ -121,7 +115,7 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
 
       setBodyComposition(compositionData);
     } catch (error: any) {
-      console.error('Error fetching body composition and files:', error);
+      console.error('Error fetching body composition data:', error);
       toast.error('Ошибка при загрузке данных о составе тела');
     } finally {
       setLoading(false);
@@ -137,113 +131,69 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     return Math.max(0, Math.min(100, bodyFat * 100)); // Ограничиваем диапазон 0-100%
   };
 
-  // Обработка загрузки файла
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       setLoading(true);
 
-      // 1. Сохраняем файл в Supabase Storage
-      const fileName = `${clientId}-${Date.now()}-${file.name}`;
-      const { data, error: storageError } = await supabase.storage
-        .from('client-photos')
-        .upload(`inbody-reports/${fileName}`, file, {
-          upsert: false,
-        });
+      const measurementData = {
+        user_id: clientId,
+        measurement_date: new Date(formData.measurementDate).toISOString(),
+        age: formData.age ? parseInt(formData.age, 10) : null,
+        gender: formData.gender || null,
+        height_cm: formData.heightCm ? parseFloat(formData.heightCm) : null,
+        weight_kg: formData.weightKg ? parseFloat(formData.weightKg) : null,
+        bmi: formData.bmi ? parseFloat(formData.bmi) : null,
+        body_fat_percent: formData.bodyFatPercent ? parseFloat(formData.bodyFatPercent) : null,
+        fat_mass_kg: formData.weightKg && formData.bodyFatPercent 
+          ? parseFloat(formData.weightKg) * (parseFloat(formData.bodyFatPercent) / 100) 
+          : null,
+        skeletal_muscle_mass_kg: formData.muscleMassKg ? parseFloat(formData.muscleMassKg) : null,
+        visceral_fat_level: formData.visceralFatLevel ? parseInt(formData.visceralFatLevel, 10) : null,
+        basal_metabolic_rate_kcal: null, // Можно добавить позже
+        inbody_score: formData.inbodyScore ? parseInt(formData.inbodyScore, 10) : null,
+        notes: formData.notes || null,
+        file_id: null, // Ручной ввод, файл отсутствует
+      };
 
-      if (storageError) throw storageError;
+      const { error } = await supabase
+        .from('body_measurements')
+        .insert(measurementData);
 
-      const fileUrl = supabase.storage
-        .from('client-photos')
-        .getPublicUrl(`inbody-reports/${fileName}`).data.publicUrl;
+      if (error) throw error;
 
-      // 2. Сохраняем метаданные в таблице uploaded_files
-      const { data: fileData, error: fileError } = await supabase
-        .from('uploaded_files')
-        .insert({
-          user_id: clientId,
-          file_url: fileUrl,
-          uploaded_at: new Date().toISOString(),
-          filename: fileName,
-        })
-        .select('file_id')
-        .single();
+      // Сбрасываем форму
+      setFormData({
+        measurementDate: '',
+        age: '',
+        gender: 'M',
+        heightCm: '',
+        weightKg: '',
+        bodyFatPercent: '',
+        muscleMassKg: '',
+        visceralFatLevel: '',
+        bmi: '',
+        inbodyScore: '',
+        notes: '',
+      });
 
-      if (fileError) throw fileError;
-
-      // 3. Отправляем файл на OCR + GPT для распознавания
-      const ocrResult = await processFileWithOCR(fileUrl); // Функция для OCR (нужно реализовать на бэкенде)
-      const gptResponse = await processWithGPT(ocrResult); // Функция для обработки через GPT (нужно реализовать)
-
-      // 4. Сохраняем структурированные данные в body_measurements
-      await saveBodyMeasurement(clientId, fileData.file_id, gptResponse);
-
-      // 5. Обновляем данные в состоянии
-      await fetchBodyCompositionAndFiles();
-      toast.success('Файл загружен и обработан');
+      // Обновляем данные
+      await fetchBodyCompositionData();
+      toast.success('Данные о составе тела сохранены');
     } catch (error: any) {
-      console.error('Error uploading and processing file:', error);
-      toast.error('Ошибка при загрузке файла');
+      console.error('Error saving body measurement:', error);
+      toast.error('Ошибка при сохранении данных');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Функция для обработки файла через OCR (пример)
-  const processFileWithOCR = async (fileUrl: string): Promise<string> => {
-    // Здесь должна быть интеграция с OCR (например, Tesseract, Google Cloud Vision)
-    // Пример: отправляем файл на сервер, который использует OCR
-    // Возвращаем текст, извлечённый из изображения/PDF
-    // Это требует бэкенда, поэтому пока возвращаем заглушки
-    console.log('Processing file with OCR:', fileUrl);
-    return `InBody Report: Weight 72.7 kg, Body Fat 26.1%, Muscle Mass 29.9 kg, Date 2025-02-27, Age 26, Gender F, Height 163 cm, Visceral Fat 7, BMI 27.3, InBody Score 87...`; // Замените на реальную логику
-  };
-
-  // Функция для обработки через GPT (пример)
-  const processWithGPT = async (text: string): Promise<any> => {
-    // Здесь должна быть интеграция с OpenAI API или другой LLM
-    // Пример: отправляем текст на GPT с промптом для структурирования
-    // Возвращаем JSON с данными
-    console.log('Processing with GPT:', text);
-    return {
-      measurement_date: "2025-02-27T08:26:00",
-      age: 26,
-      gender: "F",
-      height_cm: 163,
-      weight_kg: 72.7,
-      body_fat_percent: 26.1,
-      skeletal_muscle_mass_kg: 29.9,
-      visceral_fat_level: 7,
-      bmi: 27.3,
-      inbody_score: 87,
-    }; // Замените на реальную логику с OpenAI API
-  };
-
-  // Функция для сохранения данных о составе тела в Supabase
-  const saveBodyMeasurement = async (clientId: string, fileId: number, data: any) => {
-    const { error } = await supabase
-      .from('body_measurements')
-      .insert({
-        user_id: clientId,
-        measurement_date: data.measurement_date,
-        age: data.age || null,
-        gender: data.gender || null,
-        height_cm: data.height_cm || null,
-        weight_kg: data.weight_kg || null,
-        bmi: data.bmi || null,
-        body_fat_percent: data.body_fat_percent || null,
-        fat_mass_kg: (data.weight_kg || 0) * (data.body_fat_percent || 0) / 100 || null,
-        skeletal_muscle_mass_kg: data.skeletal_muscle_mass_kg || null,
-        visceral_fat_level: data.visceral_fat_level || null,
-        basal_metabolic_rate_kcal: null, // Можно добавить логику
-        inbody_score: data.inbody_score || null,
-        notes: null, // Можно добавить
-        file_id: fileId,
-      });
-
-    if (error) throw error;
   };
 
   const renderBodyCompositionChart = (data: BodyCompositionData[], field: 'bodyFatPercentage' | 'muscleMass' | 'waterPercentage' | 'bmi' | 'visceralFatLevel' | 'inbodyScore', title: string, unit: string, color: string) => {
@@ -283,13 +233,153 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
         </div>
-      ) : bodyComposition.length > 0 ? (
+      ) : (
         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center mb-4">
             <Scale className="w-5 h-5 text-gray-500 mr-2" />
             <h3 className="font-semibold">Состав тела</h3>
           </div>
 
+          {/* Форма для ручного ввода */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Ручной ввод данных о составе тела</h4>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Дата измерения</label>
+                  <input
+                    type="date"
+                    name="measurementDate"
+                    value={formData.measurementDate}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Возраст</label>
+                  <input
+                    type="number"
+                    name="age"
+                    value={formData.age}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 26"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Пол</label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                  >
+                    <option value="M">Мужской</option>
+                    <option value="F">Женский</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Рост (см)</label>
+                  <input
+                    type="number"
+                    name="heightCm"
+                    value={formData.heightCm}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 163"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Вес (кг)</label>
+                  <input
+                    type="number"
+                    name="weightKg"
+                    value={formData.weightKg}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 72.7"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Процент жира (%)</label>
+                  <input
+                    type="number"
+                    name="bodyFatPercent"
+                    value={formData.bodyFatPercent}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 26.1"
+                    required
+                  />
+                </div>  
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Мышечная масса (кг)</label>
+                  <input
+                    type="number"
+                    name="muscleMassKg"
+                    value={formData.muscleMassKg}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 29.9"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Жир в брюшной полости</label>
+                  <input
+                    type="number"
+                    name="visceralFatLevel"
+                    value={formData.visceralFatLevel}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 7"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">ИМТ</label>
+                  <input
+                    type="number"
+                    name="bmi"
+                    value={formData.bmi}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 27.3"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Оценка InBody</label>
+                  <input
+                    type="number"
+                    name="inbodyScore"
+                    value={formData.inbodyScore}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Например, 87"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Примечания</label>
+                  <textarea
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    placeholder="Дополнительные заметки"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                Сохранить данные
+              </button>
+            </form>
+          </div>
+
+          {/* Таблица и графики */}
           <div className="overflow-x-auto mb-4">
             <table className="min-w-full border-collapse">
               <thead>
@@ -321,34 +411,12 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
             </table>
           </div>
 
-          {/* Добавляем интерфейс для загрузки файла */}
-          <div className="mt-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Загрузить новый отчёт InBody</h4>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={handleFileUpload}
-              className="mb-2"
-            />
-          </div>
-
           {renderBodyCompositionChart(bodyComposition, 'bodyFatPercentage', 'Процент жира', '%', '#ff7300')}
           {renderBodyCompositionChart(bodyComposition, 'muscleMass', 'Мышечная масса', 'кг', '#387908')}
           {renderBodyCompositionChart(bodyComposition, 'waterPercentage', 'Вода', '%', '#8884d8')}
           {renderBodyCompositionChart(bodyComposition, 'bmi', 'Индекс массы тела', '', '#00c49f')}
           {renderBodyCompositionChart(bodyComposition, 'visceralFatLevel', 'Жир в брюшной полости', '', '#ff0000')}
           {renderBodyCompositionChart(bodyComposition, 'inbodyScore', 'Оценка InBody', '', '#0000ff')}
-        </div>
-      ) : (
-        <div className="bg-gray-50 rounded-lg p-6 text-center">
-          <Scale className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">Нет данных о составе тела</p>
-          <button
-            onClick={() => navigate('/client/body-composition/new')}
-            className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-          >
-            Добавить данные о составе тела
-          </button>
         </div>
       )}
     </div>
