@@ -143,9 +143,14 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     e.preventDefault();
     try {
       setLoading(true);
-
+  
+      // Получаем текущего пользователя
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+  
       const measurementData = {
-        user_id: clientId,
+        user_id: user.id, // Используем ID пользователя из auth
+        client_id: clientId, // Используем ID клиента из параметров
         measurement_date: new Date(formData.measurementDate).toISOString(),
         age: formData.age ? parseInt(formData.age, 10) : null,
         gender: formData.gender || null,
@@ -163,13 +168,13 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         notes: formData.notes || null,
         file_id: null, // Ручной ввод, файл отсутствует
       };
-
+  
       const { error } = await supabase
         .from('body_measurements')
         .insert(measurementData);
-
+  
       if (error) throw error;
-
+  
       // Сбрасываем форму
       setFormData({
         measurementDate: '',
@@ -184,7 +189,7 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         inbodyScore: '',
         notes: '',
       });
-
+  
       // Обновляем данные
       await fetchBodyCompositionData();
       toast.success('Данные о составе тела сохранены');
