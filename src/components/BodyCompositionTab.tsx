@@ -83,7 +83,7 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         date: new Date(measurement.measurement_date).toLocaleDateString('ru-RU'),
         bodyFatPercentage: measurement.body_fat_percent || null,
         muscleMass: measurement.skeletal_muscle_mass_kg || null,
-        waterPercentage: null, // Можно добавить, если данные доступны в таблице
+        waterPercentage: null, // Устанавливаем null, если данные отсутствуют
         bmi: measurement.bmi || null,
         visceralFatLevel: measurement.visceral_fat_level || null,
         inbodyScore: measurement.inbody_score || null,
@@ -98,8 +98,8 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
 
           const bmi = weight > 0 && height > 0 ? (weight / ((height / 100) * (height / 100))) : null;
           const bodyFatPercentage = calculateBodyFatPercentage(weight, height, waist);
-          const muscleMass = weight * 0.4; // Примерная формула, замените на реальную
-          const waterPercentage = weight * 0.6; // Примерная формула
+          const muscleMass = weight > 0 ? weight * 0.4 : null; // Устанавливаем null, если вес = 0
+          const waterPercentage = weight > 0 ? weight * 0.6 : null; // Устанавливаем null, если вес = 0
 
           return {
             date: new Date(measurement.date).toLocaleDateString('ru-RU'),
@@ -143,13 +143,14 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     e.preventDefault();
     try {
       setLoading(true);
-  
+
       // Получаем текущего пользователя
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
-  
+      if (!user) throw new Error('Пользователь не авторизован');
+
       const measurementData = {
-        user_id: user.id, // Используем ID пользователя из auth
+        user_id: user.id, // Теперь безопасно, так как user не null
         client_id: clientId, // Используем ID клиента из параметров
         measurement_date: new Date(formData.measurementDate).toISOString(),
         age: formData.age ? parseInt(formData.age, 10) : null,
@@ -168,13 +169,13 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         notes: formData.notes || null,
         file_id: null, // Ручной ввод, файл отсутствует
       };
-  
+
       const { error } = await supabase
         .from('body_measurements')
         .insert(measurementData);
-  
+
       if (error) throw error;
-  
+
       // Сбрасываем форму
       setFormData({
         measurementDate: '',
@@ -189,13 +190,13 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         inbodyScore: '',
         notes: '',
       });
-  
+
       // Обновляем данные
       await fetchBodyCompositionData();
       toast.success('Данные о составе тела сохранены');
     } catch (error: any) {
       console.error('Error saving body measurement:', error);
-      toast.error('Ошибка при сохранении данных');
+      toast.error(error.message || 'Ошибка при сохранении данных');
     } finally {
       setLoading(false);
     }
@@ -231,6 +232,57 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
       </div>
     );
   };
+
+  const renderBodyCompositionTable = () => (
+    <div className="overflow-x-auto mb-4">
+      <table className="min-w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-50">
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вес (кг)</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Процент жира (%)</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Мышечная масса (кг)</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вода (%)</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ИМТ</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жир в брюшной полости</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Оценка InBody</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {bodyComposition.map((item, index) => {
+            // Преобразуем item.date в ISO-дату для сравнения (убираем время)
+            const itemDate = new Date(item.date.split('.').reverse().join('-')).toISOString().split('T')[0];
+
+            // Находим соответствующую запись в bodyMeasurements по дате
+            const bodyMeasurement = bodyMeasurements?.find(m => 
+              new Date(m.measurement_date).toISOString().split('T')[0] === itemDate
+            );
+            
+            // Находим соответствующую запись в measurements по дате
+            const measurement = measurements?.find(m => 
+              new Date(m.date).toISOString().split('T')[0] === itemDate
+            );
+
+            // Получаем вес, приоритизируя bodyMeasurements
+            const weight = bodyMeasurement?.weight_kg || measurement?.weight || null;
+
+            return (
+              <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <td className="py-2 px-3 text-sm">{item.date}</td>
+                <td className="py-2 px-3 text-sm">{weight?.toFixed(1) || '-'}</td>
+                <td className="py-2 px-3 text-sm">{item.bodyFatPercentage?.toFixed(1) || '-'}</td>
+                <td className="py-2 px-3 text-sm">{item.muscleMass?.toFixed(1) || '-'}</td>
+                <td className="py-2 px-3 text-sm">{item.waterPercentage?.toFixed(1) || '-'}</td>
+                <td className="py-2 px-3 text-sm">{item.bmi?.toFixed(1) || '-'}</td>
+                <td className="py-2 px-3 text-sm">{item.visceralFatLevel || '-'}</td>
+                <td className="py-2 px-3 text-sm">{item.inbodyScore || '-'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -384,37 +436,7 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
             </form>
           </div>
 
-          {/* Таблица и графики */}
-          <div className="overflow-x-auto mb-4">
-            <table className="min-w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вес (кг)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Процент жира (%)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Мышечная масса (кг)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вода (%)</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ИМТ</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жир в брюшной полости</th>
-                  <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Оценка InBody</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {bodyComposition.map((item, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-2 px-3 text-sm">{item.date}</td>
-                    <td className="py-2 px-3 text-sm">{(measurements.find(m => new Date(m.date).toLocaleDateString('ru-RU') === item.date)?.weight || item.bmi)?.toFixed(1) || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{item.bodyFatPercentage?.toFixed(1) || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{item.muscleMass?.toFixed(1) || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{item.waterPercentage?.toFixed(1) || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{item.bmi?.toFixed(1) || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{item.visceralFatLevel || '-'}</td>
-                    <td className="py-2 px-3 text-sm">{item.inbodyScore || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {renderBodyCompositionTable()}
 
           {renderBodyCompositionChart(bodyComposition, 'bodyFatPercentage', 'Процент жира', '%', '#ff7300')}
           {renderBodyCompositionChart(bodyComposition, 'muscleMass', 'Мышечная масса', 'кг', '#387908')}
