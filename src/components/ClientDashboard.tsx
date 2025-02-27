@@ -25,7 +25,6 @@ import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { WorkoutProgramModal } from './WorkoutProgramModal';
-import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 interface Exercise {
   id: string;
@@ -96,7 +95,6 @@ export function ClientDashboard() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   
   // Состояние для хранения статистики
   const [userStats, setUserStats] = useState<UserStats>({
@@ -160,7 +158,7 @@ export function ClientDashboard() {
       await fetchAchievementsStats(clientData.id);
 
     } catch (error: any) {
-      console.error('Ошибка загрузки данных дашборда:', error);
+      console.error('Error fetching dashboard data:', error);
       if (error.message === 'Failed to fetch') {
         toast.error('Ошибка подключения к серверу. Пожалуйста, проверьте подключение к интернету.');
       } else {
@@ -171,41 +169,28 @@ export function ClientDashboard() {
     }
   };
 
+  // Функция для получения данных о следующей тренировке
   const fetchNextWorkout = async (clientId: string) => {
-    try {
-      // Use a simpler date format to avoid URL encoding issues
-      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      const { data: workoutData, error: workoutError } = await supabase
-        .from('workouts')
-        .select('id, start_time, title, training_program_id')
-        .eq('client_id', clientId)
-        .gte('start_time', currentDate) // Using simpler date format
-        .order('start_time')
-        .limit(1)
-        .single();
-  
-      if (workoutError) {
-        if (workoutError.code !== 'PGRST116') { // Not found error is expected
-          console.error('Error fetching next workout:', workoutError);
-        }
-        setNextWorkout(null);
-        return;
-      }
-  
-      if (workoutData) {
-        setNextWorkout({
-          id: workoutData.id,
-          start_time: workoutData.start_time,
-          title: workoutData.title,
-          training_program_id: workoutData.training_program_id,
-          program: null
-        });
-      } else {
-        setNextWorkout(null);
-      }
-    } catch (error) {
-      console.error('Failed to fetch next workout:', error);
+    const { data: workoutData, error: workoutError } = await supabase
+      .from('workouts')
+      .select('id, start_time, title, training_program_id')
+      .eq('client_id', clientId)
+      .gt('start_time', new Date().toISOString())
+      .order('start_time')
+      .limit(1)
+      .single();
+
+    if (workoutError && workoutError.code !== 'PGRST116') throw workoutError;
+
+    if (workoutData) {
+      setNextWorkout({
+        id: workoutData.id,
+        start_time: workoutData.start_time,
+        title: workoutData.title,
+        training_program_id: workoutData.training_program_id,
+        program: null
+      });
+    } else {
       setNextWorkout(null);
     }
   };
@@ -307,7 +292,7 @@ export function ClientDashboard() {
         }
       }));
     } catch (error) {
-      console.error('Ошибка получения статистики тренировок:', error);
+      console.error('Error fetching workout stats:', error);
     }
   };
 
@@ -347,7 +332,7 @@ export function ClientDashboard() {
         }
       }));
     } catch (error) {
-      console.error('Ошибка получения статистики активности:', error);
+      console.error('Error fetching activity stats:', error);
     }
   };
 
@@ -387,7 +372,7 @@ export function ClientDashboard() {
         }
       }));
     } catch (error) {
-      console.error('Ошибка получения статистики измерений:', error);
+      console.error('Error fetching measurement stats:', error);
     }
   };
 
@@ -426,7 +411,7 @@ export function ClientDashboard() {
         }
       }));
     } catch (error) {
-      console.error('Ошибка расчета статистики достижений:', error);
+      console.error('Error calculating achievements stats:', error);
     }
   };
   
@@ -436,7 +421,7 @@ export function ClientDashboard() {
       if (error) throw error;
       navigate('/login');
     } catch (error: any) {
-      console.error('Ошибка при выходе из системы:', error);
+      console.error('Error signing out:', error);
       toast.error('Ошибка при выходе из системы');
     }
   };
@@ -451,8 +436,7 @@ export function ClientDashboard() {
         navigate('/client/progress-photo/new');
         break;
       case 'measurements':
-        // Вместо перехода на страницу, открываем модальное окно
-        setShowMeasurementsModal(true);
+        navigate('/client/measurements/new');
         break;
       case 'nutrition':
         navigate('/client/nutrition/new');
@@ -779,13 +763,6 @@ export function ClientDashboard() {
           training_program_id={nextWorkout.training_program_id}
         />
       )}
-
-      {/* Модальное окно для ввода замеров */}
-      <MeasurementsInputModal
-        isOpen={showMeasurementsModal}
-        onClose={() => setShowMeasurementsModal(false)}
-        onSave={fetchDashboardData}
-      />
     </SidebarLayout>
   );
 }
