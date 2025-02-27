@@ -12,13 +12,10 @@ interface MeasurementsInputModalProps {
 interface MeasurementData {
   weight: string;
   height: string;
-  wrist: string;
   biceps: string;
   chest: string;
-  abdomen: string;
   waist: string;
   hips: string;
-  thighs: string;
   calves: string;
 }
 
@@ -27,19 +24,17 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
   const [measurements, setMeasurements] = useState<MeasurementData>({
     weight: '',
     height: '',
-    wrist: '',
+
     biceps: '',
     chest: '',
-    abdomen: '',
     waist: '',
     hips: '',
-    thighs: '',
     calves: ''
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    // Позволяем только положительные числа с максимум одним десятичным знаком
+    // Validate input - allow only numbers with up to one decimal place
     if (value === '' || /^\d+(\.\d{0,1})?$/.test(value)) {
       setMeasurements(prev => ({
         ...prev,
@@ -71,13 +66,11 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
         date: new Date().toISOString(),
         weight: measurements.weight ? parseFloat(measurements.weight) : null,
         height: measurements.height ? parseFloat(measurements.height) : null,
-        wrist: measurements.wrist ? parseFloat(measurements.wrist) : null,
+  
         biceps: measurements.biceps ? parseFloat(measurements.biceps) : null,
         chest: measurements.chest ? parseFloat(measurements.chest) : null,
-        abdomen: measurements.abdomen ? parseFloat(measurements.abdomen) : null,
         waist: measurements.waist ? parseFloat(measurements.waist) : null,
         hips: measurements.hips ? parseFloat(measurements.hips) : null,
-        thighs: measurements.thighs ? parseFloat(measurements.thighs) : null,
         calves: measurements.calves ? parseFloat(measurements.calves) : null
       };
 
@@ -104,6 +97,7 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+        {/* Header */}
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-800">Ввод замеров тела</h2>
           <button
@@ -114,8 +108,8 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
           </button>
         </div>
         
-        <div className="p-4">
-          {/* Основные показатели */}
+        <div className="p-4 max-h-[80vh] overflow-y-auto">
+          {/* All measurements organized in a simple grid */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Вес (кг)</label>
@@ -131,6 +125,7 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
                 <Scale className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               </div>
             </div>
+            
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Рост (см)</label>
               <div className="relative">
@@ -147,155 +142,81 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
             </div>
           </div>
 
-          {/* Силуэт с замерами */}
-          <div className="relative mb-6">
-            <div className="aspect-[3/4] w-full bg-gray-50 rounded-lg flex items-center justify-center relative overflow-hidden">
-              {/* SVG Силуэт */}
-              <svg viewBox="0 0 200 300" className="h-full max-h-[350px] w-auto">
-                {/* Человеческий силуэт с лучшими пропорциями */}
-                <path d="M100,40 C120,40 135,25 135,0 L65,0 C65,25 80,40 100,40 Z" fill="#e5e7eb" /> {/* Голова */}
-                <path d="M85,40 L115,40 L120,140 L80,140 Z" fill="#e5e7eb" /> {/* Торс */}
-                <path d="M115,40 L130,45 L150,100 L130,115 L125,105 L130,80 L120,85 L115,65 Z" fill="#e5e7eb" /> {/* Правая рука */}
-                <path d="M85,40 L70,45 L50,100 L70,115 L75,105 L70,80 L80,85 L85,65 Z" fill="#e5e7eb" /> {/* Левая рука */}
-                <path d="M80,140 L75,240 L65,300 L90,300 L95,190 Z" fill="#e5e7eb" /> {/* Левая нога */}
-                <path d="M120,140 L125,240 L135,300 L110,300 L105,190 Z" fill="#e5e7eb" /> {/* Правая нога */}
-              </svg>
-
-              {/* Запястье */}
-              <div className="absolute top-[37%] right-[5%]">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Запястье (см)</label>
-                  <input
-                    type="text"
-                    name="wrist"
-                    value={measurements.wrist}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+          {/* Organized body measurements */}
+          <div className="mb-6">
+            <h3 className="text-md font-medium text-gray-700 mb-3 border-b pb-2">Верхняя часть тела</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Бицепс (см)</label>
+                <input
+                  type="text"
+                  name="biceps"
+                  value={measurements.biceps}
+                  onChange={handleChange}
+                  placeholder="0.0"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
-
-              {/* Бицепс */}
-              <div className="absolute top-[25%] right-[20%]">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Бицепс (см)</label>
-                  <input
-                    type="text"
-                    name="biceps"
-                    value={measurements.biceps}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Грудь (см)</label>
+                <input
+                  type="text"
+                  name="chest"
+                  value={measurements.chest}
+                  onChange={handleChange}
+                  placeholder="0.0"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
+            </div>
 
-              {/* Грудь */}
-              <div className="absolute top-[25%] left-1/2 transform -translate-x-1/2">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Грудь (см)</label>
-                  <input
-                    type="text"
-                    name="chest"
-                    value={measurements.chest}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+            <h3 className="text-md font-medium text-gray-700 mb-3 border-b pb-2">Средняя часть тела</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Талия (см)</label>
+                <input
+                  type="text"
+                  name="waist"
+                  value={measurements.waist}
+                  onChange={handleChange}
+                  placeholder="0.0"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
-
-              {/* Живот (пупок) */}
-              <div className="absolute top-[35%] left-1/2 transform -translate-x-1/2">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Живот (пупок) (см)</label>
-                  <input
-                    type="text"
-                    name="abdomen"
-                    value={measurements.abdomen}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Бедра (см)</label>
+                <input
+                  type="text"
+                  name="hips"
+                  value={measurements.hips}
+                  onChange={handleChange}
+                  placeholder="0.0"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
+            </div>
 
-              {/* Талия */}
-              <div className="absolute top-[41%] left-1/2 transform -translate-x-1/2">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Талия (см)</label>
-                  <input
-                    type="text"
-                    name="waist"
-                    value={measurements.waist}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-              </div>
-
-              {/* Бедра */}
-              <div className="absolute top-[53%] left-1/2 transform -translate-x-1/2">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Бедра (см)</label>
-                  <input
-                    type="text"
-                    name="hips"
-                    value={measurements.hips}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-              </div>
-
-              {/* Бедра (под ягодичной складкой) */}
-              <div className="absolute top-[62%] left-1/2 transform -translate-x-1/2">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Бедра (под ягод.) (см)</label>
-                  <input
-                    type="text"
-                    name="thighs"
-                    value={measurements.thighs}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
-              </div>
-
-              {/* Икры */}
-              <div className="absolute top-[80%] right-[15%]">
-                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Голень/Икры (см)</label>
-                  <input
-                    type="text"
-                    name="calves"
-                    value={measurements.calves}
-                    onChange={handleChange}
-                    placeholder="0.0"
-                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+            <h3 className="text-md font-medium text-gray-700 mb-3 border-b pb-2">Нижняя часть тела</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Голень/Икры (см)</label>
+                <input
+                  type="text"
+                  name="calves"
+                  value={measurements.calves}
+                  onChange={handleChange}
+                  placeholder="0.0"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
             </div>
           </div>
 
+          {/* Save Button */}
           <button
             onClick={handleSubmit}
             disabled={loading}
