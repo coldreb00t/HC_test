@@ -12,10 +12,13 @@ interface MeasurementsInputModalProps {
 interface MeasurementData {
   weight: string;
   height: string;
+  wrist: string;
+  biceps: string;
   chest: string;
+  abdomen: string;
   waist: string;
   hips: string;
-  biceps: string;
+  thighs: string;
   calves: string;
 }
 
@@ -24,10 +27,13 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
   const [measurements, setMeasurements] = useState<MeasurementData>({
     weight: '',
     height: '',
+    wrist: '',
+    biceps: '',
     chest: '',
+    abdomen: '',
     waist: '',
     hips: '',
-    biceps: '',
+    thighs: '',
     calves: ''
   });
 
@@ -65,10 +71,13 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
         date: new Date().toISOString(),
         weight: measurements.weight ? parseFloat(measurements.weight) : null,
         height: measurements.height ? parseFloat(measurements.height) : null,
+        wrist: measurements.wrist ? parseFloat(measurements.wrist) : null,
+        biceps: measurements.biceps ? parseFloat(measurements.biceps) : null,
         chest: measurements.chest ? parseFloat(measurements.chest) : null,
+        abdomen: measurements.abdomen ? parseFloat(measurements.abdomen) : null,
         waist: measurements.waist ? parseFloat(measurements.waist) : null,
         hips: measurements.hips ? parseFloat(measurements.hips) : null,
-        biceps: measurements.biceps ? parseFloat(measurements.biceps) : null,
+        thighs: measurements.thighs ? parseFloat(measurements.thighs) : null,
         calves: measurements.calves ? parseFloat(measurements.calves) : null
       };
 
@@ -106,7 +115,7 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
         </div>
         
         <div className="p-4">
-          {/* Вес и Рост */}
+          {/* Основные показатели */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Вес (кг)</label>
@@ -152,6 +161,38 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
                 <path d="M120,140 L125,240 L135,300 L110,300 L105,190 Z" fill="#e5e7eb" /> {/* Правая нога */}
               </svg>
 
+              {/* Запястье */}
+              <div className="absolute top-[37%] right-[5%]">
+                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Запястье (см)</label>
+                  <input
+                    type="text"
+                    name="wrist"
+                    value={measurements.wrist}
+                    onChange={handleChange}
+                    placeholder="0.0"
+                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+              </div>
+
+              {/* Бицепс */}
+              <div className="absolute top-[25%] right-[20%]">
+                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Бицепс (см)</label>
+                  <input
+                    type="text"
+                    name="biceps"
+                    value={measurements.biceps}
+                    onChange={handleChange}
+                    placeholder="0.0"
+                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+              </div>
+
               {/* Грудь */}
               <div className="absolute top-[25%] left-1/2 transform -translate-x-1/2">
                 <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
@@ -160,6 +201,23 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
                     type="text"
                     name="chest"
                     value={measurements.chest}
+                    onChange={handleChange}
+                    placeholder="0.0"
+                    className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+                <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
+              </div>
+
+              {/* Живот (пупок) */}
+              <div className="absolute top-[35%] left-1/2 transform -translate-x-1/2">
+                <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Живот (пупок) (см)</label>
+                  <input
+                    type="text"
+                    name="abdomen"
+                    value={measurements.abdomen}
                     onChange={handleChange}
                     placeholder="0.0"
                     className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -203,26 +261,27 @@ export function MeasurementsInputModal({ isOpen, onClose, onSave }: Measurements
                 <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
               </div>
 
-              {/* Бицепс */}
-              <div className="absolute top-[30%] right-[10%]">
+              {/* Бедра (под ягодичной складкой) */}
+              <div className="absolute top-[62%] left-1/2 transform -translate-x-1/2">
                 <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Бицепс (см)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Бедра (под ягод.) (см)</label>
                   <input
                     type="text"
-                    name="biceps"
-                    value={measurements.biceps}
+                    name="thighs"
+                    value={measurements.thighs}
                     onChange={handleChange}
                     placeholder="0.0"
                     className="w-20 p-1 text-xs text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                 </div>
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
                 <div className="absolute left-1/2 top-full -translate-x-1/2 w-0.5 h-3 bg-orange-500"></div>
               </div>
 
               {/* Икры */}
               <div className="absolute top-[80%] right-[15%]">
                 <div className="bg-white bg-opacity-90 rounded-md shadow p-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Икры (см)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Голень/Икры (см)</label>
                   <input
                     type="text"
                     name="calves"

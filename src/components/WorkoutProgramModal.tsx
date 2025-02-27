@@ -26,7 +26,7 @@ interface Program {
 interface WorkoutProgramModalProps {
   isOpen: boolean;
   onClose: () => void;
-  program: Program | null;
+  program?: Program | null; // Changed to optional (can be undefined)
   title: string;
   time: string;
   training_program_id?: string;
@@ -35,7 +35,7 @@ interface WorkoutProgramModalProps {
 export function WorkoutProgramModal({ isOpen, onClose, program: initialProgram, title, time, training_program_id }: WorkoutProgramModalProps) {
   const [debugMode, setDebugMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [program, setProgram] = useState<Program | null>(initialProgram);
+  const [program, setProgram] = useState<Program | null>(initialProgram || null); // Handle undefined case
   const [error, setError] = useState<string | null>(null);
   
   // Для отладки - включить режим отладки двойным нажатием на заголовок

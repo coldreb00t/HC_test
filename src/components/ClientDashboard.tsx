@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { WorkoutProgramModal } from './WorkoutProgramModal';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 interface Exercise {
   id: string;
@@ -95,6 +96,7 @@ export function ClientDashboard() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   
   // Состояние для хранения статистики
   const [userStats, setUserStats] = useState<UserStats>({
@@ -436,7 +438,7 @@ export function ClientDashboard() {
         navigate('/client/progress-photo/new');
         break;
       case 'measurements':
-        navigate('/client/measurements/new');
+        setShowMeasurementsModal(true); // Open measurements modal instead of navigating
         break;
       case 'nutrition':
         navigate('/client/nutrition/new');
@@ -747,7 +749,17 @@ export function ClientDashboard() {
           </button>
         )}
       </div>
-
+{/* Measurements Input Modal */}
+{showMeasurementsModal && (
+  <MeasurementsInputModal
+    isOpen={showMeasurementsModal}
+    onClose={() => setShowMeasurementsModal(false)}
+    onSave={() => {
+      // Optionally refresh data after saving measurements
+      fetchDashboardData();
+    }}
+  />
+)}
       {/* Workout Program Modal */}
       {nextWorkout && showWorkoutModal && (
         <WorkoutProgramModal
