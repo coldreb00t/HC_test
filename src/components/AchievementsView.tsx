@@ -21,7 +21,7 @@ import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import BodyCompositionTab from './BodyCompositionTab'; // Импортируем новый компонент
+import BodyCompositionTab from './BodyCompositionTab'; // Импортируем компонент
 
 interface ClientData {
   id: string;
@@ -77,6 +77,27 @@ interface NutritionStats {
   averageWater: number;
 }
 
+// Добавляем интерфейс для данных о составе тела
+interface BodyMeasurement {
+  measurement_id: number;
+  user_id: string;
+  client_id: string;
+  measurement_date: string;
+  age: number | null;
+  gender: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bmi: number | null;
+  body_fat_percent: number | null;
+  fat_mass_kg: number | null;
+  skeletal_muscle_mass_kg: number | null;
+  visceral_fat_level: number | null;
+  basal_metabolic_rate_kcal: number | null;
+  inbody_score: number | null;
+  notes: string | null;
+  file_id: number | null;
+}
+
 export function AchievementsView() {
   const navigate = useNavigate();
   const [showFabMenu, setShowFabMenu] = useState(false);
@@ -89,10 +110,11 @@ export function AchievementsView() {
   const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto[] | null>(null);
   const [lastPhoto, setLastPhoto] = useState<ProgressPhoto[] | null>(null);
   const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
-  // Обновляем тип activeTab, добавляя 'bodyComposition'
   const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition'>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
+  // Добавляем состояние для хранения данных о составе тела
+  const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
 
   useEffect(() => {
     fetchClientData();
@@ -120,7 +142,8 @@ export function AchievementsView() {
         fetchWorkoutStats(clientData.id),
         fetchActivityStats(clientData.id),
         fetchNutritionStats(clientData.id),
-        fetchProgressPhotos(clientData.id)
+        fetchProgressPhotos(clientData.id),
+        fetchBodyMeasurements(clientData.id) // Добавляем загрузку данных о составе тела
       ]);
       
       generateAchievements();
@@ -130,6 +153,24 @@ export function AchievementsView() {
       toast.error('Ошибка при загрузке данных');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Добавляем функцию для загрузки данных о составе тела
+  const fetchBodyMeasurements = async (clientId: string) => {
+    try {
+      console.log('Загружаем данные о составе тела для клиента:', clientId);
+      const { data, error } = await supabase
+        .from('body_measurements')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('measurement_date', { ascending: true });
+
+      if (error) throw error;
+      console.log('Получены данные о составе тела:', data);
+      setBodyMeasurements(data || []);
+    } catch (error) {
+      console.error('Ошибка при загрузке данных о составе тела:', error);
     }
   };
 
@@ -1034,11 +1075,12 @@ export function AchievementsView() {
     </div>
   );
 
-  // Добавляем новую вкладку "Состав тела"
+  // Обновляем функцию для вкладки "Состав тела" - передаем данные о составе тела
   const renderBodyCompositionTab = () => (
     <BodyCompositionTab
       clientId={clientData?.id || ''}
       measurements={measurements}
+      bodyMeasurements={bodyMeasurements} // Передаем данные о составе тела
     />
   );
 
@@ -1163,7 +1205,6 @@ export function AchievementsView() {
                   >
                     Питание
                   </button>
-                  {/* Новая вкладка "Состав тела" */}
                   <button
                     onClick={() => setActiveTab('bodyComposition')}
                     className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
