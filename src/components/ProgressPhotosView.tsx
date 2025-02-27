@@ -34,10 +34,7 @@ export function ProgressPhotosView() {
   const [showFabMenu, setShowFabMenu] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchPhotos();
-  }, []);
-
+  // Определяем fetchPhotos внутри компонента
   const fetchPhotos = async () => {
     try {
       setLoading(true);
@@ -100,36 +97,32 @@ export function ProgressPhotosView() {
               .from('client-photos')
               .getPublicUrl(`progress-photos/${file.name}`);
             
-            // Парсим timestamp из имени файла (формат: clientId-timestamp-uuid.ext)
-            const parts = file.name.split('-');
-            
-            // Проверяем корректность timestamp
-            let photoDate;
-            if (parts.length >= 2) {
-              // Извлекаем timestamp из имени файла (вторая часть после разделителя)
-              const timestamp = parseInt(parts[1]);
-              
-              // Проверка валидности timestamp - должен быть положительным числом с разумным размером
-              if (!isNaN(timestamp) && timestamp > 946684800000) { // 01.01.2000 как минимальная дата
-                photoDate = new Date(timestamp);
-                console.log(`Valid timestamp ${timestamp} parsed as ${photoDate}`);
-              } else {
-                console.log(`Invalid timestamp ${timestamp} in filename ${file.name}, using current date`);
-                // Используем текущую дату, если timestamp невалидный
-                photoDate = new Date();
-              }
+            // Используем created_at как основной источник даты
+            let photoDate: Date;
+            if (file.created_at) {
+              photoDate = new Date(file.created_at);
+              console.log(`Using created_at for ${file.name}: ${photoDate.toISOString()}`);
             } else {
-              console.log(`Filename ${file.name} doesn't contain enough parts for parsing timestamp, using current date`);
-              photoDate = new Date();
+              // Резервный вариант: парсим timestamp из имени файла
+              const parts = file.name.split('-');
+              const timestamp = parts.length >= 2 ? parseInt(parts[1]) : null;
+              
+              if (timestamp && !isNaN(timestamp) && timestamp > 946684800000) { // 01.01.2000 как минимальная дата
+                photoDate = new Date(timestamp);
+                console.log(`Using timestamp ${timestamp} for ${file.name}: ${photoDate.toISOString()}`);
+              } else {
+                console.warn(`Invalid or missing timestamp in ${file.name}, using file created_at or current date`);
+                photoDate = new Date(file.updated_at || Date.now()); // Используем updated_at, если есть, или текущую дату
+              }
             }
-            
-            // Проверка валидности даты после парсинга
+
+            // Проверка на корректность даты
             if (isNaN(photoDate.getTime())) {
-              console.log(`Invalid date object from timestamp, using current date`);
+              console.warn(`Invalid date for ${file.name}, using current date`);
               photoDate = new Date();
             }
-            
-            // Форматируем дату в локальном формате
+
+            // Форматируем дату в фиксированный формат
             const formattedDate = photoDate.toLocaleString('ru-RU', {
               day: '2-digit',
               month: '2-digit',
@@ -138,7 +131,7 @@ export function ProgressPhotosView() {
               minute: '2-digit'
             });
             
-            console.log(`File ${file.name} date: ${formattedDate}`);
+            console.log(`File ${file.name} final date: ${formattedDate}`);
             
             return {
               url: publicUrl,
@@ -157,7 +150,6 @@ export function ProgressPhotosView() {
         .filter((photo): photo is ProgressPhoto => photo !== null)
         .sort((a, b) => {
           try {
-            // Более надежный парсинг даты в формате ДД.ММ.ГГГГ, ЧЧ:ММ
             const parseDate = (dateStr: string) => {
               const [datePart, timePart] = dateStr.split(', ');
               const [day, month, year] = datePart.split('.').map(Number);
@@ -184,6 +176,10 @@ export function ProgressPhotosView() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchPhotos();
+  }, []); // Вызываем fetchPhotos при монтировании компонента
 
   const handleDeletePhoto = async (filename: string) => {
     if (!window.confirm('Вы уверены, что хотите удалить это фото?')) {
@@ -218,7 +214,7 @@ export function ProgressPhotosView() {
         navigate('/client/measurements/new');
         break;
       case 'nutrition':
-        navigate('/client/nutrition');
+        navigate('/client/nutrition/new');
         break;
     }
   };

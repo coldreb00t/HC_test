@@ -21,6 +21,7 @@ import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import BodyCompositionTab from './BodyCompositionTab'; // Импортируем обновлённый компонент
 
 interface ClientData {
   id: string;
@@ -46,7 +47,7 @@ interface WorkoutStats {
   completedWorkouts: number;
   totalExercises: number;
   totalSets: number;
-  totalVolume: number; // в кг
+  totalVolume: number;
   favoriteExercises: {name: string, count: number}[];
   workoutsPerMonth: {month: string, count: number}[];
   completionRate: number;
@@ -60,7 +61,7 @@ interface ProgressPhoto {
 
 interface ActivityStats {
   totalActivities: number;
-  totalDuration: number; // в минутах
+  totalDuration: number;
   typesDistribution: {type: string, duration: number}[];
   averageSleep: number;
   averageStress: number;
@@ -72,8 +73,27 @@ interface NutritionStats {
   averageProteins: number;
   averageFats: number;
   averageCarbs: number;
-  averageCalories: number; // Добавлено поле для среднего значения калорий
+  averageCalories: number;
   averageWater: number;
+}
+
+interface BodyMeasurement {
+  measurement_id: number;
+  user_id: string;
+  measurement_date: string;
+  age: number;
+  gender: string;
+  height_cm: number;
+  weight_kg: number;
+  bmi: number;
+  body_fat_percent: number;
+  fat_mass_kg: number;
+  skeletal_muscle_mass_kg: number;
+  visceral_fat_level: number;
+  basal_metabolic_rate_kcal: number;
+  inbody_score: number;
+  notes: string;
+  file_id: number;
 }
 
 export function AchievementsView() {
@@ -85,12 +105,13 @@ export function AchievementsView() {
   const [workoutStats, setWorkoutStats] = useState<WorkoutStats | null>(null);
   const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
   const [nutritionStats, setNutritionStats] = useState<NutritionStats | null>(null);
-  const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto | null>(null);
-  const [lastPhoto, setLastPhoto] = useState<ProgressPhoto | null>(null);
+  const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto[] | null>(null);
+  const [lastPhoto, setLastPhoto] = useState<ProgressPhoto[] | null>(null);
   const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition'>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
+  const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]); // Новое состояние для данных о составе тела
 
   useEffect(() => {
     fetchClientData();
@@ -118,7 +139,8 @@ export function AchievementsView() {
         fetchWorkoutStats(clientData.id),
         fetchActivityStats(clientData.id),
         fetchNutritionStats(clientData.id),
-        fetchProgressPhotos(clientData.id)
+        fetchProgressPhotos(clientData.id),
+        fetchBodyMeasurements(clientData.id) // Новый запрос для данных о составе тела
       ]);
       
       generateAchievements();
@@ -379,41 +401,74 @@ export function AchievementsView() {
 
       if (clientFiles.length === 0) return;
 
-      clientFiles.sort((a, b) => {
-        const getTimestamp = (filename: string) => {
-          const parts = filename.split('-');
-          return parts.length >= 2 ? parseInt(parts[1]) : 0;
-        };
-        return getTimestamp(a.name) - getTimestamp(b.name);
+      // Логирование для отладки
+      console.log('Client files:', clientFiles);
+
+      // Сортировка и сбор фото с датами
+      const photosWithDates = clientFiles.map(file => {
+        let date: Date;
+        const parts = file.name.split('-');
+
+        // Сначала пытаемся использовать created_at
+        if (file.created_at) {
+          date = new Date(file.created_at);
+          console.log(`Using created_at for ${file.name}: ${date.toISOString()}`);
+        } else {
+          // Если created_at отсутствует, используем timestamp из имени файла
+          const timestamp = parts.length >= 2 ? parseInt(parts[1]) : Date.now();
+          date = !isNaN(timestamp) ? new Date(timestamp) : new Date();
+          console.log(`Using timestamp for ${file.name}: ${timestamp}, Parsed Date: ${date.toISOString()}`);
+        }
+
+        // Проверка на корректность даты
+        if (isNaN(date.getTime())) {
+          console.warn(`Invalid date for ${file.name}, using current date`);
+          date = new Date();
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('client-photos')
+          .getPublicUrl(`progress-photos/${file.name}`);
+        return { url: publicUrl, date: date.toLocaleDateString('ru-RU') };
+      }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Группировка по датам
+      const photosByDate: { [key: string]: ProgressPhoto[] } = {};
+      photosWithDates.forEach(photo => {
+        if (!photosByDate[photo.date]) {
+          photosByDate[photo.date] = [];
+        }
+        photosByDate[photo.date].push({ url: photo.url, date: photo.date });
       });
 
-      if (clientFiles.length > 0) {
-        const firstFile = clientFiles[0];
-        const lastFile = clientFiles[clientFiles.length - 1];
+      const dates = Object.keys(photosByDate).sort(
+        (a, b) => new Date(a.split('.').reverse().join('-')).getTime() - new Date(b.split('.').reverse().join('-')).getTime()
+      );
 
-        const getPhotoDetails = async (file: any): Promise<ProgressPhoto> => {
-          const { data: { publicUrl } } = supabase.storage
-            .from('client-photos')
-            .getPublicUrl(`progress-photos/${file.name}`);
-
-          const parts = file.name.split('-');
-          let photoDate = new Date();
-          if (parts.length >= 2) {
-            const timestamp = parseInt(parts[1]);
-            photoDate = !isNaN(timestamp) ? new Date(timestamp) : new Date();
-          }
-
-          return {
-            url: publicUrl,
-            date: photoDate.toLocaleDateString('ru-RU')
-          };
-        };
-
-        setFirstPhoto(await getPhotoDetails(firstFile));
-        setLastPhoto(await getPhotoDetails(lastFile));
+      if (dates.length > 0) {
+        setFirstPhoto(photosByDate[dates[0]]); // Все фото первой даты
+        setLastPhoto(photosByDate[dates[dates.length - 1]]); // Все фото последней даты
+        console.log('First photos:', photosByDate[dates[0]]);
+        console.log('Last photos:', photosByDate[dates[dates.length - 1]]);
       }
     } catch (error) {
       console.error('Error fetching progress photos:', error);
+    }
+  };
+
+  // Новый метод для получения данных о составе тела
+  const fetchBodyMeasurements = async (clientId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('body_measurements')
+        .select('*')
+        .eq('user_id', clientId)
+        .order('measurement_date', { ascending: true });
+
+      if (error) throw error;
+      setBodyMeasurements(data || []);
+    } catch (error) {
+      console.error('Error fetching body measurements:', error);
     }
   };
 
@@ -453,6 +508,13 @@ export function AchievementsView() {
         icon: <LineChart className="w-5 h-5 text-orange-500" />,
         achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false,
         value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней"
+      },
+      {
+        title: "Состав тела",
+        description: "Первое измерение состава тела",
+        icon: <Scale className="w-5 h-5 text-orange-500" />,
+        achieved: bodyMeasurements.length > 0,
+        value: bodyMeasurements.length > 0 ? "Достигнуто!" : "Не выполнено"
       }
     ];
 
@@ -510,6 +572,9 @@ export function AchievementsView() {
       case 'nutrition':
         navigate('/client/nutrition/new');
         break;
+      case 'body-composition':
+        navigate('/client/body-composition/new'); // Новый маршрут для добавления состава тела
+        break;
     }
   };
 
@@ -519,7 +584,8 @@ export function AchievementsView() {
     measurements.length > 0 || 
     (workoutStats && workoutStats.totalWorkouts > 0) || 
     (activityStats && activityStats.totalActivities > 0) || 
-    (nutritionStats && nutritionStats.entriesCount > 0);
+    (nutritionStats && nutritionStats.entriesCount > 0) ||
+    (bodyMeasurements && bodyMeasurements.length > 0);
 
   const renderAchievementCards = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -653,22 +719,32 @@ export function AchievementsView() {
               <h3 className="font-semibold">Прогресс</h3>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
-                <p className="text-xs text-gray-500 mb-1">Начало ({firstPhoto.date})</p>
-                <img 
-                  src={firstPhoto.url} 
-                  alt="Первое фото" 
-                  className="w-full h-40 object-cover rounded-lg" 
-                />
+                <p className="text-xs text-gray-500 mb-1">Начало ({firstPhoto[0].date})</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {firstPhoto.map((photo, index) => (
+                    <img
+                      key={index}
+                      src={photo.url}
+                      alt={`Фото начала ${index + 1}`}
+                      className="w-full h-40 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Сейчас ({lastPhoto.date})</p>
-                <img 
-                  src={lastPhoto.url} 
-                  alt="Последнее фото" 
-                  className="w-full h-40 object-cover rounded-lg" 
-                />
+                <p className="text-xs text-gray-500 mb-1">Сейчас ({lastPhoto[0].date})</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {lastPhoto.map((photo, index) => (
+                    <img
+                      key={index}
+                      src={photo.url}
+                      alt={`Фото сейчас ${index + 1}`}
+                      className="w-full h-40 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -764,7 +840,6 @@ export function AchievementsView() {
   );
 
   const renderMeasurementsTab = () => {
-    // Подготовка данных для графиков
     const chartData = measurements.map(measurement => ({
       date: new Date(measurement.date).toLocaleDateString('ru-RU'),
       weight: measurement.weight || null,
@@ -774,7 +849,6 @@ export function AchievementsView() {
       biceps: measurement.biceps || null,
     }));
 
-    // Функция рендеринга линейного графика
     const renderLineChart = (field: string, title: string, unit: string, color: string) => {
       const validData = chartData.filter(d => d[field] !== null);
       if (validData.length === 0) return null;
@@ -793,7 +867,7 @@ export function AchievementsView() {
                 type="monotone"
                 dataKey={field}
                 stroke={color}
-                name={title.split(' ')[1]} // Отображаем только имя параметра в легенде
+                name={title.split(' ')[1]}
                 activeDot={{ r: 8 }}
               />
             </RechartsLineChart>
@@ -838,7 +912,6 @@ export function AchievementsView() {
               </table>
             </div>
 
-            {/* Линейные графики */}
             {renderLineChart('weight', 'Динамика веса', 'кг', '#ff7300')}
             {renderLineChart('waist', 'Динамика талии', 'см', '#387908')}
             {renderLineChart('chest', 'Динамика груди', 'см', '#8884d8')}
@@ -919,7 +992,7 @@ export function AchievementsView() {
           <Activity className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">Нет данных об активности</p>
           <button
-            onClick={() => navigate('/client/activity/new')}
+            onClick(() => navigate('/client/activity/new'))
             className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
           >
             Добавить активность
@@ -1008,6 +1081,15 @@ export function AchievementsView() {
     </div>
   );
 
+  // Обновляем renderBodyCompositionTab для использования новых данных
+  const renderBodyCompositionTab = () => (
+    <BodyCompositionTab
+      clientId={clientData?.id || ''}
+      measurements={measurements}
+      bodyMeasurements={bodyMeasurements} // Передаём новые данные о составе тела
+    />
+  );
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
@@ -1020,6 +1102,8 @@ export function AchievementsView() {
         return renderActivityTab();
       case 'nutrition':
         return renderNutritionTab();
+      case 'bodyComposition':
+        return renderBodyCompositionTab();
       default:
         return renderOverviewTab();
     }
@@ -1070,6 +1154,12 @@ export function AchievementsView() {
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                 >
                   Питание
+                </button>
+                <button
+                  onClick={() => navigate('/client/body-composition/new')}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                >
+                  Состав тела
                 </button>
               </div>
             </div>
@@ -1126,6 +1216,16 @@ export function AchievementsView() {
                     }`}
                   >
                     Питание
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('bodyComposition')}
+                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                      activeTab === 'bodyComposition'
+                        ? 'text-orange-500 border-b-2 border-orange-500'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Состав тела
                   </button>
                 </div>
               </div>
