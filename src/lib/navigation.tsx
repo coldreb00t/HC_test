@@ -50,8 +50,7 @@ export const useClientNavigation = (showFabMenu: boolean, setShowFabMenu: (show:
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setShowFabMenu(false);
-                      navigate('/client/activity/new');
+                      handleMenuItemClick('activity');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >
@@ -62,8 +61,7 @@ export const useClientNavigation = (showFabMenu: boolean, setShowFabMenu: (show:
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setShowFabMenu(false);
-                      navigate('/client/progress-photo/new');
+                      handleMenuItemClick('photo');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >
@@ -74,8 +72,7 @@ export const useClientNavigation = (showFabMenu: boolean, setShowFabMenu: (show:
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setShowFabMenu(false);
-                      navigate('/client/measurements/new');
+                      handleMenuItemClick('measurements');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >
@@ -86,8 +83,7 @@ export const useClientNavigation = (showFabMenu: boolean, setShowFabMenu: (show:
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setShowFabMenu(false);
-                      navigate('/client/nutrition');
+                      handleMenuItemClick('nutrition');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >
