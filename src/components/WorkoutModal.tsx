@@ -9,21 +9,25 @@ interface Client {
   last_name: string;
 }
 
+interface ExerciseSet {
+  set_number: number;
+  reps: string;
+  weight: string;
+}
+
+interface Exercise {
+  id: string;
+  name: string;
+  description?: string;
+  sets: ExerciseSet[];
+  notes?: string;
+}
+
 interface Program {
   id: string;
   title: string;
   description?: string;
-  exercises: {
-    id: string;
-    name: string;
-    description?: string;
-    sets: {
-      set_number: number;
-      reps: string;
-      weight: string;
-    }[];
-    notes?: string;
-  }[];
+  exercises: Exercise[];
 }
 
 interface Workout {
@@ -182,14 +186,21 @@ export function WorkoutModal({
 
       if (error) throw error;
 
-      const formattedPrograms = data
-        ?.filter((item) => item.training_programs)
-        .map((item) => ({
-          id: item.training_programs.id,
-          title: item.training_programs.title,
-          description: item.training_programs.description,
-          exercises: [],
-        })) || [];
+      // Ensure the data is properly processed
+      const formattedPrograms: Program[] = [];
+      
+      if (data && data.length > 0) {
+        for (const item of data) {
+          if (item.training_programs) {
+            formattedPrograms.push({
+              id: item.training_programs.id,
+              title: item.training_programs.title,
+              description: item.training_programs.description,
+              exercises: []
+            });
+          }
+        }
+      }
 
       setClientPrograms(formattedPrograms);
 
@@ -248,26 +259,56 @@ export function WorkoutModal({
 
       if (error) throw error;
 
-      const formattedPrograms = data?.map((program) => ({
-        id: program.id,
-        title: program.title,
-        description: program.description,
-        exercises: (program.program_exercises || [])
-          .sort((a, b) => a.exercise_order - b.exercise_order)
-          .map((ex) => ({
-            id: ex.strength_exercises.id,
-            name: ex.strength_exercises.name,
-            description: ex.strength_exercises.description,
-            notes: ex.notes,
-            sets: (ex.exercise_sets || [])
-              .sort((a, b) => a.set_number - b.set_number)
-              .map((set) => ({
-                set_number: set.set_number,
-                reps: set.reps,
-                weight: set.weight,
-              })),
-          })),
-      })) || [];
+      const formattedPrograms: Program[] = [];
+      
+      if (data) {
+        for (const program of data) {
+          const exercises: Exercise[] = [];
+          
+          // Process program exercises
+          if (program.program_exercises) {
+            const sortedExercises = [...program.program_exercises].sort((a, b) => 
+              a.exercise_order - b.exercise_order
+            );
+            
+            for (const ex of sortedExercises) {
+              if (ex.strength_exercises) {
+                const sets: ExerciseSet[] = [];
+                
+                // Process exercise sets
+                if (ex.exercise_sets) {
+                  const sortedSets = [...ex.exercise_sets].sort((a, b) => 
+                    a.set_number - b.set_number
+                  );
+                  
+                  for (const set of sortedSets) {
+                    sets.push({
+                      set_number: set.set_number,
+                      reps: set.reps,
+                      weight: set.weight || ''
+                    });
+                  }
+                }
+                
+                exercises.push({
+                  id: ex.strength_exercises.id,
+                  name: ex.strength_exercises.name,
+                  description: ex.strength_exercises.description,
+                  notes: ex.notes,
+                  sets: sets
+                });
+              }
+            }
+          }
+          
+          formattedPrograms.push({
+            id: program.id,
+            title: program.title,
+            description: program.description,
+            exercises: exercises
+          });
+        }
+      }
 
       setPrograms(formattedPrograms);
     } catch (error: any) {
@@ -535,7 +576,7 @@ export function WorkoutModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Длительность (минут)</label>
             <select
-              value={formData.duration}
+              value={formData.duration.toString()}
               onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
               className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
             >
@@ -551,12 +592,7 @@ export function WorkoutModal({
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
               <h3 className="font-medium text-gray-700 mb-2">Упражнения:</h3>
               <ul className="list-disc list-inside text-sm text-gray-600">
-                {programs
-                  .find((p) => p.id === formData.programId)
-                  ?.exercises.map((exercise, index) => (
-                    <li key={index}>{exercise.name}</li>
-                  ))}
-                {clientPrograms
+                {availablePrograms
                   .find((p) => p.id === formData.programId)
                   ?.exercises.map((exercise, index) => (
                     <li key={index}>{exercise.name}</li>

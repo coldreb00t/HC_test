@@ -20,8 +20,24 @@ import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import BodyCompositionTab from './BodyCompositionTab'; // Импортируем компонент
+import { 
+  LineChart as RechartsLineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart
+} from 'recharts';
+import  BodyCompositionTab  from './BodyCompositionTab'; // Импортируем компонент
 
 interface ClientData {
   id: string;
@@ -842,34 +858,45 @@ export function AchievementsView() {
       hips: measurement.hips || null,
       biceps: measurement.biceps || null,
     }));
-
+  
     const renderLineChart = (field: string, title: string, unit: string, color: string) => {
       const validData = chartData.filter(d => d[field] !== null);
       if (validData.length === 0) return null;
-
+  
+      // Create a unique gradient ID based on the field name to prevent conflicts
+      const gradientId = `color${field}`;
+  
       return (
         <div className="mt-6">
           <h4 className="text-sm font-medium text-gray-700 mb-3">{title}</h4>
           <ResponsiveContainer width="100%" height={200}>
             <RechartsLineChart data={validData}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis unit={` ${unit}`} />
               <Tooltip formatter={(value: number) => `${value} ${unit}`} />
               <Legend />
-              <Line
+              <Area
                 type="monotone"
                 dataKey={field}
                 stroke={color}
                 name={title.split(' ')[1]}
                 activeDot={{ r: 8 }}
+                fillOpacity={1}
+                fill={`url(#${gradientId})`}
               />
             </RechartsLineChart>
           </ResponsiveContainer>
         </div>
       );
     };
-
+  
     return (
       <div className="space-y-6">
         {measurements.length > 0 ? (
@@ -878,7 +905,7 @@ export function AchievementsView() {
               <Scale className="w-5 h-5 text-gray-500 mr-2" />
               <h3 className="font-semibold">Измерения тела</h3>
             </div>
-
+  
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse">
                 <thead>
@@ -905,7 +932,7 @@ export function AchievementsView() {
                 </tbody>
               </table>
             </div>
-
+  
             {renderLineChart('weight', 'Динамика веса', 'кг', '#ff7300')}
             {renderLineChart('waist', 'Динамика талии', 'см', '#387908')}
             {renderLineChart('chest', 'Динамика груди', 'см', '#8884d8')}

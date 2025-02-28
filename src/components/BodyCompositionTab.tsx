@@ -79,38 +79,45 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
       setLoading(true);
 
       // Используем существующие данные из body_measurements или measurements
-      const compositionData = [...(bodyMeasurements || [])].map(measurement => ({
-        date: new Date(measurement.measurement_date).toLocaleDateString('ru-RU'),
-        bodyFatPercentage: measurement.body_fat_percent || null,
-        muscleMass: measurement.skeletal_muscle_mass_kg || null,
-        waterPercentage: null, // Устанавливаем null, если данные отсутствуют
-        bmi: measurement.bmi || null,
-        visceralFatLevel: measurement.visceral_fat_level || null,
-        inbodyScore: measurement.inbody_score || null,
-      }));
+      const compositionData: BodyCompositionData[] = [];
+      
+      // Process body measurements first if available
+      if (bodyMeasurements && bodyMeasurements.length > 0) {
+        for (const measurement of bodyMeasurements) {
+          compositionData.push({
+            date: new Date(measurement.measurement_date).toLocaleDateString('ru-RU'),
+            bodyFatPercentage: measurement.body_fat_percent,
+            muscleMass: measurement.skeletal_muscle_mass_kg,
+            waterPercentage: null, // Always set waterPercentage to null for body measurements
+            bmi: measurement.bmi,
+            visceralFatLevel: measurement.visceral_fat_level,
+            inbodyScore: measurement.inbody_score
+          });
+        }
+      }
 
-      // Если body_measurements пуст, пытаемся вычислить на основе measurements
+      // If body_measurements is empty, try to calculate from regular measurements
       if (compositionData.length === 0 && measurements.length > 0) {
-        compositionData.push(...measurements.map(measurement => {
+        for (const measurement of measurements) {
           const weight = measurement.weight || 0;
           const height = measurement.height || 0;
           const waist = measurement.waist || 0;
 
           const bmi = weight > 0 && height > 0 ? (weight / ((height / 100) * (height / 100))) : null;
           const bodyFatPercentage = calculateBodyFatPercentage(weight, height, waist);
-          const muscleMass = weight > 0 ? weight * 0.4 : null; // Устанавливаем null, если вес = 0
-          const waterPercentage = weight > 0 ? weight * 0.6 : null; // Устанавливаем null, если вес = 0
+          const muscleMass = weight > 0 ? weight * 0.4 : null;
+          const waterPercentage = weight > 0 ? weight * 0.6 : null;
 
-          return {
+          compositionData.push({
             date: new Date(measurement.date).toLocaleDateString('ru-RU'),
             bodyFatPercentage,
             muscleMass,
             waterPercentage,
             bmi,
-            visceralFatLevel: null, // Можно добавить логику
-            inbodyScore: null, // Можно добавить логику
-          };
-        }));
+            visceralFatLevel: null,
+            inbodyScore: null
+          });
+        }
       }
 
       setBodyComposition(compositionData);
@@ -224,6 +231,8 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
               type="monotone"
               dataKey="value"
               stroke={color}
+              fill="#ff7300"            // Цвет заливки
+              fillOpacity={0.2}         // Прозрачность заливки (0-1)
               name={title.split(' ')[1]}
               activeDot={{ r: 8 }}
             />
