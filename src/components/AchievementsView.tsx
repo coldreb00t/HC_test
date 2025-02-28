@@ -156,31 +156,29 @@ export function AchievementsView() {
   const fetchClientData = async () => {
     try {
       setLoading(true);
-      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
-
+  
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('*')
         .eq('user_id', user.id)
         .single();
-
+  
       if (clientError) throw clientError;
-      
+      console.log('Client data fetched:', clientData);
       setClientData(clientData);
-      
+  
       await Promise.all([
         fetchMeasurements(clientData.id),
         fetchWorkoutStats(clientData.id),
         fetchActivityStats(clientData.id),
         fetchNutritionStats(clientData.id),
         fetchProgressPhotos(clientData.id),
-        fetchBodyMeasurements(clientData.id)
+        fetchBodyMeasurements(clientData.id),
       ]);
-      
+  
       generateAchievements();
-      
     } catch (error: any) {
       console.error('Error fetching client data:', error);
       toast.error('Ошибка при загрузке данных');
@@ -208,16 +206,21 @@ export function AchievementsView() {
 
   const fetchMeasurements = async (clientId: string) => {
     try {
+      console.log('Fetching measurements for client:', clientId);
       const { data, error } = await supabase
         .from('client_measurements')
         .select('*')
         .eq('client_id', clientId)
         .order('date', { ascending: true });
-
-      if (error) throw error;
+  
+      if (error) {
+        console.error('Error fetching measurements:', error);
+        throw error;
+      }
+      console.log('Measurements fetched:', data);
       setMeasurements(data || []);
     } catch (error) {
-      console.error('Error fetching measurements:', error);
+      console.error('Error in fetchMeasurements:', error);
     }
   };
 
@@ -863,27 +866,21 @@ export function AchievementsView() {
   
   const renderMeasurementsTab = () => {
     const chartData = measurements.map(measurement => ({
-      date: new Date(measurement.date).toLocaleDateString('ru-RU'),
-      weight: measurement.weight || null,
-      waist: measurement.waist || null,
-      chest: measurement.chest || null,
-      hips: measurement.hips || null,
-      biceps: measurement.biceps || null,
+      date: new Date(measurement.date).toISOString().split('T')[0],
+      weight: Number(measurement.weight) || null,
+      waist: Number(measurement.waist) || null,
+      chest: Number(measurement.chest) || null,
+      hips: Number(measurement.hips) || null,
+      biceps: Number(measurement.biceps) || null,
     }));
   
-    const renderLineChart = (field: string, title: string, unit: string, color: string) => {
-      const validData = chartData.filter(d => d[field] !== null);
-      if (validData.length === 0) {
-        return (
-          <div className="mt-6 text-center text-gray-500">
-            Нет данных для {title.toLowerCase()}
-          </div>
-        );
-      }
+    console.log('Full chartData:', chartData);
   
-      const gradientId = `gradient${field}`;
-      
-      // Цвета Material Design
+    const renderLineChart = (field: string, title: string, unit: string, color: string) => {
+      const validData = chartData.filter(d => d[field] !== null && d[field] !== undefined);
+      console.log(`Valid data for ${field}:`, validData);
+      if (validData.length === 0) return <p className="text-gray-500">Нет данных для {title}</p>;
+  
       const materialColors = {
         weight: '#FF5722', // Deep Orange
         waist: '#4CAF50',  // Green
@@ -893,59 +890,28 @@ export function AchievementsView() {
       };
   
       return (
-        <div className="mt-6 bg-white rounded-lg shadow-sm p-4"> {/* Контейнер с тенью */}
+        <div className="mt-6 bg-white rounded-lg shadow-sm p-4" style={{ height: '300px', width: '100%' }}>
           <h4 className="text-md font-medium text-gray-800 mb-4">{title}</h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <RechartsLineChart 
-              data={validData}
-              margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-            >
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={materialColors[field] || color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={materialColors[field] || color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid 
-                stroke="#e0e0e0" 
-                strokeDasharray="5 5" 
-                vertical={false} 
+          <ResponsiveContainer width="100%" height="100%">
+            <RechartsLineChart data={validData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+              <CartesianGrid stroke="#e0e0e0" strokeDasharray="5 5" vertical={false} />
+              <XAxis dataKey="date" type="category" tick={{ fill: '#757575', fontSize: 12 }} tickLine={false} axisLine={{ stroke: '#e0e0e0' }} />
+              <YAxis type="number" unit={` ${unit}`} tick={{ fill: '#757575', fontSize: 12 }} tickLine={false} axisLine={{ stroke: '#e0e0e0' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: 'none' }}
+                formatter={(value: number) => `${value.toFixed(1)} ${unit}`}
+                labelStyle={{ color: '#424242' }}
+                labelFormatter={(label) => `Дата: ${label}`}
               />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fill: '#757575', fontSize: 12 }} // Серый цвет текста
-                tickLine={false} 
-                axisLine={{ stroke: '#e0e0e0' }} 
-              />
-              <YAxis 
-                unit={` ${unit}`} 
-                tick={{ fill: '#757575', fontSize: 12 }} 
-                tickLine={false} 
-                axisLine={{ stroke: '#e0e0e0' }} 
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  borderRadius: '8px', 
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
-                  border: 'none' 
-                }}
-                formatter={(value: number) => `${value.toFixed(1)} ${unit}`} 
-                labelStyle={{ color: '#424242' }} 
-              />
-              <Legend 
-                iconType="circle" 
-                wrapperStyle={{ paddingTop: 10, fontSize: 12, color: '#757575' }} 
-              />
-              <Area
+              <Legend iconType="circle" wrapperStyle={{ paddingTop: 10, fontSize: 12, color: '#757575' }} />
+              <Line
                 type="monotone"
                 dataKey={field}
                 stroke={materialColors[field] || color}
                 strokeWidth={2}
-                fill={`url(#${gradientId})`}
-                fillOpacity={1}
+                dot={{ r: 5, fill: materialColors[field] || color }}
                 activeDot={{ r: 6, fill: materialColors[field] || color, stroke: '#fff', strokeWidth: 2 }}
-                animationDuration={1000} // Плавная анимация
+                animationDuration={1000}
                 name={title.split(' ')[1]}
               />
             </RechartsLineChart>
