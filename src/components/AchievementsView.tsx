@@ -13,7 +13,10 @@ import {
   Minus,
   Camera,
   LineChart,
-  Share2
+  Share2,
+  Edit,
+  Check,
+  X
 } from 'lucide-react';
 import { ShareAchievementModal } from './ShareAchievementModal';
 import { SidebarLayout } from './SidebarLayout';
@@ -113,7 +116,6 @@ interface BodyMeasurement {
   file_id: number | null;
 }
 
-// Новые интерфейсы для типизации данных из Supabase
 interface StrengthExercise {
   id: string;
   name: string;
@@ -148,6 +150,8 @@ export function AchievementsView() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
+  const [editRowId, setEditRowId] = useState<string | null>(null); // Состояние для редактирования
+  const [editValues, setEditValues] = useState<Measurement | null>(null); // Значения редактируемой строки
 
   useEffect(() => {
     fetchClientData();
@@ -862,8 +866,6 @@ export function AchievementsView() {
     </div>
   );
 
-
-  
   const renderMeasurementsTab = () => {
     const chartData = measurements.map(measurement => ({
       date: new Date(measurement.date).toISOString().split('T')[0],
@@ -873,22 +875,71 @@ export function AchievementsView() {
       hips: Number(measurement.hips) || null,
       biceps: Number(measurement.biceps) || null,
     }));
-  
+
     console.log('Full chartData:', chartData);
-  
+
+    const handleEditClick = (measurement: Measurement) => {
+      setEditRowId(measurement.id);
+      setEditValues({ ...measurement });
+    };
+
+    const handleInputChange = (field: string, value: string) => {
+      if (editValues) {
+        setEditValues({
+          ...editValues,
+          [field]: value === '' ? null : Number(value),
+        });
+      }
+    };
+
+    const handleSave = async () => {
+      if (!editValues || !editRowId) return;
+
+      try {
+        const { error } = await supabase
+          .from('client_measurements')
+          .update({
+            date: editValues.date,
+            weight: editValues.weight,
+            waist: editValues.waist,
+            chest: editValues.chest,
+            hips: editValues.hips,
+            biceps: editValues.biceps,
+          })
+          .eq('id', editRowId);
+
+        if (error) throw error;
+
+        setMeasurements(prev =>
+          prev.map(m => (m.id === editRowId ? { ...editValues } : m))
+        );
+        toast.success('Замеры успешно обновлены');
+        setEditRowId(null);
+        setEditValues(null);
+      } catch (error) {
+        console.error('Ошибка при сохранении замеров:', error);
+        toast.error('Ошибка при сохранении изменений');
+      }
+    };
+
+    const handleCancel = () => {
+      setEditRowId(null);
+      setEditValues(null);
+    };
+
     const renderLineChart = (field: string, title: string, unit: string, color: string) => {
       const validData = chartData.filter(d => d[field] !== null && d[field] !== undefined);
       console.log(`Valid data for ${field}:`, validData);
       if (validData.length === 0) return <p className="text-gray-500">Нет данных для {title}</p>;
-  
+
       const materialColors = {
-        weight: '#FF5722', // Deep Orange
-        waist: '#4CAF50',  // Green
-        chest: '#3F51B5',  // Indigo
-        hips: '#F44336',   // Red
-        biceps: '#00BCD4', // Cyan
+        weight: '#FF5722',
+        waist: '#4CAF50',
+        chest: '#3F51B5',
+        hips: '#F44336',
+        biceps: '#00BCD4',
       };
-  
+
       return (
         <div className="mt-6 bg-white rounded-lg shadow-sm p-4" style={{ height: '300px', width: '100%' }}>
           <h4 className="text-md font-medium text-gray-800 mb-4">{title}</h4>
@@ -919,7 +970,7 @@ export function AchievementsView() {
         </div>
       );
     };
-  
+
     return (
       <div className="space-y-6">
         {measurements.length > 0 ? (
@@ -938,17 +989,98 @@ export function AchievementsView() {
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Грудь (см)</th>
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бедра (см)</th>
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бицепс (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {measurements.map((measurement, index) => (
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="py-2 px-3 text-sm text-gray-700">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.weight || '-'}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.waist || '-'}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.chest || '-'}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.hips || '-'}</td>
-                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.biceps || '-'}</td>
+                      {editRowId === measurement.id ? (
+                        <>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="date"
+                              value={editValues?.date.split('T')[0] || ''}
+                              onChange={(e) => handleInputChange('date', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.weight ?? ''}
+                              onChange={(e) => handleInputChange('weight', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.waist ?? ''}
+                              onChange={(e) => handleInputChange('waist', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.chest ?? ''}
+                              onChange={(e) => handleInputChange('chest', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.hips ?? ''}
+                              onChange={(e) => handleInputChange('hips', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.biceps ?? ''}
+                              onChange={(e) => handleInputChange('biceps', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <button
+                              onClick={handleSave}
+                              className="p-1.5 bg-green-100 rounded-full hover:bg-green-200 transition-colors mr-2"
+                              title="Сохранить"
+                            >
+                              <Check className="w-4 h-4 text-green-500" />
+                            </button>
+                            <button
+                              onClick={handleCancel}
+                              className="p-1.5 bg-red-100 rounded-full hover:bg-red-200 transition-colors"
+                              title="Отменить"
+                            >
+                              <X className="w-4 h-4 text-red-500" />
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-2 px-3 text-sm text-gray-700">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.weight || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.waist || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.chest || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.hips || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.biceps || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <button
+                              onClick={() => handleEditClick(measurement)}
+                              className="p-1.5 bg-orange-100 rounded-full hover:bg-orange-200 transition-colors"
+                              title="Редактировать замер"
+                            >
+                              <Edit className="w-4 h-4 text-orange-500" />
+                            </button>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>

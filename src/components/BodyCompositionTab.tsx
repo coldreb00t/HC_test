@@ -34,6 +34,7 @@ interface BodyMeasurement {
   inbody_score: number | null;
   notes: string | null;
   file_id: number | null;
+  water_percentage?: number | null;
 }
 
 interface BodyCompositionData {
@@ -56,19 +57,22 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
   const navigate = useNavigate();
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFormExpanded, setIsFormExpanded] = useState(false);
   const [formData, setFormData] = useState({
     measurementDate: '',
     age: '',
-    gender: 'M' as const, // 'M' или 'F'
+    gender: 'M' as const,
     heightCm: '',
     weightKg: '',
     bodyFatPercent: '',
     muscleMassKg: '',
+    waterPercentage: '',
     visceralFatLevel: '',
     bmi: '',
     inbodyScore: '',
     notes: '',
   });
+  const [editingId, setEditingId] = useState<number | null>(null); // Для отслеживания редактируемой записи
 
   useEffect(() => {
     fetchBodyCompositionData();
@@ -78,17 +82,15 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     try {
       setLoading(true);
 
-      // Используем существующие данные из body_measurements или measurements
       const compositionData: BodyCompositionData[] = [];
       
-      // Process body measurements first if available
       if (bodyMeasurements && bodyMeasurements.length > 0) {
         for (const measurement of bodyMeasurements) {
           compositionData.push({
             date: new Date(measurement.measurement_date).toLocaleDateString('ru-RU'),
             bodyFatPercentage: measurement.body_fat_percent,
             muscleMass: measurement.skeletal_muscle_mass_kg,
-            waterPercentage: null, // Always set waterPercentage to null for body measurements
+            waterPercentage: measurement.water_percentage || null,
             bmi: measurement.bmi,
             visceralFatLevel: measurement.visceral_fat_level,
             inbodyScore: measurement.inbody_score
@@ -96,7 +98,6 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         }
       }
 
-      // If body_measurements is empty, try to calculate from regular measurements
       if (compositionData.length === 0 && measurements.length > 0) {
         for (const measurement of measurements) {
           const weight = measurement.weight || 0;
@@ -129,13 +130,11 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     }
   };
 
-  // Простая формула для расчёта процента жира (пример, замените на реальную)
   const calculateBodyFatPercentage = (weight: number, height: number, waist: number): number | null => {
     if (weight <= 0 || height <= 0 || waist <= 0) return null;
-    // Пример формулы (U.S. Navy): для мужчин
     const bmi = weight / ((height / 100) * (height / 100));
     const bodyFat = (1.082 * bmi - 0.01295 * waist - 98.42) / 100;
-    return Math.max(0, Math.min(100, bodyFat * 100)); // Ограничиваем диапазон 0-100%
+    return Math.max(0, Math.min(100, bodyFat * 100));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -151,14 +150,13 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     try {
       setLoading(true);
 
-      // Получаем текущего пользователя
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) throw new Error('Пользователь не авторизован');
 
       const measurementData = {
-        user_id: user.id, // Теперь безопасно, так как user не null
-        client_id: clientId, // Используем ID клиента из параметров
+        user_id: user.id,
+        client_id: clientId,
         measurement_date: new Date(formData.measurementDate).toISOString(),
         age: formData.age ? parseInt(formData.age, 10) : null,
         gender: formData.gender || null,
@@ -170,20 +168,33 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
           ? parseFloat(formData.weightKg) * (parseFloat(formData.bodyFatPercent) / 100) 
           : null,
         skeletal_muscle_mass_kg: formData.muscleMassKg ? parseFloat(formData.muscleMassKg) : null,
+        water_percentage: formData.waterPercentage ? parseFloat(formData.waterPercentage) : null,
         visceral_fat_level: formData.visceralFatLevel ? parseInt(formData.visceralFatLevel, 10) : null,
-        basal_metabolic_rate_kcal: null, // Можно добавить позже
+        basal_metabolic_rate_kcal: null,
         inbody_score: formData.inbodyScore ? parseInt(formData.inbodyScore, 10) : null,
         notes: formData.notes || null,
-        file_id: null, // Ручной ввод, файл отсутствует
+        file_id: null,
       };
 
-      const { error } = await supabase
-        .from('body_measurements')
-        .insert(measurementData);
+      if (editingId) {
+        // Обновление существующей записи
+        const { error } = await supabase
+          .from('body_measurements')
+          .update(measurementData)
+          .eq('measurement_id', editingId);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success('Данные успешно обновлены');
+      } else {
+        // Добавление новой записи
+        const { error } = await supabase
+          .from('body_measurements')
+          .insert(measurementData);
 
-      // Сбрасываем форму
+        if (error) throw error;
+        toast.success('Данные о составе тела сохранены');
+      }
+
       setFormData({
         measurementDate: '',
         age: '',
@@ -192,21 +203,45 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
         weightKg: '',
         bodyFatPercent: '',
         muscleMassKg: '',
+        waterPercentage: '',
         visceralFatLevel: '',
         bmi: '',
         inbodyScore: '',
         notes: '',
       });
-
-      // Обновляем данные
+      setEditingId(null); // Сбрасываем режим редактирования
       await fetchBodyCompositionData();
-      toast.success('Данные о составе тела сохранены');
+      setIsFormExpanded(false);
     } catch (error: any) {
-      console.error('Error saving body measurement:', error);
+      console.error('Error saving/updating body measurement:', error);
       toast.error(error.message || 'Ошибка при сохранении данных');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (measurement: BodyMeasurement) => {
+    setFormData({
+      measurementDate: measurement.measurement_date.split('T')[0], // Преобразуем дату в формат для input[type="date"]
+      age: measurement.age?.toString() || '',
+      gender: (measurement.gender || 'M') as 'M',
+      heightCm: measurement.height_cm?.toString() || '',
+      weightKg: measurement.weight_kg?.toString() || '',
+      bodyFatPercent: measurement.body_fat_percent?.toString() || '',
+      muscleMassKg: measurement.skeletal_muscle_mass_kg?.toString() || '',
+      waterPercentage: measurement.water_percentage?.toString() || '',
+      visceralFatLevel: measurement.visceral_fat_level?.toString() || '',
+      bmi: measurement.bmi?.toString() || '',
+      inbodyScore: measurement.inbody_score?.toString() || '',
+      notes: measurement.notes || '',
+    });
+    setEditingId(measurement.measurement_id);
+    setIsFormExpanded(true); // Разворачиваем форму для редактирования
+  };
+
+  const toggleForm = () => {
+    setIsFormExpanded(prev => !prev);
+    if (editingId && !isFormExpanded) setEditingId(null); // Сбрасываем редактирование при сворачивании
   };
 
   const renderBodyCompositionChart = (data: BodyCompositionData[], field: 'bodyFatPercentage' | 'muscleMass' | 'waterPercentage' | 'bmi' | 'visceralFatLevel' | 'inbodyScore', title: string, unit: string, color: string) => {
@@ -231,8 +266,8 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
               type="monotone"
               dataKey="value"
               stroke={color}
-              fill="#ff7300"            // Цвет заливки
-              fillOpacity={0.2}         // Прозрачность заливки (0-1)
+              fill="#ff7300"
+              fillOpacity={0.2}
               name={title.split(' ')[1]}
               activeDot={{ r: 8 }}
             />
@@ -255,24 +290,18 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
             <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ИМТ</th>
             <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жир в брюшной полости</th>
             <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Оценка InBody</th>
+            <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200">
           {bodyComposition.map((item, index) => {
-            // Преобразуем item.date в ISO-дату для сравнения (убираем время)
             const itemDate = new Date(item.date.split('.').reverse().join('-')).toISOString().split('T')[0];
-
-            // Находим соответствующую запись в bodyMeasurements по дате
             const bodyMeasurement = bodyMeasurements?.find(m => 
               new Date(m.measurement_date).toISOString().split('T')[0] === itemDate
             );
-            
-            // Находим соответствующую запись в measurements по дате
             const measurement = measurements?.find(m => 
               new Date(m.date).toISOString().split('T')[0] === itemDate
             );
-
-            // Получаем вес, приоритизируя bodyMeasurements
             const weight = bodyMeasurement?.weight_kg || measurement?.weight || null;
 
             return (
@@ -285,6 +314,16 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
                 <td className="py-2 px-3 text-sm">{item.bmi?.toFixed(1) || '-'}</td>
                 <td className="py-2 px-3 text-sm">{item.visceralFatLevel || '-'}</td>
                 <td className="py-2 px-3 text-sm">{item.inbodyScore || '-'}</td>
+                <td className="py-2 px-3 text-sm">
+                  {bodyMeasurement && (
+                    <button
+                      onClick={() => handleEdit(bodyMeasurement)}
+                      className="text-orange-500 hover:text-orange-700"
+                    >
+                      Редактировать
+                    </button>
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -306,143 +345,191 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
             <h3 className="font-semibold">Состав тела</h3>
           </div>
 
-          {/* Форма для ручного ввода */}
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Ручной ввод данных о составе тела</h4>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Дата измерения</label>
-                  <input
-                    type="date"
-                    name="measurementDate"
-                    value={formData.measurementDate}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    required
-                  />
+            <div 
+              className="flex items-center justify-between cursor-pointer"
+              onClick={toggleForm}
+            >
+              <h4 className="text-sm font-medium text-gray-700">
+                {editingId ? 'Редактировать данные о составе тела' : 'Ручной ввод данных о составе тела'}
+              </h4>
+              <span className="text-orange-500">
+                {isFormExpanded ? 'Свернуть ▲' : 'Развернуть ▼'}
+              </span>
+            </div>
+            
+            {isFormExpanded && (
+              <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Дата измерения</label>
+                    <input
+                      type="date"
+                      name="measurementDate"
+                      value={formData.measurementDate}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Возраст</label>
+                    <input
+                      type="number"
+                      name="age"
+                      value={formData.age}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 26"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Пол</label>
+                    <select
+                      name="gender"
+                      value={formData.gender}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                    >
+                      <option value="M">Мужской</option>
+                      <option value="F">Женский</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Рост (см)</label>
+                    <input
+                      type="number"
+                      name="heightCm"
+                      value={formData.heightCm}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 163"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Вес (кг)</label>
+                    <input
+                      type="number"
+                      name="weightKg"
+                      value={formData.weightKg}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 72.7"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Процент жира (%)</label>
+                    <input
+                      type="number"
+                      name="bodyFatPercent"
+                      value={formData.bodyFatPercent}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 26.1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Мышечная масса (кг)</label>
+                    <input
+                      type="number"
+                      name="muscleMassKg"
+                      value={formData.muscleMassKg}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 29.9"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Вода (%)</label>
+                    <input
+                      type="number"
+                      name="waterPercentage"
+                      value={formData.waterPercentage}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 60.0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Жир в брюшной полости</label>
+                    <input
+                      type="number"
+                      name="visceralFatLevel"
+                      value={formData.visceralFatLevel}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 7"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">ИМТ</label>
+                    <input
+                      type="number"
+                      name="bmi"
+                      value={formData.bmi}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 27.3"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Оценка InBody</label>
+                    <input
+                      type="number"
+                      name="inbodyScore"
+                      value={formData.inbodyScore}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Например, 87"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700">Примечания</label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleInputChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                      placeholder="Дополнительные заметки"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Возраст</label>
-                  <input
-                    type="number"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 26"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Пол</label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
+                <button
+                  type="submit"
+                  className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                >
+                  {editingId ? 'Обновить данные' : 'Сохранить данные'}
+                </button>
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setFormData({
+                        measurementDate: '',
+                        age: '',
+                        gender: 'M',
+                        heightCm: '',
+                        weightKg: '',
+                        bodyFatPercent: '',
+                        muscleMassKg: '',
+                        waterPercentage: '',
+                        visceralFatLevel: '',
+                        bmi: '',
+                        inbodyScore: '',
+                        notes: '',
+                      });
+                    }}
+                    className="mt-4 ml-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   >
-                    <option value="M">Мужской</option>
-                    <option value="F">Женский</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Рост (см)</label>
-                  <input
-                    type="number"
-                    name="heightCm"
-                    value={formData.heightCm}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 163"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Вес (кг)</label>
-                  <input
-                    type="number"
-                    name="weightKg"
-                    value={formData.weightKg}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 72.7"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Процент жира (%)</label>
-                  <input
-                    type="number"
-                    name="bodyFatPercent"
-                    value={formData.bodyFatPercent}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 26.1"
-                    required
-                  />
-                </div>  
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Мышечная масса (кг)</label>
-                  <input
-                    type="number"
-                    name="muscleMassKg"
-                    value={formData.muscleMassKg}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 29.9"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Жир в брюшной полости</label>
-                  <input
-                    type="number"
-                    name="visceralFatLevel"
-                    value={formData.visceralFatLevel}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 7"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">ИМТ</label>
-                  <input
-                    type="number"
-                    name="bmi"
-                    value={formData.bmi}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 27.3"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Оценка InBody</label>
-                  <input
-                    type="number"
-                    name="inbodyScore"
-                    value={formData.inbodyScore}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Например, 87"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Примечания</label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm"
-                    placeholder="Дополнительные заметки"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-              >
-                Сохранить данные
-              </button>
-            </form>
+                    Отменить редактирование
+                  </button>
+                )}
+              </form>
+            )}
           </div>
 
           {renderBodyCompositionTable()}
