@@ -37,7 +37,7 @@ import {
   Pie,
   PieChart
 } from 'recharts';
-import  BodyCompositionTab  from './BodyCompositionTab'; // Импортируем компонент
+import  BodyCompositionTab  from './BodyCompositionTab';
 
 interface ClientData {
   id: string;
@@ -93,7 +93,6 @@ interface NutritionStats {
   averageWater: number;
 }
 
-// Добавляем интерфейс для данных о составе тела
 interface BodyMeasurement {
   measurement_id: number;
   user_id: string;
@@ -114,6 +113,25 @@ interface BodyMeasurement {
   file_id: number | null;
 }
 
+// Новые интерфейсы для типизации данных из Supabase
+interface StrengthExercise {
+  id: string;
+  name: string;
+}
+
+interface ExerciseSet {
+  set_number: number;
+  reps: number;
+  weight: number;
+}
+
+interface ProgramExercise {
+  id: string;
+  exercise_id: string;
+  strength_exercises?: StrengthExercise | StrengthExercise[];
+  exercise_sets: ExerciseSet[];
+}
+
 export function AchievementsView() {
   const navigate = useNavigate();
   const [showFabMenu, setShowFabMenu] = useState(false);
@@ -129,7 +147,6 @@ export function AchievementsView() {
   const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition'>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
-  // Добавляем состояние для хранения данных о составе тела
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
 
   useEffect(() => {
@@ -159,7 +176,7 @@ export function AchievementsView() {
         fetchActivityStats(clientData.id),
         fetchNutritionStats(clientData.id),
         fetchProgressPhotos(clientData.id),
-        fetchBodyMeasurements(clientData.id) // Добавляем загрузку данных о составе тела
+        fetchBodyMeasurements(clientData.id)
       ]);
       
       generateAchievements();
@@ -172,7 +189,6 @@ export function AchievementsView() {
     }
   };
 
-  // Добавляем функцию для загрузки данных о составе тела
   const fetchBodyMeasurements = async (clientId: string) => {
     try {
       console.log('Загружаем данные о составе тела для клиента:', clientId);
@@ -262,7 +278,7 @@ export function AchievementsView() {
           ?.map(w => w.training_program_id)
           .filter(Boolean) || [];
         
-        const { data: programExercises } = await supabase
+        const { data: programExercises, error: programExercisesError } = await supabase
           .from('program_exercises')
           .select(`
             id,
@@ -270,47 +286,47 @@ export function AchievementsView() {
             strength_exercises (id, name),
             exercise_sets (set_number, reps, weight)
           `)
-          .in('program_id', programIds);
+          .in('program_id', programIds) as { data: ProgramExercise[] | null; error: any };
         
-        exerciseCompletions.forEach(completion => {
-          const exercise = programExercises?.find(pe => 
-            pe.strength_exercises && pe.strength_exercises.id === completion.exercise_id
-          );
-          
-          if (exercise && exercise.strength_exercises) {
-            const exerciseName = exercise.strength_exercises.name;
-            if (!exerciseFrequency[completion.exercise_id]) {
-              exerciseFrequency[completion.exercise_id] = {
-                count: 0,
-                name: exerciseName
-              };
+        if (programExercisesError) throw programExercisesError;
+
+        if (programExercises) {
+          exerciseCompletions.forEach(completion => {
+            const exercise = programExercises.find(pe => {
+              if (!pe.strength_exercises) return false;
+
+              const strengthExercise = Array.isArray(pe.strength_exercises)
+                ? pe.strength_exercises[0]
+                : pe.strength_exercises;
+
+              return strengthExercise && strengthExercise.id === completion.exercise_id;
+            });
+
+            if (exercise && exercise.strength_exercises) {
+              const strengthExercise = Array.isArray(exercise.strength_exercises)
+                ? exercise.strength_exercises[0]
+                : exercise.strength_exercises;
+
+              const exerciseName = strengthExercise.name;
+
+              if (!exerciseFrequency[completion.exercise_id]) {
+                exerciseFrequency[completion.exercise_id] = {
+                  count: 0,
+                  name: exerciseName,
+                };
+              }
+              exerciseFrequency[completion.exercise_id].count++;
+
+              if (exercise.exercise_sets && exercise.exercise_sets.length > 0) {
+                totalSets += exercise.exercise_sets.length;
+                totalVolume += exercise.exercise_sets.reduce(
+                  (acc, set) => acc + (set.reps * (set.weight || 0)),
+                  0
+                );
+              }
             }
-            exerciseFrequency[completion.exercise_id].count++;
-            
-            if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
-              completion.completed_sets.forEach((isCompleted, setIndex) => {
-                if (isCompleted) {
-                  totalSets++;
-                  if (exercise.exercise_sets && exercise.exercise_sets[setIndex]) {
-                    const set = exercise.exercise_sets[setIndex];
-                    let reps = 0;
-                    if (set.reps) {
-                      const repsStr = set.reps.toString();
-                      if (repsStr.includes('-')) {
-                        const [min, max] = repsStr.split('-').map(Number);
-                        reps = Math.round((min + max) / 2);
-                      } else {
-                        reps = parseInt(repsStr) || 0;
-                      }
-                    }
-                    const weight = parseFloat(set.weight || '0') || 0;
-                    totalVolume += reps * weight;
-                  }
-                }
-              });
-            }
-          }
-        });
+          });
+        }
       }
       
       const uniqueExerciseIds = Object.keys(exerciseFrequency);
@@ -438,26 +454,21 @@ export function AchievementsView() {
 
       if (clientFiles.length === 0) return;
 
-      // Логирование для отладки
       console.log('Client files:', clientFiles);
 
-      // Сортировка и сбор фото с датами
       const photosWithDates = clientFiles.map(file => {
         let date: Date;
         const parts = file.name.split('-');
 
-        // Сначала пытаемся использовать created_at
         if (file.created_at) {
           date = new Date(file.created_at);
           console.log(`Using created_at for ${file.name}: ${date.toISOString()}`);
         } else {
-          // Если created_at отсутствует, используем timestamp из имени файла
           const timestamp = parts.length >= 2 ? parseInt(parts[1]) : Date.now();
           date = !isNaN(timestamp) ? new Date(timestamp) : new Date();
           console.log(`Using timestamp for ${file.name}: ${timestamp}, Parsed Date: ${date.toISOString()}`);
         }
 
-        // Проверка на корректность даты
         if (isNaN(date.getTime())) {
           console.warn(`Invalid date for ${file.name}, using current date`);
           date = new Date();
@@ -469,7 +480,6 @@ export function AchievementsView() {
         return { url: publicUrl, date: date.toLocaleDateString('ru-RU') };
       }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Группировка по датам
       const photosByDate: { [key: string]: ProgressPhoto[] } = {};
       photosWithDates.forEach(photo => {
         if (!photosByDate[photo.date]) {
@@ -483,8 +493,8 @@ export function AchievementsView() {
       );
 
       if (dates.length > 0) {
-        setFirstPhoto(photosByDate[dates[0]]); // Все фото первой даты
-        setLastPhoto(photosByDate[dates[dates.length - 1]]); // Все фото последней даты
+        setFirstPhoto(photosByDate[dates[0]]);
+        setLastPhoto(photosByDate[dates[dates.length - 1]]);
         console.log('First photos:', photosByDate[dates[0]]);
         console.log('Last photos:', photosByDate[dates[dates.length - 1]]);
       }
@@ -863,7 +873,6 @@ export function AchievementsView() {
       const validData = chartData.filter(d => d[field] !== null);
       if (validData.length === 0) return null;
   
-      // Create a unique gradient ID based on the field name to prevent conflicts
       const gradientId = `color${field}`;
   
       return (
@@ -1102,12 +1111,11 @@ export function AchievementsView() {
     </div>
   );
 
-  // Обновляем функцию для вкладки "Состав тела" - передаем данные о составе тела
   const renderBodyCompositionTab = () => (
     <BodyCompositionTab
       clientId={clientData?.id || ''}
       measurements={measurements}
-      bodyMeasurements={bodyMeasurements} // Передаем данные о составе тела
+      bodyMeasurements={bodyMeasurements}
     />
   );
 
