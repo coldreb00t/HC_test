@@ -859,6 +859,8 @@ export function AchievementsView() {
     </div>
   );
 
+
+  
   const renderMeasurementsTab = () => {
     const chartData = measurements.map(measurement => ({
       date: new Date(measurement.date).toLocaleDateString('ru-RU'),
@@ -871,34 +873,80 @@ export function AchievementsView() {
   
     const renderLineChart = (field: string, title: string, unit: string, color: string) => {
       const validData = chartData.filter(d => d[field] !== null);
-      if (validData.length === 0) return null;
+      if (validData.length === 0) {
+        return (
+          <div className="mt-6 text-center text-gray-500">
+            Нет данных для {title.toLowerCase()}
+          </div>
+        );
+      }
   
-      const gradientId = `color${field}`;
+      const gradientId = `gradient${field}`;
+      
+      // Цвета Material Design
+      const materialColors = {
+        weight: '#FF5722', // Deep Orange
+        waist: '#4CAF50',  // Green
+        chest: '#3F51B5',  // Indigo
+        hips: '#F44336',   // Red
+        biceps: '#00BCD4', // Cyan
+      };
   
       return (
-        <div className="mt-6">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">{title}</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <RechartsLineChart data={validData}>
+        <div className="mt-6 bg-white rounded-lg shadow-sm p-4"> {/* Контейнер с тенью */}
+          <h4 className="text-md font-medium text-gray-800 mb-4">{title}</h4>
+          <ResponsiveContainer width="100%" height={250}>
+            <RechartsLineChart 
+              data={validData}
+              margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+            >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor={color} stopOpacity={0.1}/>
+                  <stop offset="5%" stopColor={materialColors[field] || color} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={materialColors[field] || color} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis unit={` ${unit}`} />
-              <Tooltip formatter={(value: number) => `${value} ${unit}`} />
-              <Legend />
+              <CartesianGrid 
+                stroke="#e0e0e0" 
+                strokeDasharray="5 5" 
+                vertical={false} 
+              />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fill: '#757575', fontSize: 12 }} // Серый цвет текста
+                tickLine={false} 
+                axisLine={{ stroke: '#e0e0e0' }} 
+              />
+              <YAxis 
+                unit={` ${unit}`} 
+                tick={{ fill: '#757575', fontSize: 12 }} 
+                tickLine={false} 
+                axisLine={{ stroke: '#e0e0e0' }} 
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#fff', 
+                  borderRadius: '8px', 
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
+                  border: 'none' 
+                }}
+                formatter={(value: number) => `${value.toFixed(1)} ${unit}`} 
+                labelStyle={{ color: '#424242' }} 
+              />
+              <Legend 
+                iconType="circle" 
+                wrapperStyle={{ paddingTop: 10, fontSize: 12, color: '#757575' }} 
+              />
               <Area
                 type="monotone"
                 dataKey={field}
-                stroke={color}
-                name={title.split(' ')[1]}
-                activeDot={{ r: 8 }}
-                fillOpacity={1}
+                stroke={materialColors[field] || color}
+                strokeWidth={2}
                 fill={`url(#${gradientId})`}
+                fillOpacity={1}
+                activeDot={{ r: 6, fill: materialColors[field] || color, stroke: '#fff', strokeWidth: 2 }}
+                animationDuration={1000} // Плавная анимация
+                name={title.split(' ')[1]}
               />
             </RechartsLineChart>
           </ResponsiveContainer>
@@ -909,52 +957,50 @@ export function AchievementsView() {
     return (
       <div className="space-y-6">
         {measurements.length > 0 ? (
-          <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="bg-white rounded-lg shadow-sm p-4">
             <div className="flex items-center mb-4">
               <Scale className="w-5 h-5 text-gray-500 mr-2" />
-              <h3 className="font-semibold">Измерения тела</h3>
+              <h3 className="font-semibold text-gray-800">Измерения тела</h3>
             </div>
-  
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вес (кг)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Талия (см)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Грудь (см)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Бедра (см)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Бицепс (см)</th>
+                  <tr className="bg-gray-100">
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Дата</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Вес (кг)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Талия (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Грудь (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бедра (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бицепс (см)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {measurements.map((measurement, index) => (
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="py-2 px-3 text-sm">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
-                      <td className="py-2 px-3 text-sm">{measurement.weight || '-'}</td>
-                      <td className="py-2 px-3 text-sm">{measurement.waist || '-'}</td>
-                      <td className="py-2 px-3 text-sm">{measurement.chest || '-'}</td>
-                      <td className="py-2 px-3 text-sm">{measurement.hips || '-'}</td>
-                      <td className="py-2 px-3 text-sm">{measurement.biceps || '-'}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.weight || '-'}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.waist || '-'}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.chest || '-'}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.hips || '-'}</td>
+                      <td className="py-2 px-3 text-sm text-gray-700">{measurement.biceps || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-  
-            {renderLineChart('weight', 'Динамика веса', 'кг', '#ff7300')}
-            {renderLineChart('waist', 'Динамика талии', 'см', '#387908')}
-            {renderLineChart('chest', 'Динамика груди', 'см', '#8884d8')}
-            {renderLineChart('hips', 'Динамика бедер', 'см', '#ff0000')}
-            {renderLineChart('biceps', 'Динамика бицепса', 'см', '#00c49f')}
+            {renderLineChart('weight', 'Динамика веса', 'кг', '#FF5722')}
+            {renderLineChart('waist', 'Динамика талии', 'см', '#4CAF50')}
+            {renderLineChart('chest', 'Динамика груди', 'см', '#3F51B5')}
+            {renderLineChart('hips', 'Динамика бедер', 'см', '#F44336')}
+            {renderLineChart('biceps', 'Динамика бицепса', 'см', '#00BCD4')}
           </div>
         ) : (
-          <div className="bg-gray-50 rounded-lg p-6 text-center">
+          <div className="bg-gray-50 rounded-lg p-6 text-center shadow-sm">
             <Scale className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">Нет данных об измерениях</p>
             <button
               onClick={() => navigate('/client/measurements/new')}
-              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
             >
               Добавить измерения
             </button>
