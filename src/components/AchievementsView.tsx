@@ -22,6 +22,7 @@ import { ShareAchievementModal } from './ShareAchievementModal';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
+import { RaiseTheBeastMotivation } from './RaiseTheBeastMotivation';
 import toast from 'react-hot-toast';
 import { 
   LineChart as RechartsLineChart, 
@@ -676,7 +677,12 @@ export function AchievementsView() {
           </div>
         </div>
       </div>
-      
+      {workoutStats && (
+      <RaiseTheBeastMotivation 
+        totalVolume={workoutStats.totalVolume} 
+        userName={clientData ? `${clientData.first_name} ${clientData.last_name}` : 'Пользователь HARDCASE'}
+      />
+    )}
       {renderAchievementCards()}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
