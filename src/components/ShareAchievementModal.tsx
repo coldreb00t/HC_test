@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { X, Share2, Download, Copy, Instagram, Send } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import domToImage from 'dom-to-image';
 import toast from 'react-hot-toast';
 
 interface ShareAchievementModalProps {
@@ -31,13 +31,13 @@ export function ShareAchievementModal({
   const [copied, setCopied] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageData, setImageData] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
   const achievementCardRef = useRef<HTMLDivElement>(null);
 
-  const cardHeight = 600;
+  // Фиксированные размеры (вернули исходные)
   const cardWidth = 324;
+  const cardHeight = 600;
 
-  const canNativeShare = navigator.share !== undefined;
+  const canNativeShare = typeof navigator !== 'undefined' && navigator.share !== undefined;
 
   const volumeToNext = nextBeastThreshold - totalVolume;
   const progressPercentage = Math.min(
@@ -54,7 +54,6 @@ export function ShareAchievementModal({
 
       setImageData(null);
       setImageLoaded(false);
-      setImageError(null);
 
       const img = new Image();
       img.crossOrigin = ''; // Убрано для локальных ресурсов, так как не нужно
@@ -73,7 +72,6 @@ export function ShareAchievementModal({
           }
         } catch (e) {
           console.error('Ошибка при конвертации изображения в Data URL:', e);
-          setImageError('Ошибка при конвертации изображения');
         } finally {
           setImageLoaded(true);
         }
@@ -81,19 +79,19 @@ export function ShareAchievementModal({
 
       img.onerror = (e) => {
         console.error('Ошибка загрузки изображения:', beastImage, e);
-        setImageError(`Не удалось загрузить изображение: ${beastImage}`);
-        setImageLoaded(true);
+        setImageLoaded(true); // Продолжаем, даже если изображение не загрузилось
+        setImageData(null); // Сбрасываем imageData при ошибке
       };
 
       img.src = beastImage;
 
       const timeout = setTimeout(() => {
         if (!imageLoaded) {
-          console.warn('Время загрузки изображения истекло (30 секунд), продолжаем без него');
-          setImageError('Превышено время ожидания загрузки изображения');
-          setImageLoaded(true);
+          console.warn('Время загрузки изображения истекло (60 секунд), продолжаем без него');
+          setImageLoaded(true); // Увеличили таймаут до 60 секунд для надежности
+          setImageData(null); // Сбрасываем imageData при таймауте
         }
-      }, 30000); // Таймаут 30 секунд для надежности
+      }, 60000); // Увеличили таймаут до 60 секунд
 
       return () => clearTimeout(timeout);
     } else {
@@ -113,7 +111,7 @@ export function ShareAchievementModal({
     setLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Задержка 5 секунд
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Задержка 1 секунда
 
       const element = achievementCardRef.current;
       element.style.display = 'none';
@@ -127,49 +125,36 @@ export function ShareAchievementModal({
         height: computedStyle.height,
       });
 
-      const canvas = await html2canvas(element, {
-        backgroundColor: imageData ? '#111827' : undefined,
-        scale: 3, // Фиксируем масштаб для сохранения пропорций
-        useCORS: true,
-        allowTaint: false,
-        logging: true,
-        width: cardWidth, // Фиксированная ширина
-        height: cardHeight, // Фиксированная высота
-        windowWidth: cardWidth, // Убедимся, что окно соответствует ширине
-        windowHeight: cardHeight, // Убедимся, что окно соответствует высоте
-        onclone: (documentClone) => {
-          const cardElement = documentClone.querySelector('[data-html2canvas-beast-card]');
-          if (cardElement) {
-            const elementStyle = (cardElement as HTMLElement).style;
-            elementStyle.width = `${cardWidth}px`; // Фиксируем ширину
-            elementStyle.height = `${cardHeight}px`; // Фиксируем высоту
-            elementStyle.display = 'block';
-            elementStyle.position = 'relative';
-            elementStyle.overflow = 'hidden';
-            elementStyle.borderRadius = '0.75rem';
-
-            if (imageData) {
-              elementStyle.backgroundImage = `url(${imageData})`;
-              elementStyle.backgroundSize = 'cover';
-              elementStyle.backgroundPosition = 'center';
-              elementStyle.backgroundRepeat = 'no-repeat';
-            } else {
-              elementStyle.background = fallbackGradient;
-              console.warn('Используем запасной градиент, так как изображение не загрузилось');
-            }
-          }
-          return documentClone;
+      const scale = 2; // Фиксированный масштаб для 648x1200 пикселей
+      const options = {
+        width: cardWidth * scale, // 648 пикселей
+        height: cardHeight * scale, // 1200 пикселей
+        style: {
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          width: `${cardWidth}px`,
+          height: `${cardHeight}px`,
         },
-      });
+        quality: 1.0, // Максимальное качество
+        imagePlaceholder: fallbackGradient, // Используем градиент, если изображение не загрузилось
+      };
 
-      console.log('Размеры сгенерированного canvas:', canvas.width, 'x', canvas.height);
-
-      // Сохраняем изображение с фиксированными пропорциями и высоким качеством
-      const imageUrl = canvas.toDataURL('image/png', 1.0); // Максимальное качество без сжатия
-      setShareableImage(imageUrl);
-      console.log('Сгенерировано изображение для шаринга:', imageUrl.slice(0, 50));
-      setLoading(false);
-    } catch (error) {
+      domToImage.toBlob(element, options)
+        .then((blob: Blob) => {
+          if (blob) {
+            setShareableImage(URL.createObjectURL(blob));
+            console.log('Сгенерировано изображение для шаринга (Blob URL):', URL.createObjectURL(blob));
+            setLoading(false);
+          } else {
+            throw new Error('Не удалось создать Blob из элемента DOM');
+          }
+        })
+        .catch((error: unknown) => {
+          console.error('Ошибка при генерации изображения:', error);
+          toast.error('Не удалось создать изображение');
+          setLoading(false);
+        });
+    } catch (error: unknown) {
       console.error('Ошибка при генерации изображения:', error);
       toast.error('Не удалось создать изображение');
       setLoading(false);
@@ -179,69 +164,72 @@ export function ShareAchievementModal({
   const handleDownload = () => {
     if (!shareableImage) return;
 
-    // Создаем Blob из Data URL, сохраняя пропорции
-    const byteString = atob(shareableImage.split(',')[1]);
-    const mimeString = shareableImage.split(',')[0].split(':')[1].split(';')[0];
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    const blob = new Blob([ab], { type: mimeString });
-
     // Проверяем размеры Blob через временный объект Image
-    const img = new Image();
-    img.src = URL.createObjectURL(blob);
-    img.onload = () => {
-      console.log('Размеры Blob перед сохранением:', img.width, 'x', img.height);
+    fetch(shareableImage)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(blob);
+        img.onload = () => {
+          console.log('Размеры Blob перед сохранением:', img.width, 'x', img.height);
 
-      // Убедимся, что сохраняем с правильными размерами и пропорциями
-      if (img.width !== 972 || img.height !== 1800) {
-        console.warn('Размеры Blob не соответствуют ожидаемым (972x1800), корректируем пропорции');
-        // Если размеры не совпадают, создаем новый canvas для коррекции пропорций
-        const correctedCanvas = document.createElement('canvas');
-        correctedCanvas.width = 972; // Ожидаемая ширина
-        correctedCanvas.height = 1800; // Ожидаемая высота
-        const ctx = correctedCanvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, 972, 1800); // Рисуем с правильными пропорциями
-          const correctedUrl = correctedCanvas.toDataURL('image/png', 1.0);
-          const correctedBlob = dataURLToBlob(correctedUrl); // Функция для преобразования Data URL в Blob
+          // Ожидаемые размеры с scale: 2
+          const expectedWidth = 648;
+          const expectedHeight = 1200;
 
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(correctedBlob);
-          link.download = `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(link.href);
-        }
-      } else {
-        // Если размеры корректны, сохраняем как есть
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-      }
+          // Проверяем, соответствуют ли размеры ожидаемым пропорциям (9:16)
+          if (img.width !== expectedWidth || img.height !== expectedHeight) {
+            console.warn('Размеры Blob не соответствуют ожидаемым (648x1200), корректируем пропорции');
+            // Создаем новый canvas для строгой коррекции пропорций
+            const correctedCanvas = document.createElement('canvas');
+            correctedCanvas.width = expectedWidth; // Фиксированная ширина
+            correctedCanvas.height = expectedHeight; // Фиксированная высота
+            const ctx = correctedCanvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, expectedWidth, expectedHeight); // Рисуем с правильными пропорциями
+              correctedCanvas.toBlob(
+                (correctedBlob: Blob | null) => {
+                  if (correctedBlob) {
+                    saveBlobWithMetadata(correctedBlob, `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`, expectedWidth, expectedHeight);
+                  } else {
+                    throw new Error('Не удалось создать исправленный Blob');
+                  }
+                },
+                'image/png',
+                1.0 // Максимальное качество
+              );
+            }
+          } else {
+            // Если размеры корректны, сохраняем как есть
+            saveBlobWithMetadata(blob, `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`, expectedWidth, expectedHeight);
+          }
 
-      URL.revokeObjectURL(img.src); // Освобождаем URL для изображения
-      toast.success('Изображение сохранено');
-    };
+          URL.revokeObjectURL(img.src); // Освобождаем URL для изображения
+        };
+      })
+      .catch((error: Error) => {
+        console.error('Ошибка при загрузке Blob:', error);
+        toast.error('Не удалось скачать изображение');
+      });
   };
 
-  // Вспомогательная функция для преобразования Data URL в Blob
-  const dataURLToBlob = (dataUrl: string): Blob => {
-    const byteString = atob(dataUrl.split(',')[1]);
-    const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([ab], { type: mimeString });
+  // Новая функция для сохранения Blob с явными метаданными размеров
+  const saveBlobWithMetadata = (blob: Blob, filename: string, expectedWidth: number, expectedHeight: number) => {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+
+    // Устанавливаем метаданные размеров и DPI в ссылке
+    link.setAttribute('data-width', `${expectedWidth}`);
+    link.setAttribute('data-height', `${expectedHeight}`);
+    link.setAttribute('data-dpi', '72'); // Стандартное DPI для веб-изображений
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    toast.success('Изображение сохранено');
   };
 
   const handleCopyImage = async () => {
@@ -314,15 +302,17 @@ export function ShareAchievementModal({
 
   const inlineStyles = {
     cardContainer: {
-      height: `${cardHeight}px`,
-      width: `${cardWidth}px`,
-      margin: '0 auto',
       position: 'relative' as const,
+      width: `${cardWidth}px`,
+      height: `${cardHeight}px`,
+      margin: '0 auto',
       borderRadius: '0.75rem',
       overflow: 'hidden',
       background: imageData ? 'none' : fallbackGradient,
       minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
       minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
+      maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
+      maxHeight: `${cardHeight}px`, // Ограничиваем максимальную высоту
     },
     topGradient: {
       position: 'absolute' as const,
@@ -450,6 +440,16 @@ export function ShareAchievementModal({
       color: '#d1d5db',
       marginTop: '12px',
     },
+    coverImage: {
+      position: 'absolute' as const,
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover' as const, // Сохраняем пропорции без искажений
+      zIndex: 0,
+      opacity: 1,
+    },
   };
 
   return (
@@ -466,31 +466,15 @@ export function ShareAchievementModal({
           <div
             ref={achievementCardRef}
             data-html2canvas-beast-card
-            style={{
-              ...inlineStyles.cardContainer,
-              minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
-              minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
-              maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
-              maxHeight: `${cardHeight}px`, // Ограничиваем максимальную высоту
-            }}
+            style={inlineStyles.cardContainer}
           >
             {imageData && (
               <img
                 src={imageData}
                 alt={`Зверь ${beastName}`}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  zIndex: 0,
-                  opacity: 1,
-                }}
+                style={inlineStyles.coverImage}
                 onError={(e) => {
-                  console.error('Ошибка загрузки изображения в DOM:', e);
-                  setImageError('Ошибка отображения изображения в DOM');
+                  console.error('Ошибка отображения изображения:', e);
                 }}
               />
             )}
