@@ -5,8 +5,7 @@ import {
   TrendingUp, 
   Activity, 
   Scale, 
-  Calendar,
-  Target, 
+  Calendar, 
   Dumbbell, 
   ArrowUp, 
   ArrowDown, 
@@ -18,7 +17,7 @@ import {
   Check,
   X
 } from 'lucide-react';
-import { ShareAchievementModal } from './ShareAchievementModal';
+import { ShareAchievementModal } from './ShareAchievementModal'; // Убрали импорт ShareAchievementModalProps
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { useNavigate } from 'react-router-dom';
@@ -33,15 +32,21 @@ import {
   Tooltip, 
   Legend, 
   ResponsiveContainer,
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart
 } from 'recharts';
-import  BodyCompositionTab  from './BodyCompositionTab';
+import BodyCompositionTab from './BodyCompositionTab';
+
+// Локально определяем интерфейс ShareAchievementModalProps
+interface ShareAchievementModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  achievement: {
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+    value: string;
+  };
+  userName: string;
+}
 
 interface ClientData {
   id: string;
@@ -151,8 +156,8 @@ export function AchievementsView() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
-  const [editRowId, setEditRowId] = useState<string | null>(null); // Состояние для редактирования
-  const [editValues, setEditValues] = useState<Measurement | null>(null); // Значения редактируемой строки
+  const [editRowId, setEditRowId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Measurement | null>(null);
 
   useEffect(() => {
     fetchClientData();
@@ -568,7 +573,7 @@ export function AchievementsView() {
     setShowShareModal(true);
   };
 
-  const getMeasurementChange = (field: string): { value: number, percent: number, direction: 'up' | 'down' | 'none' } => {
+  const getMeasurementChange = (field: keyof Measurement): { value: number, percent: number, direction: 'up' | 'down' | 'none' } => {
     if (measurements.length < 2) {
       return { value: 0, percent: 0, direction: 'none' };
     }
@@ -579,7 +584,6 @@ export function AchievementsView() {
     const difference = last - first;
     const percentChange = first !== 0 ? (difference / first) * 100 : 0;
     
-    const goodDirection = field === 'weight' || field === 'waist' ? 'down' : 'up';
     const direction = difference > 0 ? 'up' : difference < 0 ? 'down' : 'none';
     
     return {
@@ -849,7 +853,7 @@ export function AchievementsView() {
             <div className="h-40 mt-2 flex items-end">
               {workoutStats.workoutsPerMonth.map((item, index) => {
                 const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-                const [year, month] = item.month.split('-');
+                const [, month] = item.month.split('-');
                 const monthIndex = parseInt(month) - 1;
                 const monthName = monthNames[monthIndex];
                 const maxCount = Math.max(...workoutStats.workoutsPerMonth.map(x => x.count));
@@ -889,7 +893,7 @@ export function AchievementsView() {
       setEditValues({ ...measurement });
     };
 
-    const handleInputChange = (field: string, value: string) => {
+    const handleInputChange = (field: keyof Measurement, value: string) => {
       if (editValues) {
         setEditValues({
           ...editValues,
@@ -934,7 +938,7 @@ export function AchievementsView() {
     };
 
     const renderLineChart = (field: string, title: string, unit: string, color: string) => {
-      const validData = chartData.filter(d => d[field] !== null && d[field] !== undefined);
+      const validData = chartData.filter(d => d[field as keyof typeof d] !== null && d[field as keyof typeof d] !== undefined);
       console.log(`Valid data for ${field}:`, validData);
       if (validData.length === 0) return <p className="text-gray-500">Нет данных для {title}</p>;
 
@@ -964,10 +968,10 @@ export function AchievementsView() {
               <Line
                 type="monotone"
                 dataKey={field}
-                stroke={materialColors[field] || color}
+                stroke={materialColors[field as keyof typeof materialColors] || color}
                 strokeWidth={2}
-                dot={{ r: 5, fill: materialColors[field] || color }}
-                activeDot={{ r: 6, fill: materialColors[field] || color, stroke: '#fff', strokeWidth: 2 }}
+                dot={{ r: 5, fill: materialColors[field as keyof typeof materialColors] || color }}
+                activeDot={{ r: 6, fill: materialColors[field as keyof typeof materialColors] || color, stroke: '#fff', strokeWidth: 2 }}
                 animationDuration={1000}
                 name={title.split(' ')[1]}
               />

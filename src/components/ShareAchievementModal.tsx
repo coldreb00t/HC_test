@@ -1,7 +1,12 @@
 import { useRef, useState, useEffect } from 'react';
 import { X, Share2, Download, Copy, Instagram, Send } from 'lucide-react';
 import domToImage from 'dom-to-image';
-import toast from 'react-hot-toast';
+import toast, { Toast } from 'react-hot-toast';
+
+// Расширяем тип опций toast, добавляя поддержку 'type'
+interface CustomToastOptions extends Partial<Pick<Toast, 'id' | 'icon' | 'duration' | 'ariaProps' | 'className' | 'style' | 'position' | 'iconTheme' | 'removeDelay'>> {
+  type?: 'success' | 'error' | 'warning' | 'info';
+}
 
 interface ShareAchievementModalProps {
   isOpen: boolean;
@@ -48,6 +53,9 @@ export function ShareAchievementModal({
   const isMaxLevel = beastName === 'Косатка';
   const fallbackGradient = 'linear-gradient(to bottom, #1f2937, #111827)';
 
+  // Сохраняем ID URL-объекта для очистки
+  const [imageUrlId, setImageUrlId] = useState<string | null>(null);
+
   useEffect(() => {
     if (beastImage && isOpen) {
       console.log('Получено изображение зверя (URL):', beastImage, 'Тип:', typeof beastImage);
@@ -79,6 +87,7 @@ export function ShareAchievementModal({
 
       img.onerror = (e) => {
         console.error('Ошибка загрузки изображения:', beastImage, e);
+        toast('Не удалось загрузить изображение зверя', { type: 'error' } as CustomToastOptions);
         setImageLoaded(true); // Продолжаем, даже если изображение не загрузилось
         setImageData(null); // Сбрасываем imageData при ошибке
       };
@@ -87,11 +96,12 @@ export function ShareAchievementModal({
 
       const timeout = setTimeout(() => {
         if (!imageLoaded) {
-          console.warn('Время загрузки изображения истекло (60 секунд), продолжаем без него');
-          setImageLoaded(true); // Увеличили таймаут до 60 секунд для надежности
+          console.warn('Время загрузки изображения истекло (120 секунд), продолжаем без него');
+          toast('Загрузка изображения заняла слишком много времени, используется запасной фон', { type: 'warning' } as CustomToastOptions);
+          setImageLoaded(true); // Увеличили таймаут до 120 секунд для надежности
           setImageData(null); // Сбрасываем imageData при таймауте
         }
-      }, 60000); // Увеличили таймаут до 60 секунд
+      }, 120000); // Увеличили таймаут до 120 секунд для надежности
 
       return () => clearTimeout(timeout);
     } else {
@@ -142,8 +152,14 @@ export function ShareAchievementModal({
       domToImage.toBlob(element, options)
         .then((blob: Blob) => {
           if (blob) {
-            setShareableImage(URL.createObjectURL(blob));
-            console.log('Сгенерировано изображение для шаринга (Blob URL):', URL.createObjectURL(blob));
+            // Очищаем предыдущий URL, если он есть
+            if (imageUrlId) {
+              URL.revokeObjectURL(imageUrlId);
+            }
+            const newImageUrl = URL.createObjectURL(blob);
+            setShareableImage(newImageUrl);
+            setImageUrlId(newImageUrl); // Сохраняем ID URL для очистки
+            console.log('Сгенерировано изображение для шаринга (Blob URL):', newImageUrl);
             setLoading(false);
           } else {
             throw new Error('Не удалось создать Blob из элемента DOM');
@@ -151,12 +167,12 @@ export function ShareAchievementModal({
         })
         .catch((error: unknown) => {
           console.error('Ошибка при генерации изображения:', error);
-          toast.error('Не удалось создать изображение');
+          toast('Не удалось создать изображение', { type: 'error' } as CustomToastOptions);
           setLoading(false);
         });
     } catch (error: unknown) {
       console.error('Ошибка при генерации изображения:', error);
-      toast.error('Не удалось создать изображение');
+      toast('Не удалось создать изображение', { type: 'error' } as CustomToastOptions);
       setLoading(false);
     }
   };
@@ -209,7 +225,7 @@ export function ShareAchievementModal({
       })
       .catch((error: Error) => {
         console.error('Ошибка при загрузке Blob:', error);
-        toast.error('Не удалось скачать изображение');
+        toast('Не удалось скачать изображение', { type: 'error' } as CustomToastOptions);
       });
   };
 
@@ -229,7 +245,7 @@ export function ShareAchievementModal({
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 
-    toast.success('Изображение сохранено');
+    toast('Изображение сохранено', { type: 'success' } as CustomToastOptions);
   };
 
   const handleCopyImage = async () => {
@@ -245,11 +261,11 @@ export function ShareAchievementModal({
       ]);
 
       setCopied(true);
-      toast.success('Изображение скопировано в буфер обмена');
+      toast('Изображение скопировано в буфер обмена', { type: 'success' } as CustomToastOptions);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Ошибка при копировании изображения:', error);
-      toast.error('Не удалось скопировать изображение');
+      toast('Не удалось скопировать изображение', { type: 'error' } as CustomToastOptions);
     }
   };
 
@@ -267,11 +283,11 @@ export function ShareAchievementModal({
         files: [file],
       });
 
-      toast.success('Успешно отправлено');
+      toast('Успешно отправлено', { type: 'success' } as CustomToastOptions);
     } catch (error) {
       console.error('Ошибка при шаринге:', error);
       if (error instanceof Error && error.name !== 'AbortError') {
-        toast.error('Не удалось поделиться');
+        toast('Не удалось поделиться', { type: 'error' } as CustomToastOptions);
       }
     }
   };
@@ -280,10 +296,7 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
     handleCopyImage().then(() => {
       window.location.href = 'instagram://story';
-      toast('Изображение скопировано! Вставьте его в Instagram Stories', {
-        icon: '📱',
-        duration: 5000,
-      });
+      toast('Изображение скопировано! Вставьте его в Instagram Stories', { type: 'info' } as CustomToastOptions);
     });
   };
 
@@ -291,12 +304,21 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
     handleCopyImage().then(() => {
       window.location.href = 'https://t.me/share/url?url=hardcase.training&text=Мое%20достижение%20в%20HARDCASE.TRAINING';
-      toast('Изображение скопировано! Вставьте его в сообщение Telegram', {
-        icon: '✉️',
-        duration: 5000,
-      });
+      toast('Изображение скопировано! Вставьте его в сообщение Telegram', { type: 'info' } as CustomToastOptions);
     });
   };
+
+  // Очистка URL-объекта при закрытии модального окна или размонтировании компонента
+  useEffect(() => {
+    return () => {
+      if (imageUrlId) {
+        URL.revokeObjectURL(imageUrlId);
+        console.log('Очищен URL-объект изображения:', imageUrlId);
+      }
+      setShareableImage(null);
+      setImageUrlId(null);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -308,7 +330,10 @@ export function ShareAchievementModal({
       margin: '0 auto',
       borderRadius: '0.75rem',
       overflow: 'hidden',
-      background: imageData ? 'none' : fallbackGradient,
+      background: imageData ? `url(${imageData})` : fallbackGradient,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
       minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
       minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
       maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
@@ -398,10 +423,10 @@ export function ShareAchievementModal({
       marginTop: '8px',
     },
     progressTextContainer: {
-      fontSize: '14px',
+      fontSize: '12px', // Уменьшили размер шрифта с 14px до 12px
       fontWeight: '500',
       color: 'white',
-      padding: '6px 20px',
+      padding: '4px 16px', // Уменьшили отступы для компактности
       background: 'rgba(0, 0, 0, 0.8)',
       backdropFilter: 'blur(10px)',
       borderRadius: '9999px',

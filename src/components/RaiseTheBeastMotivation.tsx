@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Removed unused React import
 import { Share2 } from 'lucide-react';
 import { ShareAchievementModal } from './ShareAchievementModal';
 
@@ -243,7 +243,7 @@ export function RaiseTheBeastMotivation({ totalVolume, userName }: RaiseTheBeast
           totalVolume={totalVolume}
           nextBeastThreshold={nextBeast.threshold}
           currentBeastThreshold={currentBeast.threshold}
-          beastImage={beastImageUrl} // Передаем URL изображения, полученный через import.meta.glob
+          beastImage={beastImageUrl}
         />
       )}
     </div>
