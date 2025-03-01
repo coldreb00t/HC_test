@@ -48,9 +48,6 @@ export function ShareAchievementModal({
   const isMaxLevel = beastName === 'Косатка';
   const fallbackGradient = 'linear-gradient(to bottom, #1f2937, #111827)';
 
-  // Сохраняем ID URL-объекта для очистки
-  const [imageUrlId, setImageUrlId] = useState<string | null>(null);
-
   useEffect(() => {
     if (beastImage && isOpen) {
       console.log('Получено изображение зверя (URL):', beastImage, 'Тип:', typeof beastImage);
@@ -82,7 +79,6 @@ export function ShareAchievementModal({
 
       img.onerror = (e) => {
         console.error('Ошибка загрузки изображения:', beastImage, e);
-        toast.error('Не удалось загрузить изображение зверя');
         setImageLoaded(true); // Продолжаем, даже если изображение не загрузилось
         setImageData(null); // Сбрасываем imageData при ошибке
       };
@@ -91,12 +87,11 @@ export function ShareAchievementModal({
 
       const timeout = setTimeout(() => {
         if (!imageLoaded) {
-          console.warn('Время загрузки изображения истекло (120 секунд), продолжаем без него');
-          toast.warn('Загрузка изображения заняла слишком много времени, используется запасной фон');
-          setImageLoaded(true); // Увеличили таймаут до 120 секунд для надежности
+          console.warn('Время загрузки изображения истекло (60 секунд), продолжаем без него');
+          setImageLoaded(true); // Увеличили таймаут до 60 секунд для надежности
           setImageData(null); // Сбрасываем imageData при таймауте
         }
-      }, 120000); // Увеличили таймаут до 120 секунд для надежности
+      }, 60000); // Увеличили таймаут до 60 секунд
 
       return () => clearTimeout(timeout);
     } else {
@@ -147,14 +142,8 @@ export function ShareAchievementModal({
       domToImage.toBlob(element, options)
         .then((blob: Blob) => {
           if (blob) {
-            // Очищаем предыдущий URL, если он есть
-            if (imageUrlId) {
-              URL.revokeObjectURL(imageUrlId);
-            }
-            const newImageUrl = URL.createObjectURL(blob);
-            setShareableImage(newImageUrl);
-            setImageUrlId(newImageUrl); // Сохраняем ID URL для очистки
-            console.log('Сгенерировано изображение для шаринга (Blob URL):', newImageUrl);
+            setShareableImage(URL.createObjectURL(blob));
+            console.log('Сгенерировано изображение для шаринга (Blob URL):', URL.createObjectURL(blob));
             setLoading(false);
           } else {
             throw new Error('Не удалось создать Blob из элемента DOM');
@@ -291,7 +280,7 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
     handleCopyImage().then(() => {
       window.location.href = 'instagram://story';
-      toast('Изображение скopiровано! Вставьте его в Instagram Stories', {
+      toast('Изображение скопировано! Вставьте его в Instagram Stories', {
         icon: '📱',
         duration: 5000,
       });
@@ -302,24 +291,12 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
     handleCopyImage().then(() => {
       window.location.href = 'https://t.me/share/url?url=hardcase.training&text=Мое%20достижение%20в%20HARDCASE.TRAINING';
-      toast('Изображение скopiровано! Вставьте его в сообщение Telegram', {
+      toast('Изображение скопировано! Вставьте его в сообщение Telegram', {
         icon: '✉️',
         duration: 5000,
       });
     });
   };
-
-  // Очистка URL-объекта при закрытии модального окна или размонтировании компонента
-  useEffect(() => {
-    return () => {
-      if (imageUrlId) {
-        URL.revokeObjectURL(imageUrlId);
-        console.log('Очищен URL-объект изображения:', imageUrlId);
-      }
-      setShareableImage(null);
-      setImageUrlId(null);
-    };
-  }, []);
 
   if (!isOpen) return null;
 
@@ -331,10 +308,7 @@ export function ShareAchievementModal({
       margin: '0 auto',
       borderRadius: '0.75rem',
       overflow: 'hidden',
-      background: imageData ? `url(${imageData})` : fallbackGradient,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
+      background: imageData ? 'none' : fallbackGradient,
       minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
       minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
       maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
@@ -424,10 +398,10 @@ export function ShareAchievementModal({
       marginTop: '8px',
     },
     progressTextContainer: {
-      fontSize: '12px', // Уменьшили размер шрифта с 14px до 12px
+      fontSize: '14px',
       fontWeight: '500',
       color: 'white',
-      padding: '4px 16px', // Уменьшили отступы для компактности
+      padding: '6px 20px',
       background: 'rgba(0, 0, 0, 0.8)',
       backdropFilter: 'blur(10px)',
       borderRadius: '9999px',
