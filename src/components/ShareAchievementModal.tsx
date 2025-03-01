@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { X, Share2, Download, Copy, Instagram, Send } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import toast from 'react-hot-toast';
@@ -6,206 +6,547 @@ import toast from 'react-hot-toast';
 interface ShareAchievementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  achievement: {
-    title: string;
-    description: string;
-    value: string;
-    icon: React.ReactNode;
-  };
   userName: string;
+  beastName: string;
+  weightPhrase: string;
+  totalVolume: number;
+  nextBeastThreshold: number;
+  currentBeastThreshold: number;
+  beastImage: string;
 }
 
-export function ShareAchievementModal({ isOpen, onClose, achievement, userName }: ShareAchievementModalProps) {
+export function ShareAchievementModal({
+  isOpen,
+  onClose,
+  userName,
+  beastName,
+  weightPhrase,
+  totalVolume,
+  nextBeastThreshold,
+  currentBeastThreshold,
+  beastImage,
+}: ShareAchievementModalProps) {
   const [shareableImage, setShareableImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const achievementCardRef = useRef<HTMLDivElement>(null);
 
-  // Проверяем поддержку Web Share API
+  const cardHeight = 600;
+  const cardWidth = 324;
+
   const canNativeShare = navigator.share !== undefined;
 
+  const volumeToNext = nextBeastThreshold - totalVolume;
+  const progressPercentage = Math.min(
+    ((totalVolume - currentBeastThreshold) / (nextBeastThreshold - currentBeastThreshold)) * 100,
+    100
+  );
+
+  const isMaxLevel = beastName === 'Косатка';
+  const fallbackGradient = 'linear-gradient(to bottom, #1f2937, #111827)';
+
   useEffect(() => {
-    if (isOpen && achievementCardRef.current) {
+    if (beastImage && isOpen) {
+      console.log('Получено изображение зверя (URL):', beastImage, 'Тип:', typeof beastImage);
+
+      setImageData(null);
+      setImageLoaded(false);
+      setImageError(null);
+
+      const img = new Image();
+      img.crossOrigin = ''; // Убрано для локальных ресурсов, так как не нужно
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const dataUrl = canvas.toDataURL('image/png');
+            setImageData(dataUrl);
+            console.log('Изображение успешно сконвертировано в Data URL:', dataUrl.slice(0, 50));
+          }
+        } catch (e) {
+          console.error('Ошибка при конвертации изображения в Data URL:', e);
+          setImageError('Ошибка при конвертации изображения');
+        } finally {
+          setImageLoaded(true);
+        }
+      };
+
+      img.onerror = (e) => {
+        console.error('Ошибка загрузки изображения:', beastImage, e);
+        setImageError(`Не удалось загрузить изображение: ${beastImage}`);
+        setImageLoaded(true);
+      };
+
+      img.src = beastImage;
+
+      const timeout = setTimeout(() => {
+        if (!imageLoaded) {
+          console.warn('Время загрузки изображения истекло (30 секунд), продолжаем без него');
+          setImageError('Превышено время ожидания загрузки изображения');
+          setImageLoaded(true);
+        }
+      }, 30000); // Таймаут 30 секунд для надежности
+
+      return () => clearTimeout(timeout);
+    } else {
+      setImageLoaded(true);
+    }
+  }, [beastImage, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && imageLoaded && achievementCardRef.current) {
       generateImage();
     }
-  }, [isOpen, achievement]);
+  }, [isOpen, imageLoaded]);
 
   const generateImage = async () => {
     if (!achievementCardRef.current) return;
 
     setLoading(true);
+
     try {
-      const canvas = await html2canvas(achievementCardRef.current, {
-        backgroundColor: null,
-        scale: 2, // Увеличиваем качество изображения
-        logging: false,
-        useCORS: true
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Задержка 5 секунд
+
+      const element = achievementCardRef.current;
+      element.style.display = 'none';
+      element.offsetHeight;
+      element.style.display = 'block';
+
+      // Убедимся, что размеры DOM-элемента фиксированы
+      const computedStyle = window.getComputedStyle(element);
+      console.log('Размеры элемента перед захватом:', {
+        width: computedStyle.width,
+        height: computedStyle.height,
       });
-      
-      const imageUrl = canvas.toDataURL('image/png');
+
+      const canvas = await html2canvas(element, {
+        backgroundColor: imageData ? '#111827' : undefined,
+        scale: 3, // Фиксируем масштаб для сохранения пропорций
+        useCORS: true,
+        allowTaint: false,
+        logging: true,
+        width: cardWidth, // Фиксированная ширина
+        height: cardHeight, // Фиксированная высота
+        windowWidth: cardWidth, // Убедимся, что окно соответствует ширине
+        windowHeight: cardHeight, // Убедимся, что окно соответствует высоте
+        onclone: (documentClone) => {
+          const cardElement = documentClone.querySelector('[data-html2canvas-beast-card]');
+          if (cardElement) {
+            const elementStyle = (cardElement as HTMLElement).style;
+            elementStyle.width = `${cardWidth}px`; // Фиксируем ширину
+            elementStyle.height = `${cardHeight}px`; // Фиксируем высоту
+            elementStyle.display = 'block';
+            elementStyle.position = 'relative';
+            elementStyle.overflow = 'hidden';
+            elementStyle.borderRadius = '0.75rem';
+
+            if (imageData) {
+              elementStyle.backgroundImage = `url(${imageData})`;
+              elementStyle.backgroundSize = 'cover';
+              elementStyle.backgroundPosition = 'center';
+              elementStyle.backgroundRepeat = 'no-repeat';
+            } else {
+              elementStyle.background = fallbackGradient;
+              console.warn('Используем запасной градиент, так как изображение не загрузилось');
+            }
+          }
+          return documentClone;
+        },
+      });
+
+      console.log('Размеры сгенерированного canvas:', canvas.width, 'x', canvas.height);
+
+      // Сохраняем изображение с фиксированными пропорциями и высоким качеством
+      const imageUrl = canvas.toDataURL('image/png', 1.0); // Максимальное качество без сжатия
       setShareableImage(imageUrl);
+      console.log('Сгенерировано изображение для шаринга:', imageUrl.slice(0, 50));
+      setLoading(false);
     } catch (error) {
-      console.error('Error generating image:', error);
-      toast.error('Ошибка при создании изображения');
-    } finally {
+      console.error('Ошибка при генерации изображения:', error);
+      toast.error('Не удалось создать изображение');
       setLoading(false);
     }
   };
 
   const handleDownload = () => {
     if (!shareableImage) return;
-    
-    const link = document.createElement('a');
-    link.href = shareableImage;
-    link.download = `hardcase-achievement-${achievement.title.toLowerCase().replace(/\s+/g, '-')}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success('Изображение сохранено');
+
+    // Создаем Blob из Data URL, сохраняя пропорции
+    const byteString = atob(shareableImage.split(',')[1]);
+    const mimeString = shareableImage.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: mimeString });
+
+    // Проверяем размеры Blob через временный объект Image
+    const img = new Image();
+    img.src = URL.createObjectURL(blob);
+    img.onload = () => {
+      console.log('Размеры Blob перед сохранением:', img.width, 'x', img.height);
+
+      // Убедимся, что сохраняем с правильными размерами и пропорциями
+      if (img.width !== 972 || img.height !== 1800) {
+        console.warn('Размеры Blob не соответствуют ожидаемым (972x1800), корректируем пропорции');
+        // Если размеры не совпадают, создаем новый canvas для коррекции пропорций
+        const correctedCanvas = document.createElement('canvas');
+        correctedCanvas.width = 972; // Ожидаемая ширина
+        correctedCanvas.height = 1800; // Ожидаемая высота
+        const ctx = correctedCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, 972, 1800); // Рисуем с правильными пропорциями
+          const correctedUrl = correctedCanvas.toDataURL('image/png', 1.0);
+          const correctedBlob = dataURLToBlob(correctedUrl); // Функция для преобразования Data URL в Blob
+
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(correctedBlob);
+          link.download = `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+        }
+      } else {
+        // Если размеры корректны, сохраняем как есть
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      }
+
+      URL.revokeObjectURL(img.src); // Освобождаем URL для изображения
+      toast.success('Изображение сохранено');
+    };
+  };
+
+  // Вспомогательная функция для преобразования Data URL в Blob
+  const dataURLToBlob = (dataUrl: string): Blob => {
+    const byteString = atob(dataUrl.split(',')[1]);
+    const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
   };
 
   const handleCopyImage = async () => {
     if (!shareableImage) return;
-    
+
     try {
-      const blob = await fetch(shareableImage).then(res => res.blob());
+      const response = await fetch(shareableImage);
+      const blob = await response.blob();
       await navigator.clipboard.write([
         new ClipboardItem({
-          [blob.type]: blob
-        })
+          [blob.type]: blob,
+        }),
       ]);
-      
+
       setCopied(true);
       toast.success('Изображение скопировано в буфер обмена');
-      
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Error copying image:', error);
+      console.error('Ошибка при копировании изображения:', error);
       toast.error('Не удалось скопировать изображение');
     }
   };
 
   const handleNativeShare = async () => {
     if (!shareableImage) return;
-    
+
     try {
-      const blob = await fetch(shareableImage).then(res => res.blob());
-      const file = new File([blob], `hardcase-achievement.png`, { type: 'image/png' });
-      
+      const response = await fetch(shareableImage);
+      const blob = await response.blob();
+      const file = new File([blob], `hardcase-beast-${beastName}.png`, { type: 'image/png' });
+
       await navigator.share({
-        title: `Мое достижение: ${achievement.title}`,
-        text: `${achievement.description} - ${achievement.value}`,
-        files: [file]
+        title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+        text: `${weightPhrase} - ${totalVolume} кг`,
+        files: [file],
       });
-      
+
       toast.success('Успешно отправлено');
     } catch (error) {
-      console.error('Error sharing:', error);
+      console.error('Ошибка при шаринге:', error);
       if (error instanceof Error && error.name !== 'AbortError') {
         toast.error('Не удалось поделиться');
       }
     }
   };
 
-  // Улучшенная функция для Instagram Stories
   const handleInstagramShare = () => {
     if (!shareableImage) return;
-
-    // Проверяем, есть ли у пользователя приложение Instagram
-    // URL для открытия Instagram Stories
-    const instagramURL = `instagram://story`;
-    
-    // Сначала пробуем копировать изображение в буфер обмена
     handleCopyImage().then(() => {
-      // Затем пробуем открыть Instagram
-      window.location.href = instagramURL;
-      
-      // Показываем подсказку
+      window.location.href = 'instagram://story';
       toast('Изображение скопировано! Вставьте его в Instagram Stories', {
         icon: '📱',
-        duration: 5000
+        duration: 5000,
       });
     });
   };
 
-  // Улучшенная функция для Telegram
   const handleTelegramShare = () => {
     if (!shareableImage) return;
-
-    // Телеграм не открывает stories напрямую, но можно сделать кроссплатформенное решение
-    // 1. Копируем изображение в буфер обмена
     handleCopyImage().then(() => {
-      // 2. Пробуем открыть Telegram
-      window.location.href = 'https://t.me/share/url?url=hardcase.app&text=Мое%20достижение%20в%20HARDCASE';
-      
-      // 3. Показываем инструкцию
+      window.location.href = 'https://t.me/share/url?url=hardcase.training&text=Мое%20достижение%20в%20HARDCASE.TRAINING';
       toast('Изображение скопировано! Вставьте его в сообщение Telegram', {
         icon: '✉️',
-        duration: 5000
+        duration: 5000,
       });
     });
   };
 
   if (!isOpen) return null;
 
+  const inlineStyles = {
+    cardContainer: {
+      height: `${cardHeight}px`,
+      width: `${cardWidth}px`,
+      margin: '0 auto',
+      position: 'relative' as const,
+      borderRadius: '0.75rem',
+      overflow: 'hidden',
+      background: imageData ? 'none' : fallbackGradient,
+      minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
+      minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
+    },
+    topGradient: {
+      position: 'absolute' as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      height: '120px',
+      background: 'linear-gradient(to bottom, rgba(17, 24, 39, 0.95), transparent)',
+      zIndex: 5,
+    },
+    bottomGradient: {
+      position: 'absolute' as const,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: '180px',
+      background: 'linear-gradient(to top, rgba(17, 24, 39, 0.95), transparent)',
+      zIndex: 5,
+    },
+    weightContainer: {
+      position: 'absolute' as const,
+      top: '20px',
+      left: '20px',
+      zIndex: 10,
+      background: 'rgba(0, 0, 0, 0.7)',
+      backdropFilter: 'blur(10px)',
+      padding: '10px 15px',
+      borderRadius: '10px',
+    },
+    weightValue: {
+      fontSize: '36px',
+      fontWeight: 'bold',
+      color: '#f97316',
+      textShadow: '0 2px 4px rgba(0, 0, 0, 0.7)',
+    },
+    weightUnit: {
+      fontSize: '18px',
+      fontWeight: '500',
+      color: '#f97316',
+    },
+    weightLabel: {
+      fontSize: '12px',
+      color: 'white',
+      marginTop: '4px',
+    },
+    logoContainer: {
+      position: 'absolute' as const,
+      top: '20px',
+      right: '20px',
+      zIndex: 10,
+      background: 'rgba(249, 115, 22, 0.4)',
+      backdropFilter: 'blur(10px)',
+      padding: '8px 15px',
+      borderRadius: '8px',
+    },
+    logo: {
+      fontSize: '12px',
+      fontWeight: '500',
+      color: 'white',
+    },
+    progressContainer: {
+      position: 'absolute' as const,
+      bottom: '160px',
+      left: 0,
+      right: 0,
+      zIndex: 10,
+    },
+    progressBar: {
+      height: '12px',
+      width: '90%',
+      margin: '0 auto',
+      background: 'rgba(55, 65, 81, 0.6)',
+    },
+    progressFill: {
+      height: '100%',
+      background: '#f97316',
+      width: `${progressPercentage}%`,
+      transition: 'width 0.7s ease-out',
+    },
+    progressText: {
+      display: 'flex',
+      justifyContent: 'center',
+      marginTop: '8px',
+    },
+    progressTextContainer: {
+      fontSize: '14px',
+      fontWeight: '500',
+      color: 'white',
+      padding: '6px 20px',
+      background: 'rgba(0, 0, 0, 0.8)',
+      backdropFilter: 'blur(10px)',
+      borderRadius: '9999px',
+    },
+    progressHighlight: {
+      color: '#fb923c',
+      fontWeight: 'bold',
+    },
+    beastInfo: {
+      position: 'absolute' as const,
+      bottom: '20px',
+      left: 0,
+      right: 0,
+      padding: '20px 0',
+      width: '100%',
+      textAlign: 'center' as const,
+      zIndex: 10,
+    },
+    beastName: {
+      fontSize: '28px',
+      fontWeight: 'bold',
+      color: '#fb923c',
+      textShadow: '0 2px 4px rgba(0, 0, 0, 0.7)',
+      marginBottom: '8px',
+    },
+    beastPhrase: {
+      fontSize: '16px',
+      color: 'white',
+      textShadow: '0 1px 2px rgba(0, 0, 0, 0.7)',
+      maxWidth: '260px',
+      margin: '0 auto',
+      lineHeight: 1.4,
+    },
+    userName: {
+      fontSize: '14px',
+      color: '#d1d5db',
+      marginTop: '12px',
+    },
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-xl overflow-hidden max-w-md w-full">
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-800">Поделиться достижением</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-full"
-          >
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
             <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
-        
+
         <div className="p-4">
-          {/* Карточка достижения для превью и создания изображения */}
           <div
             ref={achievementCardRef}
-            className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 rounded-lg text-white relative overflow-hidden"
+            data-html2canvas-beast-card
+            style={{
+              ...inlineStyles.cardContainer,
+              minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
+              minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
+              maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
+              maxHeight: `${cardHeight}px`, // Ограничиваем максимальную высоту
+            }}
           >
-            <div className="absolute bottom-0 right-0 p-2 text-xs opacity-80">
-              HARDCASE
+            {imageData && (
+              <img
+                src={imageData}
+                alt={`Зверь ${beastName}`}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  zIndex: 0,
+                  opacity: 1,
+                }}
+                onError={(e) => {
+                  console.error('Ошибка загрузки изображения в DOM:', e);
+                  setImageError('Ошибка отображения изображения в DOM');
+                }}
+              />
+            )}
+
+            <div style={inlineStyles.topGradient}></div>
+            <div style={inlineStyles.bottomGradient}></div>
+
+            <div style={inlineStyles.weightContainer}>
+              <p style={inlineStyles.weightValue}>
+                {totalVolume} <span style={inlineStyles.weightUnit}>кг</span>
+              </p>
+              <p style={inlineStyles.weightLabel}>Поднятый вес</p>
             </div>
-            
-            <div className="flex items-center mb-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                {achievement.icon}
-              </div>
-              <div className="ml-3">
-                <h3 className="font-bold text-lg">{achievement.title}</h3>
-                <p>{achievement.description}</p>
-              </div>
+
+            <div style={inlineStyles.logoContainer}>
+              <div style={inlineStyles.logo}>HARDCASE.TRAINING</div>
             </div>
-            
-            <div className="flex justify-between items-end">
-              <div className="text-3xl font-bold">{achievement.value}</div>
-              <div className="text-sm opacity-80">{userName}</div>
+
+            {!isMaxLevel && (
+              <div style={inlineStyles.progressContainer}>
+                <div style={inlineStyles.progressBar}>
+                  <div style={inlineStyles.progressFill}></div>
+                </div>
+                <div style={inlineStyles.progressText}>
+                  <div style={inlineStyles.progressTextContainer}>
+                    До следующего уровня{' '}
+                    <span style={inlineStyles.progressHighlight}>осталось {volumeToNext} кг</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={inlineStyles.beastInfo}>
+              <h3 style={inlineStyles.beastName}>{beastName}</h3>
+              <p style={inlineStyles.beastPhrase}>{weightPhrase}</p>
+              <p style={inlineStyles.userName}>@{userName}</p>
             </div>
           </div>
-          
+
           {loading && (
             <div className="mt-4 flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
             </div>
           )}
-          
+
           {!loading && shareableImage && (
             <>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <button 
+                <button
                   onClick={handleDownload}
                   className="flex items-center justify-center gap-2 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
                   <Download className="w-5 h-5" />
                   <span>Скачать</span>
                 </button>
-                
-                <button 
+                <button
                   onClick={handleCopyImage}
                   className="flex items-center justify-center gap-2 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
@@ -213,21 +554,18 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
                   <span>{copied ? 'Скопировано!' : 'Копировать'}</span>
                 </button>
               </div>
-              
+
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Поделиться в соцсетях</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Кнопка для Instagram Stories */}
-                  <button 
+                  <button
                     onClick={handleInstagramShare}
                     className="flex flex-col items-center justify-center gap-1 p-4 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
                   >
                     <Instagram className="w-6 h-6" />
                     <span className="text-xs">Instagram Stories</span>
                   </button>
-                  
-                  {/* Кнопка для Telegram */}
-                  <button 
+                  <button
                     onClick={handleTelegramShare}
                     className="flex flex-col items-center justify-center gap-1 p-4 bg-blue-500 text-white rounded-lg hover:opacity-90 transition-opacity"
                   >
@@ -236,9 +574,9 @@ export function ShareAchievementModal({ isOpen, onClose, achievement, userName }
                   </button>
                 </div>
               </div>
-              
+
               {canNativeShare && (
-                <button 
+                <button
                   onClick={handleNativeShare}
                   className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                 >
