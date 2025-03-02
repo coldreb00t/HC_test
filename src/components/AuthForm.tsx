@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Mail, User } from 'lucide-react';
+import { Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ export function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<UserRole>('client');
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -119,126 +120,163 @@ export function AuthForm() {
   };
 
   return (
-    <>
-      {/* Подключение шрифта и глобальные стили */}
-      <style>
-        {`
-          @import url('https://fonts.googleapis.com/css2?family=Commissioner:wght@400;500;700&display=swap');
-          
-          body {
-            font-family: 'Commissioner', sans-serif;
-          }
-        `}
-      </style>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-4">
+      <div className="max-w-md w-full">
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <img 
+            src="/HardCase_Logo.png" 
+            alt="HARDCASE" 
+            className="h-48 mx-auto"
+          />
+        </div>
 
-      <div className="min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url(/HardCase_phostyle_7.png)` }}>
-        <div className="flex flex-col items-center justify-center p-4 min-h-screen">
-          {/* Логотип в центре сверху */}
-          <div className="mb-8">
-            <img
-              src="/HardCase_Logo.png"
-              alt="HARD CASE Logo"
-              className="w-65 mx-auto"
-            />
+        {/* Auth Card */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="p-6 border-b border-white/10">
+            <h2 className="text-2xl font-bold text-white">
+              {isLogin ? 'Вход' : 'Регистрация'}
+            </h2>
+            <p className="text-gray-400 mt-1">
+              {isLogin 
+                ? 'Войдите, чтобы получить доступ к вашему аккаунту' 
+                : 'Создайте аккаунт для начала занятий'}
+            </p>
           </div>
 
-          {/* Форма */}
-          <div className="bg-[#606060] bg-opacity-65 rounded-lg w-full max-w-md p-4 transition-all duration-300">
-            <form onSubmit={handleSubmit} className="space-y-2">
-              {/* Выбор роли */}
+          {/* Form */}
+          <div className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Role Selection (only for registration) */}
               {!isLogin && (
-                <div className="flex gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole('client')}
-                    className={`flex-1 py-1 px-3 rounded-md font-semibold transition-all duration-300 ${
-                      role === 'client' ? 'bg-[#ffffff] bg-opacity-100 text-[#ff8502]' : 'bg-[#ffffff] bg-opacity-65 text-[#606060]'
-                    }`}
-                  >
-                    Клиент
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole('trainer')}
-                    className={`flex-1 py-1 px-3 rounded-md font-semibold transition-all duration-300 ${
-                      role === 'trainer' ? 'bg-[#ffffff] bg-opacity-100 text-[#ff8502]' : 'bg-[#ffffff] bg-opacity-65 text-[#606060]'
-                    }`}
-                  >
-                    Тренер
-                  </button>
+                <div className="mb-4">
+                  <div className="flex p-1 bg-gray-800/50 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setRole('client')}
+                      className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+                        role === 'client' 
+                          ? 'bg-orange-500 text-white shadow-lg' 
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      Клиент
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRole('trainer')}
+                      className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+                        role === 'trainer' 
+                          ? 'bg-orange-500 text-white shadow-lg' 
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      Тренер
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {/* Поля для имени и фамилии */}
-              {!isLogin && (role === 'trainer' || role === 'client') && (
-                <>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffffff]" size={16} />
-                    <input
-                      type="text"
-                      placeholder="Имя"
-                      required
-                      value={formData.firstName}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                      className="w-full pl-9 pr-2 py-1 bg-[#ffffff] bg-opacity-100 border border-[#ffffff] rounded-md text-[#606060] placeholder-[#606060] focus:outline-none focus:border-[#ff8502] transition-all duration-200"
-                    />
+              {/* Name fields (only for registration) */}
+              {!isLogin && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Имя
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="Имя"
+                      />
+                    </div>
                   </div>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffffff]" size={16} />
-                    <input
-                      type="text"
-                      placeholder="Фамилия"
-                      required
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                      className="w-full pl-9 pr-2 py-1 bg-[#ffffff] bg-opacity-100 border border-[#ffffff] rounded-md text-[#606060] placeholder-[#606060] focus:outline-none focus:border-[#ff8502] transition-all duration-200"
-                    />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Фамилия
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="Фамилия"
+                      />
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
-              {/* Секретная фраза для тренеров */}
+              {/* Secret phrase (only for trainer registration) */}
               {!isLogin && role === 'trainer' && (
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffffff]" size={16} />
-                  <input
-                    type="password"
-                    placeholder="Секретная фраза"
-                    required
-                    value={formData.secretPhrase}
-                    onChange={(e) => setFormData({ ...formData, secretPhrase: e.target.value })}
-                    className="w-full pl-9 pr-2 py-1 bg-[#ffffff] bg-opacity-100 border border-[#ffffff] rounded-md text-[#606060] placeholder-[#606060] focus:outline-none focus:border-[#ff8502] transition-all duration-200"
-                  />
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Секретная фраза
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="password"
+                      value={formData.secretPhrase}
+                      onChange={(e) => setFormData({ ...formData, secretPhrase: e.target.value })}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      placeholder="Секретная фраза для тренеров"
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Email */}
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffffff]" size={16} />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-9 pr-2 py-1 bg-[#ffffff] bg-opacity-100 border border-[#ffffff] rounded-md text-[#606060] placeholder-[#606060] focus:outline-none focus:border-[#ff8502] transition-all duration-200"
-                />
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="ваш@email.com"
+                  />
+                </div>
               </div>
 
-              {/* Пароль */}
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffffff]" size={16} />
-                <input
-                  type="password"
-                  placeholder="Пароль"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full pl-9 pr-2 py-1 bg-[#ffffff] bg-opacity-100 border border-[#ffffff] rounded-md text-[#606060] placeholder-[#606060] focus:outline-none focus:border-[#ff8502] transition-all duration-200"
-                />
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Пароль
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full pl-10 pr-12 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Минимум 6 символов"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
-              {/* Чекбокс "Запомнить меня" */}
+              {/* Remember me (only for login) */}
               {isLogin && (
                 <div className="flex items-center">
                   <input
@@ -246,26 +284,33 @@ export function AuthForm() {
                     id="rememberMe"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 text-[#ff8502] border-[#ffffff] rounded focus:outline-none"
+                    className="h-4 w-4 rounded border-gray-700 text-orange-500 focus:ring-orange-500 bg-gray-800"
                   />
-                  <label htmlFor="rememberMe" className="ml-2 text-sm text-[#ffffff]">
+                  <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-300">
                     Запомнить меня
                   </label>
                 </div>
               )}
 
-              {/* Кнопка отправки */}
+              {/* Submit button */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#ffffff] bg-opacity-100 text-[#ff8502] py-1 rounded-md font-semibold hover:bg-opacity-90 hover:text-[#e07a02] transition-all duration-300 disabled:bg-[#606060] disabled:bg-opacity-65 disabled:text-white"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-medium flex items-center justify-center transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {loading ? 'Обработка...' : isLogin ? 'Войти' : 'Зарегистрироваться'}
+                {loading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  <>
+                    {isLogin ? 'Войти' : 'Зарегистрироваться'}
+                    <ArrowRight className="ml-2" size={18} />
+                  </>
+                )}
               </button>
             </form>
 
-            {/* Переключение между входом и регистрацией */}
-            <div className="mt-2 text-center">
+            {/* Switch between login and register */}
+            <div className="mt-6 text-center">
               <button
                 onClick={() => {
                   setIsLogin(!isLogin);
@@ -277,14 +322,14 @@ export function AuthForm() {
                     secretPhrase: ''
                   });
                 }}
-                className="text-[#ffffff] text-opacity-100 hover:text-opacity-90 hover:text-[#e07a02] font-medium transition-all duration-300"
+                className="text-gray-300 hover:text-orange-300 text-sm transition-colors"
               >
-                {isLogin ? 'Регистрация' : 'Уже есть аккаунт? Войти'}
+                {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
               </button>
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
