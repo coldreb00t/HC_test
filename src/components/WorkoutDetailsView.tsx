@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  ChevronLeft, 
   Dumbbell, 
   Clock, 
   Calendar,
@@ -14,6 +13,27 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { ExerciseVideoModal } from './ExerciseVideoModal';
+
+interface StrengthExercise {
+  id: string;
+  name: string;
+  description?: string;
+  video_url?: string;
+}
+
+interface ExerciseSet {
+  set_number: number;
+  reps: string;
+  weight: string;
+}
+
+interface ProgramExercise {
+  id: string;
+  exercise_order: number;
+  notes?: string;
+  strength_exercises: StrengthExercise;
+  exercise_sets: ExerciseSet[];
+}
 
 interface Exercise {
   id: string;
@@ -62,11 +82,9 @@ export function WorkoutDetailsView() {
     try {
       setLoading(true);
       
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Get client profile
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('id')
@@ -75,7 +93,6 @@ export function WorkoutDetailsView() {
 
       if (clientError) throw clientError;
 
-      // Fetch workout details
       const { data: workoutData, error: workoutError } = await supabase
         .from('workouts')
         .select('*')
@@ -91,15 +108,13 @@ export function WorkoutDetailsView() {
         return;
       }
 
-      // Fetch workout completion status and feedback
-      const { data: completionData, error: completionError } = await supabase
+      const { data: completionData } = await supabase
         .from('workout_completions')
         .select('*')
         .eq('workout_id', workoutId)
         .eq('client_id', clientData.id)
         .maybeSingle();
 
-      // Set initial workout data
       const initialWorkout: Workout = {
         ...workoutData,
         completed: completionData?.completed || false,
@@ -110,7 +125,6 @@ export function WorkoutDetailsView() {
       setWorkout(initialWorkout);
       setFeedback(initialWorkout.feedback || '');
 
-      // If the workout has a training program, fetch the exercises
       if (workoutData.training_program_id) {
         const { data: programExercises, error: programError } = await supabase
           .from('program_exercises')
@@ -131,11 +145,10 @@ export function WorkoutDetailsView() {
             )
           `)
           .eq('program_id', workoutData.training_program_id)
-          .order('exercise_order');
+          .order('exercise_order') as { data: ProgramExercise[] | null, error: any };
 
         if (programError) throw programError;
 
-        // Format exercises with completion status
         const formattedExercises: Exercise[] = (programExercises || []).map(exercise => ({
           id: exercise.strength_exercises.id,
           name: exercise.strength_exercises.name,
@@ -146,24 +159,20 @@ export function WorkoutDetailsView() {
             set_number: set.set_number,
             reps: set.reps,
             weight: set.weight || '',
-            completed: false // Default to not completed
+            completed: false
           }))
         }));
 
-        // Check if there are exercise completions stored
-        const { data: exerciseCompletions, error: exerciseCompletionsError } = await supabase
+        const { data: exerciseCompletions } = await supabase
           .from('exercise_completions')
           .select('*')
           .eq('workout_id', workoutId)
           .eq('client_id', clientData.id);
 
-        // If there are completions, update the exercise sets with completion status
         if (exerciseCompletions && exerciseCompletions.length > 0) {
-          // Map completions to exercises
           exerciseCompletions.forEach(completion => {
             const exerciseIndex = formattedExercises.findIndex(ex => ex.id === completion.exercise_id);
             if (exerciseIndex >= 0 && completion.completed_sets) {
-              // Update completion status for each set
               completion.completed_sets.forEach((completed: boolean, index: number) => {
                 if (formattedExercises[exerciseIndex].sets[index]) {
                   formattedExercises[exerciseIndex].sets[index].completed = completed;
@@ -174,8 +183,6 @@ export function WorkoutDetailsView() {
         }
 
         setExercises(formattedExercises);
-        
-        // Update workout with exercises
         setWorkout(prev => prev ? { ...prev, exercises: formattedExercises } : null);
       }
     } catch (error: any) {
@@ -191,7 +198,6 @@ export function WorkoutDetailsView() {
     updatedExercises[exerciseIndex].sets[setIndex].completed = !updatedExercises[exerciseIndex].sets[setIndex].completed;
     setExercises(updatedExercises);
     
-    // Update workout state
     setWorkout(prev => prev ? { ...prev, exercises: updatedExercises } : null);
   };
 
@@ -208,7 +214,6 @@ export function WorkoutDetailsView() {
     try {
       setSaving(true);
       
-      // Get client ID
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
@@ -220,7 +225,6 @@ export function WorkoutDetailsView() {
 
       if (clientError) throw clientError;
 
-      // First check if a completion record already exists
       const { data: existingCompletion, error: checkError } = await supabase
         .from('workout_completions')
         .select('id')
@@ -230,10 +234,7 @@ export function WorkoutDetailsView() {
         
       if (checkError) throw checkError;
       
-      // Update existing or insert new record
-      let completionError;
       if (existingCompletion) {
-        // Update
         const { error } = await supabase
           .from('workout_completions')
           .update({
@@ -243,9 +244,8 @@ export function WorkoutDetailsView() {
           })
           .eq('id', existingCompletion.id);
         
-        completionError = error;
+        if (error) throw error;
       } else {
-        // Insert
         const { error } = await supabase
           .from('workout_completions')
           .insert({
@@ -256,12 +256,9 @@ export function WorkoutDetailsView() {
             updated_at: new Date().toISOString()
           });
         
-        completionError = error;
+        if (error) throw error;
       }
 
-      if (completionError) throw completionError;
-
-      // Save exercise completions
       const exerciseCompletions = exercises.map(exercise => ({
         workout_id: workout.id,
         client_id: clientData.id,
@@ -270,7 +267,6 @@ export function WorkoutDetailsView() {
         updated_at: new Date().toISOString()
       }));
 
-      // Delete existing completions first
       const { error: deleteError } = await supabase
         .from('exercise_completions')
         .delete()
@@ -279,7 +275,6 @@ export function WorkoutDetailsView() {
 
       if (deleteError) throw deleteError;
 
-      // Insert new completions
       if (exerciseCompletions.length > 0) {
         const { error: insertError } = await supabase
           .from('exercise_completions')
@@ -402,7 +397,6 @@ export function WorkoutDetailsView() {
     >
       <div className="p-4">
         <div className="bg-white rounded-xl shadow-sm p-4">
-          {/* Workout Header */}
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-gray-800">{workout.title}</h2>
             <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -418,7 +412,6 @@ export function WorkoutDetailsView() {
             </div>
           </div>
 
-          {/* Workout Status Toggle */}
           <div className="mb-6">
             <button
               onClick={handleToggleWorkoutCompleted}
@@ -442,7 +435,6 @@ export function WorkoutDetailsView() {
             </button>
           </div>
 
-          {/* Exercises */}
           {exercises.length > 0 ? (
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Упражнения</h3>
@@ -474,7 +466,6 @@ export function WorkoutDetailsView() {
                           <p className="text-sm text-gray-600 mt-1">{exercise.description}</p>
                         )}
 
-                        {/* Sets */}
                         <div className="mt-3 space-y-2">
                           {exercise.sets.map((set, setIndex) => (
                             <div 
@@ -518,7 +509,6 @@ export function WorkoutDetailsView() {
             </div>
           )}
 
-          {/* Feedback */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Заметки о тренировке
@@ -532,7 +522,6 @@ export function WorkoutDetailsView() {
             />
           </div>
 
-          {/* Save Button */}
           <button
             onClick={handleSaveProgress}
             disabled={saving}
@@ -543,7 +532,6 @@ export function WorkoutDetailsView() {
         </div>
       </div>
       
-      {/* Модальное окно для просмотра видео */}
       {showVideoModal && selectedExercise && (
         <ExerciseVideoModal
           isOpen={showVideoModal}

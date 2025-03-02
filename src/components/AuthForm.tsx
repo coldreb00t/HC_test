@@ -36,8 +36,16 @@ export function AuthForm() {
       if (isLogin) {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
-          password: formData.password,
-        }, { persistSession: rememberMe });
+          password: formData.password
+        });
+        
+        // Set session persistence based on rememberMe
+        if (rememberMe) {
+          await supabase.auth.setSession({
+            access_token: data.session?.access_token || '',
+            refresh_token: data.session?.refresh_token || ''
+          });
+        }
         
         if (error) {
           if (error.message === 'Invalid login credentials') {

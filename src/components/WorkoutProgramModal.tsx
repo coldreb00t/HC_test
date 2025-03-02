@@ -1,11 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Dumbbell, AlertCircle, Info, Loader } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+// Интерфейсы с явными типами
 interface Set {
   set_number: number;
   reps: string;
   weight: string;
+}
+
+interface StrengthExercise {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface ProgramExercise {
+  id: string;
+  exercise_order: number;
+  notes?: string;
+  exercise_id: string;
+  strength_exercises?: StrengthExercise;
 }
 
 interface Exercise {
@@ -26,7 +41,7 @@ interface Program {
 interface WorkoutProgramModalProps {
   isOpen: boolean;
   onClose: () => void;
-  program?: Program | null; // Changed to optional (can be undefined)
+  program?: Program | null;
   title: string;
   time: string;
   training_program_id?: string;
@@ -35,15 +50,13 @@ interface WorkoutProgramModalProps {
 export function WorkoutProgramModal({ isOpen, onClose, program: initialProgram, title, time, training_program_id }: WorkoutProgramModalProps) {
   const [debugMode, setDebugMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [program, setProgram] = useState<Program | null>(initialProgram || null); // Handle undefined case
+  const [program, setProgram] = useState<Program | null>(initialProgram || null);
   const [error, setError] = useState<string | null>(null);
   
-  // Для отладки - включить режим отладки двойным нажатием на заголовок
   const toggleDebugMode = () => {
     setDebugMode(!debugMode);
   };
 
-  // Загружаем программу, если она не была передана, но есть training_program_id
   useEffect(() => {
     const loadProgramData = async () => {
       if (!training_program_id || program) return;
@@ -52,7 +65,7 @@ export function WorkoutProgramModal({ isOpen, onClose, program: initialProgram, 
         setLoading(true);
         setError(null);
         
-        // 1. Загружаем данные о программе
+        // Загрузка данных программы
         const { data: programData, error: programError } = await supabase
           .from('training_programs')
           .select('id, title, description')
@@ -62,7 +75,7 @@ export function WorkoutProgramModal({ isOpen, onClose, program: initialProgram, 
         if (programError) throw programError;
         if (!programData) throw new Error('Программа не найдена');
         
-        // 2. Загружаем упражнения для программы
+        // Загрузка упражнений с явной типизацией
         const { data: exercisesData, error: exercisesError } = await supabase
           .from('program_exercises')
           .select(`
@@ -77,11 +90,10 @@ export function WorkoutProgramModal({ isOpen, onClose, program: initialProgram, 
             )
           `)
           .eq('program_id', training_program_id)
-          .order('exercise_order');
+          .order('exercise_order') as { data: ProgramExercise[] | null; error: any };
           
         if (exercisesError) throw exercisesError;
         
-        // 3. Для каждого упражнения загружаем подходы
         const formattedExercises: Exercise[] = [];
         
         for (const exercise of exercisesData || []) {
@@ -106,7 +118,6 @@ export function WorkoutProgramModal({ isOpen, onClose, program: initialProgram, 
           });
         }
         
-        // 4. Формируем полную структуру программы
         setProgram({
           id: programData.id,
           title: programData.title,

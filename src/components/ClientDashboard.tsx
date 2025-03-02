@@ -2,19 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { 
   Dumbbell, 
   Activity,
-  Plus,
-  Camera,
-  X,
-  Apple,
+  //Plus,
+  //Camera,
+  //X,
+  //Apple,
   Scale,
-  Heart,
+  //Heart,
   ChevronRight,
   ChevronLeft,
   Trophy,
   Calendar,
-  Moon,
-  Droplets,
-  Home,
+  //Moon,
+  //Droplets,
+  //Home,
   User,
   LogOut,
   TrendingUp
@@ -260,7 +260,7 @@ export function ClientDashboard() {
               const exercise = programExercises.find(pe => pe.exercise_id === completion.exercise_id);
               
               if (exercise && exercise.exercise_sets) {
-                completion.completed_sets.forEach((isCompleted, index) => {
+                completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
                   if (isCompleted && exercise.exercise_sets[index]) {
                     const set = exercise.exercise_sets[index];
                     // Парсим повторения (может быть диапазон "8-12")

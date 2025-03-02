@@ -3,6 +3,7 @@ import { X, Info, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
+// Define interfaces
 interface Client {
   id: string;
   first_name: string;
@@ -148,7 +149,7 @@ export function WorkoutModal({
           console.log('Default time after adjustment:', defaultTime);
 
           const newFormData = {
-            clientId: clientId || '', // Гарантируем, что clientId из пропсов применяется
+            clientId: clientId || '',
             title: program ? `Тренировка: ${program.title}` : 'Персональная тренировка',
             startTime: defaultTime.toTimeString().slice(0, 5),
             duration: 60,
@@ -176,7 +177,7 @@ export function WorkoutModal({
         .select(`
           program_id,
           training_programs (
-            id, 
+            id,
             title,
             description
           )
@@ -186,21 +187,13 @@ export function WorkoutModal({
 
       if (error) throw error;
 
-      // Ensure the data is properly processed
-      const formattedPrograms: Program[] = [];
-      
-      if (data && data.length > 0) {
-        for (const item of data) {
-          if (item.training_programs) {
-            formattedPrograms.push({
-              id: item.training_programs.id,
-              title: item.training_programs.title,
-              description: item.training_programs.description,
-              exercises: []
-            });
-          }
-        }
-      }
+      // Properly type the response
+      const formattedPrograms: Program[] = (data || []).map((item: any) => ({
+        id: item.training_programs.id,
+        title: item.training_programs.title,
+        description: item.training_programs.description || '',
+        exercises: [], // No exercises fetched here, so empty array
+      }));
 
       setClientPrograms(formattedPrograms);
 
@@ -259,56 +252,30 @@ export function WorkoutModal({
 
       if (error) throw error;
 
-      const formattedPrograms: Program[] = [];
-      
-      if (data) {
-        for (const program of data) {
-          const exercises: Exercise[] = [];
-          
-          // Process program exercises
-          if (program.program_exercises) {
-            const sortedExercises = [...program.program_exercises].sort((a, b) => 
-              a.exercise_order - b.exercise_order
-            );
-            
-            for (const ex of sortedExercises) {
-              if (ex.strength_exercises) {
-                const sets: ExerciseSet[] = [];
-                
-                // Process exercise sets
-                if (ex.exercise_sets) {
-                  const sortedSets = [...ex.exercise_sets].sort((a, b) => 
-                    a.set_number - b.set_number
-                  );
-                  
-                  for (const set of sortedSets) {
-                    sets.push({
-                      set_number: set.set_number,
-                      reps: set.reps,
-                      weight: set.weight || ''
-                    });
-                  }
-                }
-                
-                exercises.push({
-                  id: ex.strength_exercises.id,
-                  name: ex.strength_exercises.name,
-                  description: ex.strength_exercises.description,
-                  notes: ex.notes,
-                  sets: sets
-                });
-              }
-            }
-          }
-          
-          formattedPrograms.push({
-            id: program.id,
-            title: program.title,
-            description: program.description,
-            exercises: exercises
-          });
-        }
-      }
+      const formattedPrograms: Program[] = (data || []).map((program: any) => {
+        const exercises: Exercise[] = (program.program_exercises || [])
+          .sort((a: any, b: any) => a.exercise_order - b.exercise_order)
+          .map((ex: any) => ({
+            id: ex.strength_exercises.id,
+            name: ex.strength_exercises.name,
+            description: ex.strength_exercises.description || '',
+            notes: ex.notes || '',
+            sets: (ex.exercise_sets || [])
+              .sort((a: any, b: any) => a.set_number - b.set_number)
+              .map((set: any) => ({
+                set_number: set.set_number,
+                reps: set.reps,
+                weight: set.weight || '',
+              })),
+          }));
+
+        return {
+          id: program.id,
+          title: program.title,
+          description: program.description || '',
+          exercises,
+        };
+      });
 
       setPrograms(formattedPrograms);
     } catch (error: any) {
@@ -348,7 +315,6 @@ export function WorkoutModal({
       }
       console.log('Trainer ID:', trainerId);
 
-      // Проверка clientId только если не передан через пропсы
       if (!clientId && (!formData.clientId || formData.clientId.trim() === '')) {
         throw new Error('Клиент не выбран');
       }
@@ -386,7 +352,7 @@ export function WorkoutModal({
       }
 
       const workoutData = {
-        client_id: clientId || formData.clientId, // Используем clientId из пропсов, если он есть
+        client_id: clientId || formData.clientId,
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
         title: formData.title || 'Персональная тренировка',
