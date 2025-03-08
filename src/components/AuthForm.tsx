@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-type UserRole = 'client' | 'trainer';
+import { UserRole, UserFormData } from '../types/user';
+import { authApi, clientsApi } from '../lib/api';
+import { Card, CardHeader, CardBody, CardFooter } from './ui/Card';
+import { Input } from './ui/Input';
+import { Button } from './ui/Button';
+import { ROUTES } from '../lib/constants';
 
 export function AuthForm() {
   const navigate = useNavigate();
@@ -13,7 +16,7 @@ export function AuthForm() {
   const [role, setRole] = useState<UserRole>('client');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<UserFormData>({
     firstName: '',
     lastName: '',
     email: '',
@@ -34,17 +37,11 @@ export function AuthForm() {
       }
 
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password
-        });
+        const { data, error } = await authApi.signIn(formData.email, formData.password);
         
         // Set session persistence based on rememberMe
-        if (rememberMe) {
-          await supabase.auth.setSession({
-            access_token: data.session?.access_token || '',
-            refresh_token: data.session?.refresh_token || ''
-          });
+        if (rememberMe && data.session) {
+          await authApi.setSession(data.session.access_token, data.session.refresh_token);
         }
         
         if (error) {
@@ -56,7 +53,7 @@ export function AuthForm() {
         
         const userRole = data.user?.user_metadata?.role || 'client';
         toast.success('Успешный вход!');
-        navigate(`/${userRole}`);
+        navigate(userRole === 'client' ? ROUTES.CLIENT.DASHBOARD : ROUTES.TRAINER.DASHBOARD);
       } else {
         if (role === 'trainer') {
           if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -70,18 +67,7 @@ export function AuthForm() {
           throw new Error('Email и пароль обязательны');
         }
 
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-              role: role,
-              secretPhrase: formData.secretPhrase
-            },
-          },
-        });
+        const { data: authData, error: authError } = await authApi.signUp(formData, role);
 
         if (authError) {
           if (authError.message.includes('User already registered')) {
@@ -93,18 +79,14 @@ export function AuthForm() {
         if (!authData.user) throw new Error('Не удалось создать пользователя');
 
         if (role === 'client') {
-          const { error: clientError } = await supabase
-            .from('clients')
-            .insert({
-              user_id: authData.user.id,
-              first_name: formData.firstName,
-              last_name: formData.lastName,
-              subscription_status: 'active'
-            });
+          const { error: clientError } = await clientsApi.createClient(
+            authData.user.id,
+            formData.firstName,
+            formData.lastName
+          );
 
           if (clientError) {
             console.error('Error creating client record:', clientError);
-            await supabase.auth.admin.deleteUser(authData.user.id);
             throw new Error('Не удалось создать профиль клиента');
           }
         }
@@ -140,9 +122,8 @@ export function AuthForm() {
         </div>
 
         {/* Auth Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl overflow-hidden">
-          {/* Header */}
-          <div className="p-6 border-b border-white/10">
+        <Card>
+          <CardHeader>
             <h2 className="text-2xl font-bold text-white">
               {isLogin ? 'Вход' : 'Регистрация'}
             </h2>
@@ -151,10 +132,9 @@ export function AuthForm() {
                 ? 'Войдите, чтобы получить доступ к вашему аккаунту' 
                 : 'Создайте аккаунт для начала занятий'}
             </p>
-          </div>
+          </CardHeader>
 
-          {/* Form */}
-          <div className="p-6">
+          <CardBody>
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Role Selection (only for registration) */}
               {!isLogin && (
@@ -189,154 +169,129 @@ export function AuthForm() {
               {/* Name fields (only for registration) */}
               {!isLogin && (
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Имя
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                      <input
-                        type="text"
-                        value={formData.firstName}
-                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Имя"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Фамилия
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                      <input
-                        type="text"
-                        value={formData.lastName}
-                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Фамилия"
-                      />
-                    </div>
-                  </div>
+                  <Input
+                    label="Имя"
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    placeholder="Имя"
+                    leftIcon={<User size={18} />}
+                    fullWidth
+                  />
+                  <Input
+                    label="Фамилия"
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    placeholder="Фамилия"
+                    leftIcon={<User size={18} />}
+                    fullWidth
+                  />
                 </div>
               )}
 
               {/* Secret phrase (only for trainer registration) */}
               {!isLogin && role === 'trainer' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Секретная фраза
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      type="password"
-                      value={formData.secretPhrase}
-                      onChange={(e) => setFormData({ ...formData, secretPhrase: e.target.value })}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      placeholder="Секретная фраза для тренеров"
-                    />
-                  </div>
-                </div>
+                <Input
+                  label="Секретная фраза"
+                  type="password"
+                  value={formData.secretPhrase}
+                  onChange={(e) => setFormData({ ...formData, secretPhrase: e.target.value })}
+                  placeholder="Секретная фраза для тренеров"
+                  leftIcon={<Lock size={18} />}
+                  fullWidth
+                />
               )}
 
               {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    placeholder="ваш@email.com"
-                  />
-                </div>
-              </div>
+              <Input
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="your@email.com"
+                leftIcon={<Mail size={18} />}
+                fullWidth
+              />
 
               {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Пароль
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full pl-10 pr-12 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    placeholder="Минимум 6 символов"
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
+              <Input
+                label="Пароль"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Минимум 6 символов"
+                leftIcon={<Lock size={18} />}
+                rightIcon={
+                  showPassword ? (
+                    <EyeOff 
+                      size={18} 
+                      className="cursor-pointer" 
+                      onClick={() => setShowPassword(false)} 
+                    />
+                  ) : (
+                    <Eye 
+                      size={18} 
+                      className="cursor-pointer" 
+                      onClick={() => setShowPassword(true)} 
+                    />
+                  )
+                }
+                fullWidth
+              />
 
               {/* Remember me (only for login) */}
               {isLogin && (
                 <div className="flex items-center">
                   <input
                     type="checkbox"
-                    id="rememberMe"
+                    id="remember-me"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-700 text-orange-500 focus:ring-orange-500 bg-gray-800"
+                    className="h-4 w-4 rounded border-gray-700 bg-gray-800 text-orange-500 focus:ring-orange-500"
                   />
-                  <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-300">
+                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
                     Запомнить меня
                   </label>
                 </div>
               )}
 
               {/* Submit button */}
-              <button
+              <Button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-medium flex items-center justify-center transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                fullWidth
+                isLoading={loading}
+                rightIcon={<ArrowRight size={18} />}
               >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  <>
-                    {isLogin ? 'Войти' : 'Зарегистрироваться'}
-                    <ArrowRight className="ml-2" size={18} />
-                  </>
-                )}
-              </button>
+                {isLogin ? 'Войти' : 'Зарегистрироваться'}
+              </Button>
             </form>
+          </CardBody>
 
-            {/* Switch between login and register */}
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setFormData({
-                    firstName: '',
-                    lastName: '',
-                    email: '',
-                    password: '',
-                    secretPhrase: ''
-                  });
-                }}
-                className="text-gray-300 hover:text-orange-300 text-sm transition-colors"
-              >
-                {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-              </button>
+          <CardFooter>
+            <div className="text-center">
+              <p className="text-gray-400 text-sm">
+                {isLogin ? 'Нет аккаунта?' : 'Уже есть аккаунт?'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setFormData({
+                      firstName: '',
+                      lastName: '',
+                      email: '',
+                      password: '',
+                      secretPhrase: ''
+                    });
+                  }}
+                  className="ml-1 text-orange-500 hover:text-orange-400 font-medium"
+                >
+                  {isLogin ? 'Зарегистрироваться' : 'Войти'}
+                </button>
+              </p>
             </div>
-          </div>
-        </div>
+          </CardFooter>
+        </Card>
       </div>
     </div>
   );

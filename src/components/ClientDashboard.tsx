@@ -26,34 +26,11 @@ import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { WorkoutProgramModal } from './WorkoutProgramModal';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
+import { Exercise, Program, Workout } from '../types/workout';
+import { Achievement, UserStats } from '../types/stats';
 
-interface Exercise {
-  id: string;
-  name: string;
-  description?: string;
-  video_url?: string;
-  sets: {
-    set_number: number;
-    reps: string;
-    weight: string;
-  }[];
-  notes?: string;
-}
-
-interface Program {
-  id: string;
-  title: string;
-  description?: string;
-  exercises: Exercise[];
-}
-
-interface NextWorkout {
-  id: string;
-  start_time: string;
-  title: string;
-  training_program_id?: string;
-  program?: Program | null;
-}
+// Переименовываем интерфейс, чтобы избежать конфликта с импортированным типом
+interface NextWorkout extends Workout {}
 
 // Расширенный интерфейс достижения с мотивационной фразой
 interface Achievement {
