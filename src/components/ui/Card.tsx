@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 
 interface CardProps {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   onClick?: () => void;
   hoverable?: boolean;
@@ -27,7 +27,7 @@ export const Card: React.FC<CardProps> = ({
 };
 
 interface CardHeaderProps {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }
 
@@ -43,7 +43,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
 };
 
 interface CardBodyProps {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }
 
@@ -59,7 +59,7 @@ export const CardBody: React.FC<CardBodyProps> = ({
 };
 
 interface CardFooterProps {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }
 

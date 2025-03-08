@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, TouchEvent } from 'react';
 import { 
   Dumbbell, 
   Activity,
@@ -27,7 +27,7 @@ import { useClientNavigation } from '../lib/navigation';
 import { WorkoutProgramModal } from './WorkoutProgramModal';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
 import { Exercise, Program, Workout } from '../types/workout';
-import { Achievement, UserStats } from '../types/stats';
+import type { ReactNode } from 'react';
 
 // Переименовываем интерфейс, чтобы избежать конфликта с импортированным типом
 interface NextWorkout extends Workout {}
@@ -36,7 +36,7 @@ interface NextWorkout extends Workout {}
 interface Achievement {
   title: string;
   description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   value: string;
   color: string;
   bgImage?: string;
@@ -65,6 +65,17 @@ interface UserStats {
   };
 }
 
+interface SidebarLayoutProps {
+  children: ReactNode;
+  menuItems: Array<{
+    icon: ReactNode;
+    label: string;
+    onClick: () => void;
+  }>;
+  variant: "bottom";
+  customHeader?: ReactNode;
+}
+
 export function ClientDashboard() {
   const navigate = useNavigate();
   const [nextWorkout, setNextWorkout] = useState<NextWorkout | null>(null);
@@ -74,188 +85,169 @@ export function ClientDashboard() {
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
-  
-  // Состояние для хранения статистики
   const [userStats, setUserStats] = useState<UserStats>({
-    workouts: { totalCount: 0, completedCount: 0, totalVolume: 0 },
-    activities: { totalMinutes: 0, types: {} },
-    measurements: { currentWeight: null, initialWeight: null, weightChange: null },
-    achievements: { total: 5, completed: 0 }
+    workouts: {
+      totalCount: 0,
+      completedCount: 0,
+      totalVolume: 0
+    },
+    activities: {
+      totalMinutes: 0,
+      types: {}
+    },
+    measurements: {
+      currentWeight: null,
+      initialWeight: null,
+      weightChange: null
+    },
+    achievements: {
+      total: 0,
+      completed: 0
+    }
   });
   
-  // Состояния для обработки свайпа
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  // Для слайдера достижений
   const [isSwiping, setIsSwiping] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
-
-  // Минимальное расстояние свайпа для смены слайда (в пикселях)
-  const minSwipeDistance = 50;
-
+  const [startX, setStartX] = useState(0);
+  
+  // Массив достижений
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  // Обновленная функция для загрузки данных дашборда
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      // Получаем текущего пользователя
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        if (userError) console.error('Auth error:', userError);
-        toast.error('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
-        navigate('/login');
-        return;
-      }
-
-      // Получаем профиль клиента
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (clientError) {
-        if (clientError.code === 'PGRST116') {
-          toast.error('Профиль клиента не найден');
-          return;
+    const fetchData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (clientError) throw clientError;
+          
+          if (clientData) {
+            await Promise.all([
+              fetchNextWorkout(clientData.id),
+              fetchWorkoutStats(clientData.id),
+              fetchActivityStats(clientData.id),
+              fetchMeasurementStats(clientData.id),
+              fetchAchievementsStats(clientData.id)
+            ]);
+          }
         }
-        throw clientError;
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        toast.error('Не удалось загрузить данные');
+      } finally {
+        setLoading(false);
       }
-
-      // Одновременно загружаем все данные через Promise.all
-      await Promise.all([
-        fetchNextWorkout(clientData.id),
-        fetchWorkoutStats(clientData.id),
-        fetchActivityStats(clientData.id),
-        fetchMeasurementStats(clientData.id)
-      ]);
-      
-      // Подсчет достижений должен идти после того, как другие данные загружены
-      await fetchAchievementsStats(clientData.id);
-
-    } catch (error: any) {
-      console.error('Error fetching dashboard data:', error);
-      if (error.message === 'Failed to fetch') {
-        toast.error('Ошибка подключения к серверу. Пожалуйста, проверьте подключение к интернету.');
-      } else {
-        toast.error('Ошибка при загрузке данных');
-      }
-    } finally {
-      setLoading(false);
-    }
+    };
+    
+    fetchData();
+    
+    // Устанавливаем достижения
+    setAchievements(getAchievements());
+  }, []);
+  
+  const fetchDashboardData = async () => {
+    // Реализация метода
   };
-
-  // Функция для получения данных о следующей тренировке
+  
   const fetchNextWorkout = async (clientId: string) => {
-    const { data: workoutData, error: workoutError } = await supabase
-      .from('workouts')
-      .select('id, start_time, title, training_program_id')
-      .eq('client_id', clientId)
-      .gt('start_time', new Date().toISOString())
-      .order('start_time')
-      .limit(1)
-      .single();
-
-    if (workoutError && workoutError.code !== 'PGRST116') throw workoutError;
-
-    if (workoutData) {
-      setNextWorkout({
-        id: workoutData.id,
-        start_time: workoutData.start_time,
-        title: workoutData.title,
-        training_program_id: workoutData.training_program_id,
-        program: null
-      });
-    } else {
-      setNextWorkout(null);
+    try {
+      const now = new Date().toISOString();
+      
+      const { data: workouts, error } = await supabase
+        .from('workouts')
+        .select(`
+          *,
+          program:training_programs(*)
+        `)
+        .eq('client_id', clientId)
+        .gte('start_time', now)
+        .order('start_time', { ascending: true })
+        .limit(1);
+        
+      if (error) throw error;
+      
+      if (workouts && workouts.length > 0) {
+        setNextWorkout(workouts[0] as NextWorkout);
+      }
+    } catch (error) {
+      console.error('Error fetching next workout:', error);
     }
   };
+  
   const handleOpenMeasurementsModal = () => {
     setShowMeasurementsModal(true);
   };
-
   
-  // Функция для получения статистики тренировок
   const fetchWorkoutStats = async (clientId: string) => {
     try {
-      // Получаем тренировки клиента
-      const { data: workouts, error: workoutsError } = await supabase
+      // Получаем все тренировки клиента
+      const { data: workouts, error } = await supabase
         .from('workouts')
-        .select('id, start_time')
+        .select('*')
         .eq('client_id', clientId);
-
-      if (workoutsError) throw workoutsError;
-
+        
+      if (error) throw error;
+      
       // Получаем завершенные тренировки
       const { data: completions, error: completionsError } = await supabase
         .from('workout_completions')
         .select('*')
-        .eq('client_id', clientId)
-        .eq('completed', true);
-
+        .eq('client_id', clientId);
+        
       if (completionsError) throw completionsError;
-
-      // Получаем выполненные упражнения для расчета общего объема
+      
+      // Получаем завершенные упражнения для расчета объема
       const { data: exerciseCompletions, error: exerciseError } = await supabase
         .from('exercise_completions')
         .select('*')
         .eq('client_id', clientId);
-
+        
       if (exerciseError) throw exerciseError;
-
-      // Расчет общего объема тренировок (вес × повторения)
+      
       let totalVolume = 0;
-
+      
       if (exerciseCompletions && exerciseCompletions.length > 0) {
         // Получаем данные о подходах для расчета объема
-        const workoutIds = completions?.map(c => c.workout_id) || [];
+        const workoutIds = completions?.map((c: any) => c.workout_id) || [];
         
         const { data: workoutDetails } = await supabase
           .from('workouts')
-          .select('id, training_program_id')
+          .select('*')
           .in('id', workoutIds);
         
         const programIds = workoutDetails
-          ?.map(w => w.training_program_id)
+          ?.map((w: any) => w.training_program_id)
           .filter(Boolean) || [];
         
         const { data: programExercises } = await supabase
           .from('program_exercises')
           .select(`
+            *,
             exercise_id,
-            exercise_sets (set_number, reps, weight)
+            exercise_sets
           `)
-          .in('program_id', programIds);
+          .in('training_program_id', programIds);
         
         // Подсчет общего объема
         if (programExercises) {
-          exerciseCompletions.forEach(completion => {
+          exerciseCompletions.forEach((completion: any) => {
             if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
-              const exercise = programExercises.find(pe => pe.exercise_id === completion.exercise_id);
+              const exercise = programExercises.find((pe: any) => pe.exercise_id === completion.exercise_id);
               
               if (exercise && exercise.exercise_sets) {
                 completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
                   if (isCompleted && exercise.exercise_sets[index]) {
                     const set = exercise.exercise_sets[index];
-                    // Парсим повторения (может быть диапазон "8-12")
-                    let reps = 0;
-                    if (set.reps) {
-                      const repsStr = set.reps.toString();
-                      if (repsStr.includes('-')) {
-                        const [min, max] = repsStr.split('-').map(Number);
-                        reps = Math.round((min + max) / 2);
-                      } else {
-                        reps = parseInt(repsStr) || 0;
-                      }
-                    }
+                    const reps = parseInt(set.reps, 10) || 0;
+                    const weight = parseFloat(set.weight) || 0;
                     
-                    // Парсим вес
-                    const weight = parseFloat(set.weight || '0') || 0;
-                    
-                    // Добавляем к общему объему
                     totalVolume += reps * weight;
                   }
                 });
@@ -264,50 +256,49 @@ export function ClientDashboard() {
           });
         }
       }
-
+      
       // Обновляем статистику тренировок
-      setUserStats(prev => ({
+      setUserStats((prev: UserStats) => ({
         ...prev,
         workouts: {
           totalCount: workouts?.length || 0,
           completedCount: completions?.length || 0,
-          totalVolume: Math.round(totalVolume) // Округляем до целого числа кг
+          totalVolume
         }
       }));
     } catch (error) {
       console.error('Error fetching workout stats:', error);
     }
   };
-
-  // Функция для получения статистики активности
+  
   const fetchActivityStats = async (clientId: string) => {
     try {
-      // Получаем данные о бытовой активности
-      const { data: activities, error: activitiesError } = await supabase
-        .from('client_activities')
+      // Получаем все активности клиента
+      const { data: activities, error } = await supabase
+        .from('activities')
         .select('*')
         .eq('client_id', clientId);
-
-      if (activitiesError) throw activitiesError;
-
-      // Подсчет общего времени и группировка по типам
+        
+      if (error) throw error;
+      
       let totalMinutes = 0;
       const activityTypes: {[key: string]: number} = {};
-
+      
       if (activities) {
-        activities.forEach(activity => {
+        activities.forEach((activity: any) => {
           totalMinutes += activity.duration_minutes;
           
           // Группируем по типам активности
-          if (!activityTypes[activity.activity_type]) {
-            activityTypes[activity.activity_type] = 0;
+          if (activityTypes[activity.activity_type]) {
+            activityTypes[activity.activity_type] += activity.duration_minutes;
+          } else {
+            activityTypes[activity.activity_type] = activity.duration_minutes;
           }
-          activityTypes[activity.activity_type] += activity.duration_minutes;
         });
       }
-
+      
       // Обновляем статистику активности
-      setUserStats(prev => ({
+      setUserStats((prev: UserStats) => ({
         ...prev,
         activities: {
           totalMinutes,
@@ -318,35 +309,31 @@ export function ClientDashboard() {
       console.error('Error fetching activity stats:', error);
     }
   };
-
-  // Функция для получения статистики измерений
+  
   const fetchMeasurementStats = async (clientId: string) => {
     try {
-      // Получаем данные о замерах, отсортированные по дате
-      const { data: measurements, error: measurementsError } = await supabase
-        .from('client_measurements')
+      // Получаем все измерения клиента, отсортированные по дате
+      const { data: measurements, error } = await supabase
+        .from('measurements')
         .select('*')
         .eq('client_id', clientId)
+        .eq('measurement_type', 'weight')
         .order('date', { ascending: true });
-
-      if (measurementsError) throw measurementsError;
-
-      // Вычисляем начальный и текущий вес, а также изменение
+        
+      if (error) throw error;
+      
       let initialWeight = null;
       let currentWeight = null;
       let weightChange = null;
-
+      
       if (measurements && measurements.length > 0) {
-        initialWeight = measurements[0].weight;
-        currentWeight = measurements[measurements.length - 1].weight;
-        
-        if (initialWeight !== null && currentWeight !== null) {
-          weightChange = currentWeight - initialWeight;
-        }
+        initialWeight = measurements[0].value;
+        currentWeight = measurements[measurements.length - 1].value;
+        weightChange = currentWeight - initialWeight;
       }
-
+      
       // Обновляем статистику измерений
-      setUserStats(prev => ({
+      setUserStats((prev: UserStats) => ({
         ...prev,
         measurements: {
           initialWeight,
@@ -358,201 +345,149 @@ export function ClientDashboard() {
       console.error('Error fetching measurement stats:', error);
     }
   };
-
-  // Функция для получения статистики достижений
+  
   const fetchAchievementsStats = async (clientId: string) => {
     try {
-      // Здесь можно получить достижения из базы данных
-      // Пока используем простую логику на основе уже полученных данных
-      
-      // Считаем количество выполненных достижений на основе статистики
-      let completedAchievements = 0;
-      
-      // Добавляем логику подсчета достижений
-      // Например, если пользователь выполнил хотя бы 5 тренировок
-      if (userStats.workouts.completedCount >= 5) completedAchievements++;
-      
-      // Если суммарный объем тренировок больше 1000 кг
-      if (userStats.workouts.totalVolume >= 1000) completedAchievements++;
-      
-      // Если общее время активности больше 10 часов (600 минут)
-      if (userStats.activities.totalMinutes >= 600) completedAchievements++;
-      
-      // Если есть измерения веса
-      if (userStats.measurements.currentWeight !== null) completedAchievements++;
-      
-      // Если есть снижение веса (для целей похудения)
-      if (userStats.measurements.weightChange !== null && 
-          userStats.measurements.weightChange < 0) completedAchievements++;
+      // Получаем все достижения клиента
+      const { data: achievementsData, error } = await supabase
+        .from('achievements')
+        .select('*')
+        .eq('client_id', clientId);
+        
+      if (error) throw error;
       
       // Обновляем статистику достижений
-      setUserStats(prev => ({
+      setUserStats((prev: UserStats) => ({
         ...prev,
         achievements: {
           total: 5, // Фиксированное количество возможных достижений
-          completed: completedAchievements
+          completed: achievementsData?.length || 0
         }
       }));
     } catch (error) {
-      console.error('Error calculating achievements stats:', error);
+      console.error('Error fetching achievements stats:', error);
     }
   };
   
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await supabase.auth.signOut();
       navigate('/login');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error signing out:', error);
       toast.error('Ошибка при выходе из системы');
     }
   };
-
+  
   const handleMenuItemClick = (action: string) => {
-    setShowFabMenu(false);
-    switch (action) {
-      case 'activity':
-        navigate('/client/activity/new');
-        break;
-      case 'photo':
-        navigate('/client/progress-photo/new');
-        break;
-      case 'measurements':
-        setShowMeasurementsModal(true); // Open measurements modal instead of navigating
-        break;
-      case 'nutrition':
-        navigate('/client/nutrition/new');
-        break;
+    if (action === 'measurements') {
+      navigate('/client/measurements/new');
     }
   };
-
-  // Обработчики свайпа
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
+  
+  // Обработчики для свайпа
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    setStartX(e.touches[0].clientX);
     setIsSwiping(true);
-    setSwipeOffset(0);
   };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStart) return;
+  
+  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+    if (!isSwiping) return;
     
-    const currentPosition = e.targetTouches[0].clientX;
-    setTouchEnd(currentPosition);
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - startX;
     
-    // Расчет смещения для анимации во время свайпа
-    const offset = currentPosition - touchStart;
-    setSwipeOffset(offset);
+    // Ограничиваем смещение
+    setSwipeOffset(diff);
   };
-
+  
   const handleTouchEnd = () => {
-    setIsSwiping(false);
+    if (!isSwiping) return;
     
-    if (!touchStart || !touchEnd) {
-      setSwipeOffset(0);
-      return;
-    }
-    
-    const distance = touchEnd - touchStart;
-    const isLeftSwipe = distance < -minSwipeDistance;
-    const isRightSwipe = distance > minSwipeDistance;
-    
-    if (isLeftSwipe) {
-      // Свайп влево - следующий слайд
-      nextSlide();
-    } else if (isRightSwipe) {
+    // Определяем направление свайпа
+    if (swipeOffset > 50) {
       // Свайп вправо - предыдущий слайд
       prevSlide();
+    } else if (swipeOffset < -50) {
+      // Свайп влево - следующий слайд
+      nextSlide();
     }
     
-    // Сброс позиций касания
-    setTouchStart(null);
-    setTouchEnd(null);
+    // Сбрасываем состояние
+    setIsSwiping(false);
     setSwipeOffset(0);
   };
-
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
-
+  
+  const menuItems = useClientNavigation(
+    showFabMenu,
+    setShowFabMenu,
+    handleMenuItemClick,
+    handleOpenMeasurementsModal
+  );
+  
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % achievements.length);
+    setCurrentSlide((prev: number) => (prev + 1) % achievements.length);
   };
-
+  
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + achievements.length) % achievements.length);
+    setCurrentSlide((prev: number) => (prev - 1 + achievements.length) % achievements.length);
   };
-
+  
   // Функция для формирования достижений на основе реальных данных
   const getAchievements = (): Achievement[] => {
     return [
       {
-        title: "Тренировки",
-        description: "Выполнено тренировок",
-        icon: <Dumbbell className="w-12 h-12 text-white" />,
-        value: `${userStats.workouts.completedCount}`,
-        color: "bg-[#ff8502]",
-        bgImage: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&q=80",
-        motivationalPhrase: userStats.workouts.completedCount > 0 
-          ? "Каждая тренировка — это шаг к лучшей версии себя!" 
-          : "Начни свой путь к трансформации прямо сейчас!"
+        title: 'Тренировки',
+        description: 'Общее количество тренировок',
+        value: userStats.workouts.totalCount.toString(),
+        icon: <Dumbbell className="w-16 h-16 text-white" />,
+        color: 'bg-orange-500',
+        bgImage: '/images/achievements/workouts.jpg',
+        motivationalPhrase: 'Каждая тренировка приближает тебя к цели!'
       },
       {
-        title: "Общий вес",
-        description: "Суммарная нагрузка",
-        icon: <Scale className="w-12 h-12 text-white" />,
-        value: `${userStats.workouts.totalVolume} кг`,
-        color: "bg-[#606060]",
-        bgImage: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80",
-        motivationalPhrase: userStats.workouts.totalVolume > 0 
-          ? "Сила растет с каждым поднятым килограммом!" 
-          : "Впереди миллионы килограммов, которые сделают тебя сильнее!"
+        title: 'Объем',
+        description: 'Общий объем поднятого веса',
+        value: `${userStats.workouts.totalVolume.toLocaleString()} кг`,
+        icon: <Dumbbell className="w-16 h-16 text-white" />,
+        color: 'bg-blue-500',
+        bgImage: '/images/achievements/volume.jpg',
+        motivationalPhrase: 'Сила не приходит из того, что ты можешь делать. Она приходит из преодоления того, что ты не можешь.'
       },
       {
-        title: "Активность",
-        description: "Время в движении",
-        icon: <Activity className="w-12 h-12 text-white" />,
+        title: 'Активность',
+        description: 'Общее время активности',
         value: `${Math.floor(userStats.activities.totalMinutes / 60)} ч ${userStats.activities.totalMinutes % 60} мин`,
-        color: "bg-[#ff8502]",
-        bgImage: "https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&q=80",
-        motivationalPhrase: userStats.activities.totalMinutes > 0 
-          ? "Движение — это жизнь, и каждая минута активности делает тебя здоровее!" 
-          : "Начни двигаться сегодня — и твоё тело скажет спасибо завтра!"
+        icon: <Activity className="w-16 h-16 text-white" />,
+        color: 'bg-green-500',
+        bgImage: '/images/achievements/activity.jpg',
+        motivationalPhrase: 'Твое тело может все. Это твой разум нужно убедить.'
       },
       {
-        title: "Прогресс веса",
-        description: userStats.measurements.weightChange !== null 
-          ? userStats.measurements.weightChange < 0 
-            ? "Снижение веса" 
-            : "Изменение веса" 
-          : "Отслеживание веса",
-        icon: <TrendingUp className="w-12 h-12 text-white" />,
-        value: userStats.measurements.weightChange !== null 
-          ? `${Math.abs(userStats.measurements.weightChange).toFixed(1)} кг ${userStats.measurements.weightChange < 0 ? '↓' : '↑'}` 
-          : "Нет данных",
-        color: "bg-[#606060]",
-        bgImage: "https://images.unsplash.com/photo-1526401485004-46910ecc8e51?auto=format&fit=crop&q=80",
-        motivationalPhrase: userStats.measurements.weightChange !== null 
-          ? userStats.measurements.weightChange < 0 
-            ? "Отличный прогресс! Продолжай двигаться к своей цели!" 
-            : "Твоё тело меняется. Помни, что мышцы весят больше жира!" 
-          : "Начни отслеживать изменения тела — и увидишь свой прогресс!"
+        title: 'Прогресс',
+        description: userStats.measurements.weightChange && userStats.measurements.weightChange < 0 
+          ? 'Снижение веса' 
+          : 'Набор массы',
+        value: userStats.measurements.weightChange 
+          ? `${Math.abs(userStats.measurements.weightChange).toFixed(1)} кг` 
+          : '0 кг',
+        icon: <Scale className="w-16 h-16 text-white" />,
+        color: 'bg-purple-500',
+        bgImage: '/images/achievements/progress.jpg',
+        motivationalPhrase: 'Не останавливайся, когда устал. Остановись, когда закончил.'
       },
       {
-        title: "Достижения",
-        description: "Выполненные цели",
-        icon: <Trophy className="w-12 h-12 text-white" />,
+        title: 'Достижения',
+        description: 'Разблокированные достижения',
         value: `${userStats.achievements.completed}/${userStats.achievements.total}`,
-        color: "bg-[#ff8502]",
-        bgImage: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&q=80",
-        motivationalPhrase: userStats.achievements.completed > 0 
-          ? "Каждое достижение — это победа над собой вчерашним!" 
-          : "Ставь цели и достигай их. Путь к успеху начинается с первого шага!"
+        icon: <Trophy className="w-16 h-16 text-white" />,
+        color: 'bg-yellow-500',
+        bgImage: '/images/achievements/trophies.jpg',
+        motivationalPhrase: 'Успех — это сумма небольших усилий, повторяющихся изо дня в день.'
       }
     ];
   };
-
-  // Получаем актуальные достижения
-  const achievements = getAchievements();
-
+  
   // Кастомный компонент топ-бара с добавленным дроп-даун меню
   const CustomHeader = (
     <div className="bg-white shadow-sm">
@@ -593,7 +528,7 @@ export function ClientDashboard() {
       </div>
     </div>
   );
-
+  
   return (
     <SidebarLayout
       menuItems={menuItems}
@@ -730,19 +665,21 @@ export function ClientDashboard() {
           </button>
         )}
       </div>
-{/* Measurements Input Modal */}
-{showMeasurementsModal && (
-  <MeasurementsInputModal
-    isOpen={showMeasurementsModal}
-    onClose={() => setShowMeasurementsModal(false)}
-    onSave={() => {
-      // Optionally refresh data after saving measurements
-      fetchDashboardData();
-    }}
-  />
-)}
+
+      {/* Measurements Input Modal */}
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
+        />
+      )}
+
       {/* Workout Program Modal */}
-      {nextWorkout && showWorkoutModal && (
+      {showWorkoutModal && nextWorkout && (
         <WorkoutProgramModal
           isOpen={showWorkoutModal}
           onClose={() => setShowWorkoutModal(false)}

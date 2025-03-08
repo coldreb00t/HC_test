@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, FormEvent, ChangeEvent } from 'react';
 import { Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +24,7 @@ export function AuthForm() {
     secretPhrase: ''
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -109,6 +109,14 @@ export function AuthForm() {
     }
   };
 
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-4">
       <div className="max-w-md w-full">
@@ -172,8 +180,9 @@ export function AuthForm() {
                   <Input
                     label="Имя"
                     type="text"
+                    name="firstName"
                     value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    onChange={handleInputChange}
                     placeholder="Имя"
                     leftIcon={<User size={18} />}
                     fullWidth
@@ -181,8 +190,9 @@ export function AuthForm() {
                   <Input
                     label="Фамилия"
                     type="text"
+                    name="lastName"
                     value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    onChange={handleInputChange}
                     placeholder="Фамилия"
                     leftIcon={<User size={18} />}
                     fullWidth
@@ -195,8 +205,9 @@ export function AuthForm() {
                 <Input
                   label="Секретная фраза"
                   type="password"
+                  name="secretPhrase"
                   value={formData.secretPhrase}
-                  onChange={(e) => setFormData({ ...formData, secretPhrase: e.target.value })}
+                  onChange={handleInputChange}
                   placeholder="Секретная фраза для тренеров"
                   leftIcon={<Lock size={18} />}
                   fullWidth
@@ -207,8 +218,9 @@ export function AuthForm() {
               <Input
                 label="Email"
                 type="email"
+                name="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={handleInputChange}
                 placeholder="your@email.com"
                 leftIcon={<Mail size={18} />}
                 fullWidth
@@ -218,8 +230,9 @@ export function AuthForm() {
               <Input
                 label="Пароль"
                 type={showPassword ? 'text' : 'password'}
+                name="password"
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={handleInputChange}
                 placeholder="Минимум 6 символов"
                 leftIcon={<Lock size={18} />}
                 rightIcon={
@@ -247,7 +260,7 @@ export function AuthForm() {
                     type="checkbox"
                     id="remember-me"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setRememberMe(e.target.checked)}
                     className="h-4 w-4 rounded border-gray-700 bg-gray-800 text-orange-500 focus:ring-orange-500"
                   />
                   <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">

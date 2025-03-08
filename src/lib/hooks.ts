@@ -3,10 +3,11 @@ import { supabase } from './supabase';
 import { UserRole } from '../types/user';
 import { Workout } from '../types/workout';
 import { authApi, workoutsApi } from './api';
+import { Session, User, AuthError } from '@supabase/supabase-js';
 
 // Хук для работы с аутентификацией
 export const useAuth = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
 
@@ -32,7 +33,7 @@ export const useAuth = () => {
 
     // Подписка на изменения аутентификации
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: Session | null) => {
         if (session?.user) {
           setUser(session.user);
           setUserRole(session.user.user_metadata?.role || null);
