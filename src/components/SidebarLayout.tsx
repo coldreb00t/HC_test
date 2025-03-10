@@ -108,7 +108,7 @@ export function SidebarLayout({
         )}
 
         {/* Main content */}
-        <div className="p-4">
+        <div className="p-4 pb-32">
           {children}
         </div>
 
@@ -122,9 +122,13 @@ export function SidebarLayout({
                 className="flex-1 flex flex-col items-center py-2 text-gray-600 hover:text-orange-500 active:text-orange-600 transition-colors"
               >
                 <div className="p-1" style={iconWrapperStyle}>
-                  {React.isValidElement(item.icon) 
-                    ? React.cloneElement(item.icon as React.ReactElement, { style: iconStyle, className: "w-5 h-5 xs:w-6 xs:h-6 iphone:w-6 iphone:h-6" })
-                    : item.icon}
+                  {index === 2 ? (
+                    item.icon
+                  ) : (
+                    React.isValidElement(item.icon) 
+                      ? React.cloneElement(item.icon as React.ReactElement, { style: iconStyle, className: "w-5 h-5 xs:w-6 xs:h-6 iphone:w-6 iphone:h-6" })
+                      : item.icon
+                  )}
                 </div>
                 <span className="text-xs iphone:text-sm">{item.label}</span>
               </button>

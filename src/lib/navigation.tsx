@@ -23,7 +23,7 @@ export const useClientNavigation = (
     },
     {
       icon: (
-        <div className="relative -mt-12">
+        <div className="relative" style={{ marginTop: '-60px', zIndex: 100 }}>
           <div 
             onClick={(e) => {
               e.preventDefault();
@@ -48,8 +48,9 @@ export const useClientNavigation = (
               }}
             >
               <div 
-                className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg overflow-hidden w-48 z-50"
+                className="absolute bottom-64 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg overflow-hidden w-48 z-50"
                 onClick={e => e.stopPropagation()}
+                style={{ bottom: '120px' }}
               >
                 <div className="py-2">
                   <div
