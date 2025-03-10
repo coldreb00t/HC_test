@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 interface ActivityEntry {
   id?: string;
@@ -45,6 +46,7 @@ export function ActivityForm() {
   });
   const [loading, setLoading] = useState(false);
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [existingStatsId, setExistingStatsId] = useState<string | null>(null);
   const [existingActivities, setExistingActivities] = useState<ActivityEntry[]>([]);
 
@@ -315,6 +317,10 @@ export function ActivityForm() {
     }
   };
 
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
+
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
     switch (action) {
@@ -333,7 +339,7 @@ export function ActivityForm() {
     }
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
 
   return (
     <SidebarLayout
@@ -534,6 +540,18 @@ export function ActivityForm() {
           </form>
         </div>
       </div>
+
+      {/* Measurements Input Modal */}
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
+        />
+      )}
     </SidebarLayout>
   );
 }

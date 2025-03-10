@@ -23,7 +23,7 @@ export const useClientNavigation = (
     },
     {
       icon: (
-        <div className="relative -mt-8">
+        <div className="relative -mt-12">
           <div 
             onClick={(e) => {
               e.preventDefault();
@@ -48,7 +48,7 @@ export const useClientNavigation = (
               }}
             >
               <div 
-                className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg overflow-hidden w-48 z-50"
+                className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg overflow-hidden w-48 z-50"
                 onClick={e => e.stopPropagation()}
               >
                 <div className="py-2">

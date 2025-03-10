@@ -13,6 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { ExerciseVideoModal } from './ExerciseVideoModal';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 interface StrengthExercise {
   id: string;
@@ -68,6 +69,7 @@ export function WorkoutDetailsView() {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<{name: string, video_url: string} | null>(null);
@@ -292,6 +294,10 @@ export function WorkoutDetailsView() {
     }
   };
 
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
+
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
     switch (action) {
@@ -323,7 +329,7 @@ export function WorkoutDetailsView() {
     setShowVideoModal(true);
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -538,6 +544,18 @@ export function WorkoutDetailsView() {
           onClose={() => setShowVideoModal(false)}
           videoUrl={selectedExercise.video_url}
           exerciseName={selectedExercise.name}
+        />
+      )}
+
+      {/* Measurements Input Modal */}
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
         />
       )}
     </SidebarLayout>

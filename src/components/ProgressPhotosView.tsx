@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import toast from 'react-hot-toast';
 import { useClientNavigation } from '../lib/navigation';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 interface ProgressPhoto {
   url: string;
@@ -32,6 +33,7 @@ export function ProgressPhotosView() {
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const navigate = useNavigate();
 
   // Определяем fetchPhotos внутри компонента
@@ -201,6 +203,10 @@ export function ProgressPhotosView() {
     }
   };
 
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
+
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
     switch (action) {
@@ -219,7 +225,7 @@ export function ProgressPhotosView() {
     }
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
 
   return (
     <SidebarLayout
@@ -288,6 +294,18 @@ export function ProgressPhotosView() {
           )}
         </div>
       </div>
+
+      {/* Measurements Input Modal */}
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
+        />
+      )}
     </SidebarLayout>
   );
 }

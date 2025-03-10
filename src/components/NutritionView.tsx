@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import toast from 'react-hot-toast';
 import { useClientNavigation } from '../lib/navigation';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 interface PhotoPreview {
   file: File;
@@ -29,6 +30,7 @@ export function NutritionView() {
   const [selectedFiles, setSelectedFiles] = useState<PhotoPreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id'>>({
     date: new Date().toISOString().split('T')[0],
     proteins: null,
@@ -243,6 +245,10 @@ export function NutritionView() {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
+
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
     switch (action) {
@@ -278,7 +284,7 @@ export function NutritionView() {
     });
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
 
   return (
     <SidebarLayout
@@ -487,6 +493,18 @@ export function NutritionView() {
           )}
         </div>
       </div>
+
+      {/* Measurements Input Modal */}
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
+        />
+      )}
     </SidebarLayout>
   );
 }

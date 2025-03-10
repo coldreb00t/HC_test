@@ -34,6 +34,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import BodyCompositionTab from './BodyCompositionTab';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
 
 // Локально определяем интерфейс ShareAchievementModalProps
 interface ShareAchievementModalProps {
@@ -158,6 +159,7 @@ export function AchievementsView() {
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
   const [editRowId, setEditRowId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Measurement | null>(null);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
 
   useEffect(() => {
     fetchClientData();
@@ -593,6 +595,10 @@ export function AchievementsView() {
     };
   };
 
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
+
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
     switch (action) {
@@ -611,7 +617,7 @@ export function AchievementsView() {
     }
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
 
   const hasEnoughData = 
     measurements.length > 0 || 
@@ -1108,7 +1114,7 @@ export function AchievementsView() {
             <p className="text-gray-500">Нет данных об измерениях</p>
             <button
               onClick={() => navigate('/client/measurements/new')}
-              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm"
+              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
             >
               Добавить измерения
             </button>
@@ -1412,6 +1418,17 @@ export function AchievementsView() {
           )}
         </div>
       </div>
+      
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
+        />
+      )}
       
       {showShareModal && selectedAchievement && (
         <ShareAchievementModal
