@@ -1,8 +1,8 @@
-import React, { useState, useEffect, TouchEvent } from 'react';
+import React, { useState, useEffect, TouchEvent, ReactNode } from 'react';
 import { 
   Dumbbell, 
   Activity,
-  //Plus,
+  Plus,
   //Camera,
   //X,
   //Apple,
@@ -17,7 +17,8 @@ import {
   //Home,
   User,
   LogOut,
-  TrendingUp
+  TrendingUp,
+  Share2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -27,7 +28,8 @@ import { useClientNavigation } from '../lib/navigation';
 import { WorkoutProgramModal } from './WorkoutProgramModal';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
 import { Exercise, Program, Workout } from '../types/workout';
-import type { ReactNode } from 'react';
+import { RaiseTheBeastMotivation } from './RaiseTheBeastMotivation';
+import { ShareAchievementModal } from './ShareAchievementModal';
 
 // Переименовываем интерфейс, чтобы избежать конфликта с импортированным типом
 interface NextWorkout extends Workout {}
@@ -41,6 +43,7 @@ interface Achievement {
   color: string;
   bgImage?: string;
   motivationalPhrase: string; // Добавлено поле для мотивационной фразы
+  beastComponent?: boolean; // Флаг, указывающий на специальный компонент RaiseTheBeastMotivation
 }
 
 // Расширенный интерфейс для хранения статистики пользователя
@@ -85,6 +88,12 @@ export function ClientDashboard() {
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
+  const [clientData, setClientData] = useState<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    user_id: string;
+  } | null>(null);
   const [userStats, setUserStats] = useState<UserStats>({
     workouts: {
       totalCount: 0,
@@ -114,12 +123,80 @@ export function ClientDashboard() {
   // Массив достижений
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   
+  const [shareModalData, setShareModalData] = useState<{
+    isOpen: boolean;
+    userName: string;
+    beastName: string;
+    weightPhrase: string;
+    totalVolume: number;
+    nextBeastThreshold: number;
+    currentBeastThreshold: number;
+    beastImage: string;
+    isBeast: boolean;
+    displayValue: string;
+    unit: string;
+  } | null>(null);
+  
   useEffect(() => {
+    // При первой загрузке установим демонстрационные достижения,
+    // чтобы слайдер не был пустым
+    const demoAchievements = [
+      {
+        title: 'Завершенные тренировки',
+        description: 'Регулярность - ключ к результатам',
+        value: '0',
+        icon: <Calendar className="w-16 h-16 text-white" />,
+        color: 'bg-orange-500',
+        bgImage: '/images/achievements/workouts.jpg',
+        motivationalPhrase: 'Регулярные тренировки сделают невозможное возможным!'
+      },
+      {
+        title: 'Объем нагрузки',
+        description: 'Общий вес, который ты поднял',
+        value: '0',
+        icon: <Dumbbell className="w-16 h-16 text-white" />,
+        color: 'bg-blue-500',
+        bgImage: '/images/achievements/volume.jpg',
+        motivationalPhrase: 'Каждый поднятый килограмм приближает тебя к цели!'
+      },
+      {
+        title: 'Любимая активность',
+        description: 'Физические упражнения',
+        value: 'Добавь активность',
+        icon: <Activity className="w-16 h-16 text-white" />,
+        color: 'bg-green-500',
+        bgImage: '/images/achievements/activity.jpg',
+        motivationalPhrase: 'Найди то, что приносит радость, и это уже не будет казаться тренировкой!'
+      },
+      {
+        title: 'Изменение тела',
+        description: 'Отслеживание прогресса',
+        value: 'Добавь замеры',
+        icon: <Scale className="w-16 h-16 text-white" />,
+        color: 'bg-purple-500',
+        bgImage: '/images/achievements/progress.jpg',
+        motivationalPhrase: 'Не сравнивай себя с другими, сравнивай с собой вчерашним!'
+      },
+      {
+        title: 'Общая активность',
+        description: 'Суммарное время движения',
+        value: 'Добавь активность',
+        icon: <Trophy className="w-16 h-16 text-white" />,
+        color: 'bg-yellow-500',
+        bgImage: '/images/achievements/trophies.jpg',
+        motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
+      }
+    ];
+    
+    setAchievements(demoAchievements);
+    
     const fetchData = async () => {
       try {
+        console.log('Начинаем загрузку данных');
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
+          console.log('Пользователь авторизован:', user.id);
           const { data: clientData, error: clientError } = await supabase
             .from('clients')
             .select('*')
@@ -129,6 +206,9 @@ export function ClientDashboard() {
           if (clientError) throw clientError;
           
           if (clientData) {
+            console.log('Получены данные клиента:', clientData.id);
+            // Сохраняем данные клиента
+            setClientData(clientData);
             await Promise.all([
               fetchNextWorkout(clientData.id),
               fetchWorkoutStats(clientData.id),
@@ -136,21 +216,29 @@ export function ClientDashboard() {
               fetchMeasurementStats(clientData.id),
               fetchAchievementsStats(clientData.id)
             ]);
+            console.log('Все данные загружены успешно');
           }
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         toast.error('Не удалось загрузить данные');
       } finally {
+        console.log('Готовы установить достижения после загрузки данных');
         setLoading(false);
       }
     };
     
     fetchData();
-    
-    // Устанавливаем достижения
-    setAchievements(getAchievements());
   }, []);
+  
+  // Обновляем достижения при изменении статистики
+  useEffect(() => {
+    console.log('userStats изменились:', userStats);
+    const achievementsData = getAchievements(userStats);
+    console.log('Сформированы новые достижения:', achievementsData);
+    setAchievements(achievementsData);
+    console.log('Достижения обновлены после изменения userStats');
+  }, [userStats]);
   
   const fetchDashboardData = async () => {
     // Реализация метода
@@ -208,6 +296,7 @@ export function ClientDashboard() {
   
   const fetchWorkoutStats = async (clientId: string) => {
     try {
+      console.log('Загружаем данные о тренировках для клиента:', clientId);
       // Получаем все тренировки клиента
       const { data: workouts, error } = await supabase
         .from('workouts')
@@ -215,84 +304,165 @@ export function ClientDashboard() {
         .eq('client_id', clientId);
         
       if (error) throw error;
+      console.log('Количество тренировок:', workouts?.length || 0);
+      console.log('Данные о тренировках:', workouts);
       
-      // Получаем завершенные тренировки
+      // Получаем завершенные тренировки (проверяем два возможных формата данных)
+      // Вариант 1: используем таблицу workout_completions
       const { data: completions, error: completionsError } = await supabase
         .from('workout_completions')
         .select('*')
         .eq('client_id', clientId);
         
       if (completionsError) throw completionsError;
+      console.log('Количество завершенных тренировок из workout_completions:', completions?.length || 0);
       
-      // Получаем завершенные упражнения для расчета объема
-      const { data: exerciseCompletions, error: exerciseError } = await supabase
-        .from('exercise_completions')
+      // Вариант 2: используем поле completed в таблице workouts
+      const { data: completedWorkouts, error: completedWorkoutsError } = await supabase
+        .from('workouts')
         .select('*')
-        .eq('client_id', clientId);
+        .eq('client_id', clientId)
+        .eq('completed', true);
         
-      if (exerciseError) throw exerciseError;
+      if (completedWorkoutsError) {
+        console.error('Ошибка при получении завершенных тренировок из workouts:', completedWorkoutsError);
+      } else {
+        console.log('Количество завершенных тренировок из workouts with completed=true:', completedWorkouts?.length || 0);
+      }
+      
+      // Определяем фактическое количество завершенных тренировок на основе доступных данных
+      let completedCount = 0;
+      
+      // Если есть данные в workout_completions, используем их
+      if (completions && completions.length > 0) {
+        completedCount = completions.length;
+        console.log('Используем количество из workout_completions:', completedCount);
+      }
+      // Иначе если есть данные о завершенных тренировках в workouts, используем их
+      else if (completedWorkouts && completedWorkouts.length > 0) {
+        completedCount = completedWorkouts.length;
+        console.log('Используем количество из workouts с completed=true:', completedCount);
+      }
+      // Если нет данных ни в одной таблице, устанавливаем 0
+      else {
+        console.log('Нет данных о завершенных тренировках, устанавливаем 0');
+      }
       
       let totalVolume = 0;
       
-      if (exerciseCompletions && exerciseCompletions.length > 0) {
-        // Получаем данные о подходах для расчета объема
-        const workoutIds = completions?.map((c: any) => c.workout_id) || [];
+      // Получаем все упражнения для всех завершенных тренировок
+      if (completions && completions.length > 0) {
+        // Получаем ID всех завершенных тренировок
+        const completedWorkoutIds = completions.map(c => c.workout_id);
+        console.log('ID всех завершенных тренировок:', completedWorkoutIds);
         
-        const { data: workoutDetails } = await supabase
+        // Получаем детали всех завершенных тренировок
+        const { data: workoutDetails, error: workoutDetailsError } = await supabase
           .from('workouts')
           .select('*')
-          .in('id', workoutIds);
-        
-        const programIds = workoutDetails
-          ?.map((w: any) => w.training_program_id)
-          .filter(Boolean) || [];
-        
-        const { data: programExercises } = await supabase
-          .from('program_exercises')
-          .select(`
-            *
-          `)
-          .in('program_id', programIds);
-        
-        // Подсчет общего объема
-        if (programExercises) {
-          exerciseCompletions.forEach((completion: any) => {
-            if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
-              const exercise = programExercises.find((pe: any) => pe.exercise_id === completion.exercise_id);
+          .in('id', completedWorkoutIds);
+          
+        if (workoutDetailsError) {
+          console.error('Ошибка при получении деталей тренировок:', workoutDetailsError);
+        } else if (workoutDetails && workoutDetails.length > 0) {
+          console.log('Получены детали завершенных тренировок:', workoutDetails.length);
+          
+          // Собираем ID всех программ тренировок
+          const programIds = workoutDetails
+            .map(w => w.training_program_id)
+            .filter(Boolean);
+          console.log('ID программ тренировок:', programIds);
+          
+          // Получаем упражнения всех программ
+          const { data: programExercises, error: programExercisesError } = await supabase
+            .from('program_exercises')
+            .select(`
+              id,
+              exercise_id,
+              strength_exercises (id, name),
+              exercise_sets (set_number, reps, weight)
+            `)
+            .in('program_id', programIds);
+            
+          if (programExercisesError) {
+            console.error('Ошибка при получении упражнений программ:', programExercisesError);
+          } else if (programExercises && programExercises.length > 0) {
+            console.log('Получены упражнения программ:', programExercises.length);
+            console.log('Детали упражнений программ:', programExercises);
+            
+            // Получаем все завершенные упражнения клиента
+            const { data: exerciseCompletions, error: exerciseError } = await supabase
+              .from('exercise_completions')
+              .select('*')
+              .eq('client_id', clientId)
+              .in('workout_id', completedWorkoutIds);
               
-              if (exercise) {
-                // Используем информацию о подходах из таблицы program_exercises
-                // Так как в таблице program_exercises нет поля exercise_sets,
-                // мы используем информацию о подходах из самой записи
-                completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
-                  if (isCompleted) {
-                    // Рассчитываем объем на основе доступных данных
-                    // Если в базе данных есть sets, reps и weight, используем их
-                    // В противном случае используем значения по умолчанию или пропускаем
-                    const sets = exercise.sets || 0;
-                    const reps = parseInt(exercise.reps, 10) || 0;
-                    const weight = parseFloat(exercise.weight) || 0;
+            if (exerciseError) {
+              console.error('Ошибка при получении завершенных упражнений:', exerciseError);
+            } else if (exerciseCompletions && exerciseCompletions.length > 0) {
+              console.log('Получены завершенные упражнения:', exerciseCompletions.length);
+              
+              // Рассчитываем общий объем для всех завершенных упражнений
+              exerciseCompletions.forEach(completion => {
+                if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
+                  // Находим соответствующее упражнение в программе
+                  const exercise = programExercises.find(pe => pe.exercise_id === completion.exercise_id);
+                  
+                  if (exercise) {
+                    console.log('Найдено упражнение в программе:', exercise.exercise_id);
+                    console.log('Данные упражнения:', exercise);
                     
-                    if (sets > 0 && reps > 0 && weight > 0) {
-                      totalVolume += reps * weight;
+                    // Проверяем наличие сетов упражнений
+                    if (exercise.exercise_sets && Array.isArray(exercise.exercise_sets) && exercise.exercise_sets.length > 0) {
+                      console.log('Упражнение содержит сеты:', exercise.exercise_sets.length);
+                      
+                      // Считаем объем по данным сетов для всех завершенных подходов
+                      completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
+                        if (isCompleted && index < exercise.exercise_sets.length) {
+                          const set = exercise.exercise_sets[index];
+                          const reps = parseInt(set.reps, 10) || 0;
+                          const weight = parseFloat(set.weight) || 0;
+                          
+                          console.log(`Подход ${index+1}: повторения=${reps}, вес=${weight}`);
+                          
+                          if (reps > 0 && weight > 0) {
+                            totalVolume += reps * weight;
+                            console.log(`Добавлен объем из сета: ${reps * weight} кг, текущий объем: ${totalVolume} кг`);
+                          } else {
+                            console.log(`Пропущен расчет объема из сета, так как reps=${reps}, weight=${weight}`);
+                          }
+                        }
+                      });
+                    } else {
+                      console.log('Упражнение не содержит сетов, объем не может быть рассчитан');
                     }
                   }
-                });
-              }
+                }
+              });
             }
-          });
+          }
         }
       }
       
-      // Обновляем статистику тренировок
-      setUserStats((prev: UserStats) => ({
-        ...prev,
-        workouts: {
-          totalCount: workouts?.length || 0,
-          completedCount: completions?.length || 0,
-          totalVolume
-        }
-      }));
+      console.log('Итоговый объем тренировок:', totalVolume);
+      console.log('Количество тренировок для обновления:', workouts?.length || 0);
+      console.log('Количество завершенных тренировок для обновления:', completedCount);
+      
+      // Обновляем статистику тренировок - только реальные данные
+      const totalCount = workouts?.length || 0;
+      
+      setUserStats((prev: UserStats) => {
+        const newStats = {
+          ...prev,
+          workouts: {
+            totalCount,
+            completedCount,
+            totalVolume
+          }
+        };
+        console.log('Обновляем статистику тренировок:', newStats);
+        return newStats;
+      });
     } catch (error) {
       console.error('Error fetching workout stats:', error);
     }
@@ -464,58 +634,142 @@ export function ClientDashboard() {
   };
   
   // Функция для формирования достижений на основе реальных данных
-  const getAchievements = (): Achievement[] => {
+  const getAchievements = (stats: UserStats = userStats): Achievement[] => {
+    console.log('Формируем достижения на основе данных:', stats);
+    console.log('Количество тренировок:', stats.workouts.totalCount);
+    console.log('Количество завершенных тренировок:', stats.workouts.completedCount);
+    console.log('Объем тренировок:', stats.workouts.totalVolume);
+    
+    // Получаем наиболее популярный тип активности
+    let topActivityType = 'Активность';
+    let topActivityDuration = 0;
+    
+    Object.entries(stats.activities.types).forEach(([type, duration]) => {
+      if (duration > topActivityDuration) {
+        topActivityType = type;
+        topActivityDuration = duration;
+      }
+    });
+    
+    console.log('Самый популярный тип активности:', topActivityType, topActivityDuration);
+    
+    // Просто число завершенных тренировок
+    const completedTrainingsValue = stats.workouts.completedCount.toString();
+    console.log('Значение для отображения в достижении "Завершенные тренировки":', completedTrainingsValue);
+    
+    // Число с единицей измерения для общего объема нагрузки
+    const totalVolumeValue = `${stats.workouts.totalVolume} кг`;
+    console.log('Значение для отображения в достижении "Объем нагрузки":', totalVolumeValue);
+    
     return [
       {
-        title: 'Тренировки',
-        description: 'Общее количество тренировок',
-        value: userStats.workouts.totalCount.toString(),
-        icon: <Dumbbell className="w-16 h-16 text-white" />,
+        title: 'Завершенные тренировки',
+        description: 'Регулярность - ключ к результатам',
+        value: completedTrainingsValue,
+        icon: <Calendar className="w-16 h-16 text-white" />,
         color: 'bg-orange-500',
         bgImage: '/images/achievements/workouts.jpg',
-        motivationalPhrase: 'Каждая тренировка приближает тебя к цели!'
+        motivationalPhrase: 'Регулярные тренировки сделают невозможное возможным!'
       },
       {
-        title: 'Объем',
-        description: 'Общий объем поднятого веса',
-        value: `${userStats.workouts.totalVolume.toLocaleString()} кг`,
+        title: 'Объем нагрузки',
+        description: 'Общий вес, который ты поднял',
+        value: totalVolumeValue,
         icon: <Dumbbell className="w-16 h-16 text-white" />,
         color: 'bg-blue-500',
         bgImage: '/images/achievements/volume.jpg',
-        motivationalPhrase: 'Сила не приходит из того, что ты можешь делать. Она приходит из преодоления того, что ты не можешь.'
+        motivationalPhrase: 'Каждый поднятый килограмм приближает тебя к цели!'
       },
       {
-        title: 'Активность',
-        description: 'Общее время активности',
-        value: `${Math.floor(userStats.activities.totalMinutes / 60)} ч ${userStats.activities.totalMinutes % 60} мин`,
+        title: 'Любимая активность',
+        description: topActivityType,
+        value: topActivityDuration > 0
+          ? `${Math.floor(topActivityDuration / 60)} ч ${topActivityDuration % 60} мин`
+          : 'Нет данных',
         icon: <Activity className="w-16 h-16 text-white" />,
         color: 'bg-green-500',
         bgImage: '/images/achievements/activity.jpg',
-        motivationalPhrase: 'Твое тело может все. Это твой разум нужно убедить.'
+        motivationalPhrase: 'Найди то, что приносит радость, и это уже не будет казаться тренировкой!'
       },
       {
-        title: 'Прогресс',
-        description: userStats.measurements.weightChange && userStats.measurements.weightChange < 0 
+        title: 'Изменение тела',
+        description: stats.measurements.weightChange && stats.measurements.weightChange < 0 
           ? 'Снижение веса' 
-          : 'Набор массы',
-        value: userStats.measurements.weightChange 
-          ? `${Math.abs(userStats.measurements.weightChange).toFixed(1)} кг` 
-          : '0 кг',
+          : stats.measurements.weightChange && stats.measurements.weightChange > 0 
+            ? 'Набор массы' 
+            : 'Изменение веса',
+        value: stats.measurements.weightChange 
+          ? `${Math.abs(stats.measurements.weightChange).toFixed(1)} кг` 
+          : 'Нет данных',
         icon: <Scale className="w-16 h-16 text-white" />,
         color: 'bg-purple-500',
         bgImage: '/images/achievements/progress.jpg',
-        motivationalPhrase: 'Не останавливайся, когда устал. Остановись, когда закончил.'
+        motivationalPhrase: 'Каждый шаг в сторону изменения тела - это новая версия тебя!'
+      },
+      // Пятое достижение - активность
+      {
+        title: 'Активность',
+        description: 'Твоя общая физическая активность',
+        value: stats.activities.totalMinutes > 0 
+          ? `${Math.floor(stats.activities.totalMinutes / 60)} ч ${stats.activities.totalMinutes % 60} мин` 
+          : 'Нет данных',
+        icon: <Activity className="w-16 h-16 text-white" />,
+        color: 'bg-green-500',
+        bgImage: '/images/achievements/general-activity.jpg',
+        motivationalPhrase: 'Движение - это жизнь. Продолжай двигаться!'
       },
       {
-        title: 'Достижения',
-        description: 'Разблокированные достижения',
-        value: `${userStats.achievements.completed}/${userStats.achievements.total}`,
-        icon: <Trophy className="w-16 h-16 text-white" />,
-        color: 'bg-yellow-500',
-        bgImage: '/images/achievements/trophies.jpg',
-        motivationalPhrase: 'Успех — это сумма небольших усилий, повторяющихся изо дня в день.'
+        title: 'Подними зверя',
+        description: 'Объем поднятого веса',
+        value: `${stats.workouts.totalVolume} кг`,
+        icon: <Scale className="w-16 h-16 text-white" />,
+        color: 'bg-pink-500',
+        bgImage: '/images/achievements/beast.jpg',
+        motivationalPhrase: 'Каждый поднятый килограмм - это новая версия тебя!',
+        beastComponent: true
       }
     ];
+  };
+  
+  // Функция для открытия модального окна поделиться обычным достижением
+  const handleShareAchievement = (achievement: Achievement) => {
+    // Сохраняем оригинальное значение для отображения в карточке
+    const displayValue = achievement.value;
+    
+    // Извлекаем только числовое значение для расчетов
+    let numericValue = parseFloat(achievement.value.replace(/[^\d.-]/g, '')) || 0;
+    
+    // Определяем единицу измерения на основе типа достижения
+    let unit = '';
+    if (achievement.title === 'Объем нагрузки') {
+      unit = 'кг';
+    } else if (achievement.title === 'Любимая активность' || achievement.title === 'Активность') {
+      // Для таких достижений единица измерения уже указана в displayValue
+      unit = '';
+    } else if (achievement.title === 'Изменение тела') {
+      unit = 'кг';
+    } else if (achievement.title === 'Завершенные тренировки') {
+      unit = 'тренировок';
+    }
+    
+    // Формируем имя пользователя
+    const userName = clientData 
+      ? `${clientData.first_name} ${clientData.last_name}`
+      : "Пользователь HARDCASE";
+    
+    setShareModalData({
+      isOpen: true,
+      userName: userName,
+      beastName: achievement.title,
+      weightPhrase: achievement.description,
+      totalVolume: numericValue,
+      nextBeastThreshold: 0,
+      currentBeastThreshold: 0,
+      beastImage: achievement.bgImage || '',
+      isBeast: achievement.beastComponent || false,
+      displayValue: displayValue,
+      unit: unit
+    });
   };
   
   // Кастомный компонент топ-бара с добавленным дроп-даун меню
@@ -584,39 +838,66 @@ export function ClientDashboard() {
                 key={index}
                 className="relative w-full h-full flex-shrink-0"
               >
-                {/* Background Image with Overlay */}
-                <div 
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{ backgroundImage: `url(${achievement.bgImage})` }}
-                >
-                  <div className={`absolute inset-0 opacity-90 ${achievement.color}`}></div>
-                </div>
+                {achievement.beastComponent ? (
+                  // Рендерим специальный компонент RaiseTheBeastMotivation
+                  <div className="h-full flex items-center justify-center overflow-auto py-2">
+                    <div className="w-full h-full max-h-[calc(85vh-16rem)] overflow-auto">
+                      <RaiseTheBeastMotivation 
+                        totalVolume={userStats.workouts.totalVolume} 
+                        userName={clientData ? `${clientData.first_name} ${clientData.last_name}` : "Пользователь HARDCASE"} 
+                        onShare={handleShareAchievement}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  // Стандартный рендеринг для обычных достижений
+                  <>
+                    {/* Background Image with Overlay */}
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={{ backgroundImage: `url(${achievement.bgImage})` }}
+                    >
+                      <div className={`absolute inset-0 opacity-90 ${achievement.color}`}></div>
+                    </div>
 
-                {/* Content */}
-                <div className="relative h-full flex flex-col items-center justify-center text-white p-8">
-                  <div className="mb-8">
-                    {achievement.icon}
-                  </div>
-                  
-                  <div className="text-center">
-                    <div className="text-4xl md:text-6xl font-bold mb-4">
-                      {achievement.value}
+                    {/* Content */}
+                    <div className="relative h-full flex flex-col items-center justify-center text-white p-8">
+                      <div className="mb-8 flex items-center justify-center">
+                        {achievement.icon}
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="text-4xl md:text-6xl font-bold mb-4">
+                          {achievement.value}
+                        </div>
+                        <h3 className="text-xl md:text-3xl font-semibold mb-2">
+                          {achievement.title}
+                        </h3>
+                        <p className="text-base md:text-xl text-white/90 mb-6">
+                          {achievement.description}
+                        </p>
+                        
+                        {/* Мотивационная фраза */}
+                        <div className="mt-4 bg-white/20 rounded-lg p-4 backdrop-blur-sm max-w-lg mx-auto">
+                          <p className="text-base md:text-lg italic text-white/95">
+                            "{achievement.motivationalPhrase}"
+                          </p>
+                        </div>
+                        
+                        {/* Кнопка поделиться */}
+                        <div className="mt-6">
+                          <button
+                            onClick={() => handleShareAchievement(achievement)}
+                            className="p-3 bg-white/30 rounded-full hover:bg-white/50 transition-colors touch-manipulation backdrop-blur-sm"
+                            aria-label="Поделиться достижением"
+                          >
+                            <Share2 className="w-6 h-6 text-white drop-shadow-md" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <h3 className="text-xl md:text-3xl font-semibold mb-2">
-                      {achievement.title}
-                    </h3>
-                    <p className="text-base md:text-xl text-white/90 mb-6">
-                      {achievement.description}
-                    </p>
-                    
-                    {/* Мотивационная фраза */}
-                    <div className="mt-4 bg-white/20 rounded-lg p-4 backdrop-blur-sm max-w-lg mx-auto">
-                      <p className="text-base md:text-lg italic text-white/95">
-                        "{achievement.motivationalPhrase}"
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -721,6 +1002,24 @@ export function ClientDashboard() {
             minute: '2-digit'
           })}
           training_program_id={nextWorkout.training_program_id}
+        />
+      )}
+
+      {/* Share Achievement Modal */}
+      {shareModalData && (
+        <ShareAchievementModal
+          isOpen={shareModalData.isOpen}
+          onClose={() => setShareModalData(null)}
+          userName={shareModalData.userName}
+          beastName={shareModalData.beastName}
+          weightPhrase={shareModalData.weightPhrase}
+          totalVolume={shareModalData.totalVolume}
+          nextBeastThreshold={shareModalData.nextBeastThreshold}
+          currentBeastThreshold={shareModalData.currentBeastThreshold}
+          beastImage={shareModalData.beastImage}
+          isBeast={shareModalData.isBeast}
+          displayValue={shareModalData.displayValue}
+          unit={shareModalData.unit}
         />
       )}
     </SidebarLayout>

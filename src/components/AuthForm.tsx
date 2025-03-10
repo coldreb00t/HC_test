@@ -119,7 +119,7 @@ export function AuthForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-4">
-      <div className="max-w-md w-full">
+      <div className="max-w-md w-full" style={{ maxWidth: "400px" }}>
         {/* Logo */}
         <div className="mb-8 text-center">
           <img 
@@ -143,7 +143,7 @@ export function AuthForm() {
           </CardHeader>
 
           <CardBody>
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5" style={{ width: "100%" }}>
               {/* Role Selection (only for registration) */}
               {!isLogin && (
                 <div className="mb-4">
@@ -214,44 +214,58 @@ export function AuthForm() {
                 />
               )}
 
-              {/* Email */}
-              <Input
-                label="Email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="your@email.com"
-                leftIcon={<Mail size={18} />}
-                fullWidth
-              />
+              {/* Email and Password Input Group */}
+              <div className="space-y-5 w-full">
+                {/* Email Field with dummy icon space */}
+                <div className="w-full">
+                  <label className="block text-sm font-medium text-gray-300 mb-1 iphone:text-base">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                      <Mail size={18} />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="your@email.com"
+                      className="bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent pl-10 pr-10 py-3 w-full"
+                    />
+                    {/* Пустой элемент справа для одинаковой ширины */}
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 opacity-0">
+                      <Eye size={18} />
+                    </div>
+                  </div>
+                </div>
 
-              {/* Password */}
-              <Input
-                label="Пароль"
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="Минимум 6 символов"
-                leftIcon={<Lock size={18} />}
-                rightIcon={
-                  showPassword ? (
-                    <EyeOff 
-                      size={18} 
-                      className="cursor-pointer" 
-                      onClick={() => setShowPassword(false)} 
+                {/* Password Field */}
+                <div className="w-full">
+                  <label className="block text-sm font-medium text-gray-300 mb-1 iphone:text-base">
+                    Пароль
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      placeholder="Минимум 6 символов"
+                      className="bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent pl-10 pr-10 py-3 w-full"
                     />
-                  ) : (
-                    <Eye 
-                      size={18} 
-                      className="cursor-pointer" 
-                      onClick={() => setShowPassword(true)} 
-                    />
-                  )
-                }
-                fullWidth
-              />
+                    <div 
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Remember me (only for login) */}
               {isLogin && (

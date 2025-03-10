@@ -18,6 +18,9 @@ interface ShareAchievementModalProps {
   nextBeastThreshold: number;
   currentBeastThreshold: number;
   beastImage: string;
+  isBeast?: boolean; // Флаг для различения зверей и обычных достижений
+  displayValue?: string; // Отформатированное значение для отображения
+  unit?: string; // Единица измерения
 }
 
 export function ShareAchievementModal({
@@ -30,6 +33,9 @@ export function ShareAchievementModal({
   nextBeastThreshold,
   currentBeastThreshold,
   beastImage,
+  isBeast,
+  displayValue,
+  unit,
 }: ShareAchievementModalProps) {
   const [shareableImage, setShareableImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -493,50 +499,118 @@ export function ShareAchievementModal({
             data-html2canvas-beast-card
             style={inlineStyles.cardContainer}
           >
-            {imageData && (
-              <img
-                src={imageData}
-                alt={`Зверь ${beastName}`}
-                style={inlineStyles.coverImage}
-                onError={(e) => {
-                  console.error('Ошибка отображения изображения:', e);
-                }}
-              />
-            )}
+            {isBeast ? (
+              // Шаблон для зверей
+              <>
+                {imageData && (
+                  <img
+                    src={imageData}
+                    alt={`Зверь ${beastName}`}
+                    style={inlineStyles.coverImage}
+                    onError={(e) => {
+                      console.error('Ошибка отображения изображения:', e);
+                    }}
+                  />
+                )}
 
-            <div style={inlineStyles.topGradient}></div>
-            <div style={inlineStyles.bottomGradient}></div>
+                <div style={inlineStyles.topGradient}></div>
+                <div style={inlineStyles.bottomGradient}></div>
 
-            <div style={inlineStyles.weightContainer}>
-              <p style={inlineStyles.weightValue}>
-                {totalVolume} <span style={inlineStyles.weightUnit}>кг</span>
-              </p>
-              <p style={inlineStyles.weightLabel}>Поднятый вес</p>
-            </div>
-
-            <div style={inlineStyles.logoContainer}>
-              <div style={inlineStyles.logo}>HARDCASE.TRAINING</div>
-            </div>
-
-            {!isMaxLevel && (
-              <div style={inlineStyles.progressContainer}>
-                <div style={inlineStyles.progressBar}>
-                  <div style={inlineStyles.progressFill}></div>
+                <div style={inlineStyles.weightContainer}>
+                  <p style={inlineStyles.weightValue}>
+                    {totalVolume} <span style={inlineStyles.weightUnit}>кг</span>
+                  </p>
+                  <p style={inlineStyles.weightLabel}>Поднятый вес</p>
                 </div>
-                <div style={inlineStyles.progressText}>
-                  <div style={inlineStyles.progressTextContainer}>
-                    До следующего уровня{' '}
-                    <span style={inlineStyles.progressHighlight}>осталось {volumeToNext} кг</span>
+
+                <div style={inlineStyles.logoContainer}>
+                  <div style={inlineStyles.logo}>HARDCASE.TRAINING</div>
+                </div>
+
+                {!isMaxLevel && (
+                  <div style={inlineStyles.progressContainer}>
+                    <div style={inlineStyles.progressBar}>
+                      <div style={inlineStyles.progressFill}></div>
+                    </div>
+                    <div style={inlineStyles.progressText}>
+                      <div style={inlineStyles.progressTextContainer}>
+                        До следующего уровня{' '}
+                        <span style={inlineStyles.progressHighlight}>осталось {volumeToNext} кг</span>
+                      </div>
+                    </div>
                   </div>
+                )}
+
+                <div style={inlineStyles.beastInfo}>
+                  <h3 style={inlineStyles.beastName}>{beastName}</h3>
+                  <p style={inlineStyles.beastPhrase}>{weightPhrase}</p>
+                  <p style={inlineStyles.userName}>@{userName}</p>
                 </div>
+              </>
+            ) : (
+              // Шаблон для обычных достижений
+              <div style={{
+                ...inlineStyles.cardContainer,
+                background: 'linear-gradient(135deg, #4338ca, #7e22ce)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '30px 15px'
+              }}>
+                <div style={inlineStyles.logoContainer}>
+                  <div style={inlineStyles.logo}>HARDCASE.TRAINING</div>
+                </div>
+                
+                <div style={{
+                  fontSize: '48px',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  margin: '30px 0 10px',
+                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center'
+                }}>
+                  {displayValue || totalVolume.toString()}
+                  {unit && (
+                    <span style={{
+                      fontSize: '18px',
+                      fontWeight: 'normal',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      marginTop: '5px'
+                    }}>
+                      {unit}
+                    </span>
+                  )}
+                </div>
+                
+                <h3 style={{
+                  fontSize: '32px',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  marginBottom: '15px',
+                  textAlign: 'center',
+                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)'
+                }}>
+                  {beastName}
+                </h3>
+                
+                <p style={{
+                  fontSize: '18px',
+                  color: 'white',
+                  textAlign: 'center',
+                  maxWidth: '280px',
+                  marginBottom: '30px',
+                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)'
+                }}>
+                  {weightPhrase}
+                </p>
+                
+                <p style={inlineStyles.userName}>@{userName}</p>
               </div>
             )}
-
-            <div style={inlineStyles.beastInfo}>
-              <h3 style={inlineStyles.beastName}>{beastName}</h3>
-              <p style={inlineStyles.beastPhrase}>{weightPhrase}</p>
-              <p style={inlineStyles.userName}>@{userName}</p>
-            </div>
           </div>
 
           {loading && (

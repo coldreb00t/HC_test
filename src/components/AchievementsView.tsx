@@ -665,7 +665,7 @@ export function AchievementsView() {
   );
 
   const renderOverviewTab = () => (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg p-6 text-white shadow-md">
         <div className="flex items-center mb-4">
           <Trophy className="w-8 h-8 mr-3" />
@@ -797,7 +797,7 @@ export function AchievementsView() {
   );
 
   const renderWorkoutsTab = () => (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
         <div className="flex items-center mb-4">
           <Dumbbell className="w-5 h-5 text-gray-500 mr-2" />
@@ -883,13 +883,14 @@ export function AchievementsView() {
   );
 
   const renderMeasurementsTab = () => {
-    const chartData = measurements.map(measurement => ({
-      date: new Date(measurement.date).toISOString().split('T')[0],
-      weight: Number(measurement.weight) || null,
-      waist: Number(measurement.waist) || null,
-      chest: Number(measurement.chest) || null,
-      hips: Number(measurement.hips) || null,
-      biceps: Number(measurement.biceps) || null,
+    const chartData = measurements.map(m => ({
+      date: new Date(m.date).toLocaleDateString('ru-RU'),
+      weight: m.weight,
+      chest: m.chest,
+      waist: m.waist,
+      hips: m.hips,
+      arm: m.arm,
+      thigh: m.thigh
     }));
 
     console.log('Full chartData:', chartData);
@@ -903,44 +904,52 @@ export function AchievementsView() {
       if (editValues) {
         setEditValues({
           ...editValues,
-          [field]: value === '' ? null : Number(value),
+          [field]: field === 'date' ? value : Number(value)
         });
       }
     };
 
-    const handleSave = async () => {
-      if (!editValues || !editRowId) return;
-
+    const handleSaveClick = async (measurement: Measurement) => {
       try {
         const { error } = await supabase
           .from('client_measurements')
           .update({
-            date: editValues.date,
-            weight: editValues.weight,
-            waist: editValues.waist,
-            chest: editValues.chest,
-            hips: editValues.hips,
-            biceps: editValues.biceps,
+            weight: editValues?.weight,
+            chest: editValues?.chest,
+            waist: editValues?.waist,
+            hips: editValues?.hips,
+            arm: editValues?.arm,
+            thigh: editValues?.thigh,
+            date: editValues?.date
           })
-          .eq('id', editRowId);
+          .eq('id', measurement.id);
 
         if (error) throw error;
-
-        setMeasurements(prev =>
-          prev.map(m => (m.id === editRowId ? { ...editValues } : m))
-        );
-        toast.success('Замеры успешно обновлены');
+        
+        fetchMeasurements(clientData?.id || '');
         setEditRowId(null);
-        setEditValues(null);
+        toast.success('Замеры обновлены');
       } catch (error) {
-        console.error('Ошибка при сохранении замеров:', error);
-        toast.error('Ошибка при сохранении изменений');
+        console.error('Error updating measurement:', error);
+        toast.error('Ошибка при обновлении замеров');
       }
     };
 
-    const handleCancel = () => {
-      setEditRowId(null);
-      setEditValues(null);
+    const handleDeleteClick = async (measurement: Measurement) => {
+      try {
+        const { error } = await supabase
+          .from('client_measurements')
+          .delete()
+          .eq('id', measurement.id);
+
+        if (error) throw error;
+        
+        fetchMeasurements(clientData?.id || '');
+        toast.success('Замеры удалены');
+      } catch (error) {
+        console.error('Error deleting measurement:', error);
+        toast.error('Ошибка при удалении замеров');
+      }
     };
 
     const renderLineChart = (field: string, title: string, unit: string, color: string) => {
@@ -953,7 +962,8 @@ export function AchievementsView() {
         waist: '#4CAF50',
         chest: '#3F51B5',
         hips: '#F44336',
-        biceps: '#00BCD4',
+        arm: '#00BCD4',
+        thigh: '#00BCD4',
       };
 
       return (
@@ -988,7 +998,7 @@ export function AchievementsView() {
     };
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 pb-4">
         {measurements.length > 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-4">
             <div className="flex items-center mb-4">
@@ -1056,23 +1066,31 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.biceps ?? ''}
-                              onChange={(e) => handleInputChange('biceps', e.target.value)}
+                              value={editValues?.arm ?? ''}
+                              onChange={(e) => handleInputChange('arm', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.thigh ?? ''}
+                              onChange={(e) => handleInputChange('thigh', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
                           </td>
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <button
-                              onClick={handleSave}
+                              onClick={() => handleSaveClick(measurement)}
                               className="p-1.5 bg-green-100 rounded-full hover:bg-green-200 transition-colors mr-2"
                               title="Сохранить"
                             >
                               <Check className="w-4 h-4 text-green-500" />
                             </button>
                             <button
-                              onClick={handleCancel}
+                              onClick={() => handleDeleteClick(measurement)}
                               className="p-1.5 bg-red-100 rounded-full hover:bg-red-200 transition-colors"
-                              title="Отменить"
+                              title="Удалить"
                             >
                               <X className="w-4 h-4 text-red-500" />
                             </button>
@@ -1085,7 +1103,8 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">{measurement.waist || '-'}</td>
                           <td className="py-2 px-3 text-sm text-gray-700">{measurement.chest || '-'}</td>
                           <td className="py-2 px-3 text-sm text-gray-700">{measurement.hips || '-'}</td>
-                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.biceps || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.arm || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.thigh || '-'}</td>
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <button
                               onClick={() => handleEditClick(measurement)}
@@ -1106,7 +1125,8 @@ export function AchievementsView() {
             {renderLineChart('waist', 'Динамика талии', 'см', '#4CAF50')}
             {renderLineChart('chest', 'Динамика груди', 'см', '#3F51B5')}
             {renderLineChart('hips', 'Динамика бедер', 'см', '#F44336')}
-            {renderLineChart('biceps', 'Динамика бицепса', 'см', '#00BCD4')}
+            {renderLineChart('arm', 'Динамика верхней части руки', 'см', '#00BCD4')}
+            {renderLineChart('thigh', 'Динамика ноги', 'см', '#00BCD4')}
           </div>
         ) : (
           <div className="bg-gray-50 rounded-lg p-6 text-center shadow-sm">
@@ -1125,7 +1145,7 @@ export function AchievementsView() {
   };
 
   const renderActivityTab = () => (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       {activityStats ? (
         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center mb-4">
@@ -1153,26 +1173,18 @@ export function AchievementsView() {
           {activityStats.typesDistribution.length > 0 && (
             <div className="mt-6">
               <h4 className="text-sm font-medium text-gray-700 mb-2">Распределение по типам активности</h4>
-              <div className="space-y-2 mt-3">
-                {activityStats.typesDistribution.map((item, index) => {
-                  const totalDuration = activityStats.typesDistribution.reduce((acc, curr) => acc + curr.duration, 0);
-                  const percentage = (item.duration / totalDuration) * 100;
-                  
-                  return (
-                    <div key={index}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>{item.type}</span>
-                        <span>{Math.floor(item.duration / 60)} ч {item.duration % 60} мин ({percentage.toFixed(0)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-orange-500 h-2 rounded-full" 
-                          style={{ width: `${percentage}%` }}
-                        ></div>
-                      </div>
+              <div className="space-y-2">
+                {activityStats.typesDistribution.map((activity, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center">
+                      <Activity className="w-4 h-4 text-green-500 mr-2" />
+                      <span className="font-medium">{activity.type}</span>
                     </div>
-                  );
-                })}
+                    <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                      {Math.floor(activity.duration / 60)}ч {activity.duration % 60}мин
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -1193,7 +1205,7 @@ export function AchievementsView() {
   );
 
   const renderNutritionTab = () => (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       {nutritionStats && nutritionStats.entriesCount > 0 ? (
         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
           <div className="flex items-center mb-4">
@@ -1272,11 +1284,13 @@ export function AchievementsView() {
   );
 
   const renderBodyCompositionTab = () => (
-    <BodyCompositionTab
-      clientId={clientData?.id || ''}
-      measurements={measurements}
-      bodyMeasurements={bodyMeasurements}
-    />
+    <div className="pb-4">
+      <BodyCompositionTab
+        clientId={clientData?.id || ''}
+        measurements={measurements}
+        bodyMeasurements={bodyMeasurements}
+      />
+    </div>
   );
 
   const renderTabContent = () => {
@@ -1304,119 +1318,117 @@ export function AchievementsView() {
       variant="bottom"
       backTo="/client"
     >
-      <div className="p-4">
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <TrendingUp className="w-6 h-6 text-orange-500 mr-2" />
-              <h2 className="text-xl font-semibold">Достижения и прогресс</h2>
+      <div className="bg-white shadow-sm w-full">
+        <div className="flex items-center justify-between mb-6 p-4">
+          <div className="flex items-center">
+            <TrendingUp className="w-6 h-6 text-orange-500 mr-2" />
+            <h2 className="text-xl font-semibold">Достижения и прогресс</h2>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+          </div>
+        ) : !hasEnoughData ? (
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-3" />
+            <h3 className="text-lg font-medium text-gray-700 mb-2">Недостаточно данных</h3>
+            <p className="text-gray-500 mb-4">
+              Для анализа прогресса и достижений необходимо больше данных. Продолжайте отслеживать свои тренировки, 
+              питание и активность.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+              <button
+                onClick={() => navigate('/client/workouts')}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                Тренировки
+              </button>
+              <button
+                onClick={() => navigate('/client/measurements/new')}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                Замеры
+              </button>
+              <button
+                onClick={() => navigate('/client/nutrition')}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                Питание
+              </button>
             </div>
           </div>
-
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
-            </div>
-          ) : !hasEnoughData ? (
-            <div className="bg-gray-50 rounded-lg p-6 text-center">
-              <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-gray-700 mb-2">Недостаточно данных</h3>
-              <p className="text-gray-500 mb-4">
-                Для анализа прогресса и достижений необходимо больше данных. Продолжайте отслеживать свои тренировки, 
-                питание и активность.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+        ) : (
+          <>
+            <div className="mb-6 overflow-x-auto scrollbar-hide">
+              <div className="flex min-w-max border-b">
                 <button
-                  onClick={() => navigate('/client/workouts')}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                  onClick={() => setActiveTab('overview')}
+                  className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                    activeTab === 'overview'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Обзор
+                </button>
+                <button
+                  onClick={() => setActiveTab('workouts')}
+                  className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                    activeTab === 'workouts'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
                 >
                   Тренировки
                 </button>
                 <button
-                  onClick={() => navigate('/client/measurements/new')}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                  onClick={() => setActiveTab('measurements')}
+                  className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                    activeTab === 'measurements'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
                 >
                   Замеры
                 </button>
                 <button
-                  onClick={() => navigate('/client/nutrition')}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                  onClick={() => setActiveTab('activity')}
+                  className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                    activeTab === 'activity'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Активность
+                </button>
+                <button
+                  onClick={() => setActiveTab('nutrition')}
+                  className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                    activeTab === 'nutrition'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
                 >
                   Питание
                 </button>
+                <button
+                  onClick={() => setActiveTab('bodyComposition')}
+                  className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                    activeTab === 'bodyComposition'
+                      ? 'text-orange-500 border-b-2 border-orange-500'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Состав тела
+                </button>
               </div>
             </div>
-          ) : (
-            <>
-              <div className="mb-6 overflow-x-auto scrollbar-hide">
-                <div className="flex space-x-1 min-w-max border-b">
-                  <button
-                    onClick={() => setActiveTab('overview')}
-                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'overview'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Обзор
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('workouts')}
-                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'workouts'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Тренировки
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('measurements')}
-                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'measurements'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Замеры
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('activity')}
-                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'activity'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Активность
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('nutrition')}
-                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'nutrition'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Питание
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('bodyComposition')}
-                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                      activeTab === 'bodyComposition'
-                        ? 'text-orange-500 border-b-2 border-orange-500'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Состав тела
-                  </button>
-                </div>
-              </div>
-              
-              {renderTabContent()}
-            </>
-          )}
-        </div>
+            
+            {renderTabContent()}
+          </>
+        )}
       </div>
       
       {showMeasurementsModal && (

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'; // Removed unused React import
+import { useState } from 'react'; // Removed unused React import
 import { Share2 } from 'lucide-react';
 import { ShareAchievementModal } from './ShareAchievementModal';
+import { ReactNode } from 'react';
 
 // Используем import.meta.glob для динамической загрузки изображений
 const images = import.meta.glob('/src/assets/beasts/*.png', { eager: true, as: 'url' });
@@ -16,6 +17,16 @@ interface BeastLevel {
 interface RaiseTheBeastMotivationProps {
   totalVolume: number;
   userName: string;
+  onShare?: (beastInfo: {
+    title: string;
+    description: string;
+    value: string;
+    icon: ReactNode;
+    color: string;
+    bgImage: string;
+    motivationalPhrase: string;
+    beastComponent: boolean;
+  }) => void;
 }
 
 const BEAST_LEVELS: BeastLevel[] = [
@@ -98,33 +109,8 @@ const BEAST_LEVELS: BeastLevel[] = [
   }
 ];
 
-export function RaiseTheBeastMotivation({ totalVolume, userName }: RaiseTheBeastMotivationProps) {
+export function RaiseTheBeastMotivation({ totalVolume, userName, onShare }: RaiseTheBeastMotivationProps) {
   const [showShareModal, setShowShareModal] = useState(false);
-  const [cardHeight, setCardHeight] = useState('85vh');
-
-  useEffect(() => {
-    const setResponsiveHeight = () => {
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-      
-      if (viewportWidth < 375) {
-        setCardHeight('82vh');
-      } else if (viewportHeight < 700) {
-        setCardHeight('80vh');
-      } else if (viewportHeight > 900) {
-        setCardHeight('90vh');
-      } else {
-        setCardHeight('85vh');
-      }
-    };
-
-    setResponsiveHeight();
-    window.addEventListener('resize', setResponsiveHeight);
-    
-    return () => {
-      window.removeEventListener('resize', setResponsiveHeight);
-    };
-  }, []);
 
   const currentBeast = BEAST_LEVELS.reduce((prev, curr) => 
     totalVolume >= prev.threshold && totalVolume < curr.threshold ? prev : 
@@ -142,8 +128,24 @@ export function RaiseTheBeastMotivation({ totalVolume, userName }: RaiseTheBeast
   );
 
   const handleShare = () => {
-    console.log('Передаваемое изображение зверя:', currentBeast.image, 'Тип:', typeof currentBeast.image);
-    setShowShareModal(true);
+    if (onShare) {
+      // Если передана родительская функция, используем её
+      const beastImageUrl = currentBeast.image ? getImageUrl(currentBeast.image) : '';
+      onShare({
+        title: currentBeast.name,
+        description: currentBeast.weightPhrase,
+        value: `${totalVolume} кг`,
+        icon: null,
+        color: 'bg-pink-500',
+        bgImage: beastImageUrl,
+        motivationalPhrase: currentBeast.motivationPhrase,
+        beastComponent: true
+      });
+    } else {
+      // В противном случае используем внутреннюю модалку (fallback)
+      console.log('Передаваемое изображение зверя:', currentBeast.image, 'Тип:', typeof currentBeast.image);
+      setShowShareModal(true);
+    }
   };
 
   const isMaxLevel = currentBeast.name === BEAST_LEVELS[BEAST_LEVELS.length - 1].name;
@@ -162,43 +164,42 @@ export function RaiseTheBeastMotivation({ totalVolume, userName }: RaiseTheBeast
 
   return (
     <div 
-      className="bg-gradient-to-r from-gray-900 to-black rounded-xl p-4 text-white shadow-lg relative overflow-hidden w-full mx-auto flex flex-col"
-      style={{ height: cardHeight }}
+      className="bg-gradient-to-r from-gray-900 to-black rounded-xl p-3 text-white shadow-lg relative overflow-hidden w-full mx-auto flex flex-col h-full"
     >
       {currentBeast.image && (
-        <div className="absolute inset-0 bg-center bg-no-repeat bg-cover bg-origin-border pointer-events-none opacity-100" 
+        <div className="absolute inset-0 bg-center bg-no-repeat bg-contain bg-origin-border pointer-events-none opacity-100" 
           style={{ backgroundImage: `url(${beastImageUrl})` }}
         />
       )}
       
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-gray-900/90 to-transparent"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-gray-900/90 to-transparent"></div>
+        <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-gray-900/90 to-transparent"></div>
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-gray-900/90 to-transparent"></div>
       </div>
       
-      <div className="relative z-10 flex flex-row items-center justify-between -mx-4 -mt-4 pt-6 pb-12 px-4 safe-top">
-        <div className="text-left backdrop-blur-sm bg-black/40 px-3 py-1 rounded-lg">
-          <p className="text-4xl font-bold text-orange-500 drop-shadow-md">
-            {totalVolume} <span className="text-xl font-medium">кг</span>
+      <div className="relative z-10 flex flex-row items-center justify-between -mx-3 -mt-3 pt-4 pb-6 px-3">
+        <div className="text-left backdrop-blur-sm bg-black/40 px-2 py-1 rounded-lg">
+          <p className="text-3xl font-bold text-orange-500 drop-shadow-md">
+            {totalVolume} <span className="text-lg font-medium">кг</span>
           </p>
-          <p className="text-sm text-white drop-shadow-md">Поднятый вес</p>
+          <p className="text-xs text-white drop-shadow-md">Поднятый вес</p>
         </div>
         
         {currentBeast.name !== 'Новичок' && (
           <button
             onClick={handleShare}
-            className="p-3 bg-orange-500/30 rounded-full hover:bg-orange-500/50 transition-colors touch-manipulation backdrop-blur-sm"
+            className="p-2 bg-orange-500/30 rounded-full hover:bg-orange-500/50 transition-colors touch-manipulation backdrop-blur-sm"
             aria-label="Поделиться в соцсетях"
           >
-            <Share2 className="w-6 h-6 text-white drop-shadow-md" />
+            <Share2 className="w-5 h-5 text-white drop-shadow-md" />
           </button>
         )}
       </div>
       
       <div className="flex-grow flex flex-col justify-center">
         {isMaxLevel && (
-          <div className="relative z-10 mx-auto text-center px-4 py-2 bg-orange-500/30 backdrop-blur-sm rounded-lg">
-            <p className="text-white font-medium text-lg drop-shadow-md">
+          <div className="relative z-10 mx-auto text-center px-3 py-1 bg-orange-500/30 backdrop-blur-sm rounded-lg">
+            <p className="text-white font-medium text-base drop-shadow-md">
               Достигнут максимальный уровень!
             </p>
           </div>
@@ -206,37 +207,32 @@ export function RaiseTheBeastMotivation({ totalVolume, userName }: RaiseTheBeast
       </div>
       
       {currentBeast.name !== 'Новичок' && !isMaxLevel && (
-        <div className="relative z-10 -mx-4 w-[calc(100%+2rem)] mb-3">
-          <div className="h-3 w-full bg-gray-700/50">
+        <div className="relative z-10 -mx-3 w-[calc(100%+1.5rem)] mb-2">
+          <div className="h-2 w-full bg-gray-700/50">
             <div 
               className="h-full bg-orange-500 transition-all duration-700 ease-out"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
           
-          <div className="flex justify-center mt-2">
-            <div className="text-sm text-white font-medium px-4 py-1 rounded-full bg-black/70 backdrop-blur-sm">
+          <div className="flex justify-center mt-1">
+            <div className="text-xs text-white font-medium px-3 py-0.5 rounded-full bg-black/70 backdrop-blur-sm">
               До следующего уровня <span className="text-orange-400 font-bold">осталось {volumeToNext} кг</span>
             </div>
           </div>
         </div>
       )}
 
-      <div className="relative z-10 mt-auto -mx-4 -mb-4 bg-gradient-to-t from-gray-900/90 to-transparent px-0 pt-16 pb-6 w-[calc(100%+2rem)] safe-bottom">
-        <h3 className="text-3xl font-bold text-orange-400 text-center drop-shadow-lg">{currentBeast.name}</h3>
-        <p className="text-lg text-white mt-2 text-center px-6 max-w-md mx-auto drop-shadow-md">{currentBeast.weightPhrase}</p>
+      <div className="relative z-10 mt-auto -mx-3 -mb-3 bg-gradient-to-t from-gray-900/90 to-transparent px-0 pt-12 pb-4 w-[calc(100%+1.5rem)]">
+        <h3 className="text-2xl font-bold text-orange-400 text-center drop-shadow-lg">{currentBeast.name}</h3>
+        <p className="text-sm text-white mt-1 text-center px-4 max-w-md mx-auto drop-shadow-md">{currentBeast.weightPhrase}</p>
+        <p className="text-xs text-gray-300 mt-1 text-center px-4 max-w-md mx-auto italic">{currentBeast.motivationPhrase}</p>
       </div>
       
       {showShareModal && (
         <ShareAchievementModal
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}
-          achievement={{
-            title: `Подними зверя: ${currentBeast.name}`,
-            description: currentBeast.weightPhrase,
-            icon: null,
-            value: `${totalVolume} кг`
-          }}
           userName={userName}
           beastName={currentBeast.name}
           weightPhrase={currentBeast.weightPhrase}
