@@ -757,14 +757,42 @@ export function ClientDashboard() {
       ? `${clientData.first_name} ${clientData.last_name}`
       : "Пользователь HARDCASE";
     
+    // Если это компонент "Подними зверя", получаем правильные пороговые значения
+    let nextThreshold = 0;
+    let currentThreshold = 0;
+    
+    if (achievement.beastComponent) {
+      // Найдем соответствующий уровень зверя по имени
+      const BEAST_LEVELS = [
+        { name: 'Буйвол', threshold: 1500 },
+        { name: 'Носорог', threshold: 2000 },
+        { name: 'Северный морской слон', threshold: 2500 },
+        { name: 'Бегемот', threshold: 3000 },
+        { name: 'Морж', threshold: 3500 },
+        { name: 'Африканский слон', threshold: 4000 },
+        { name: 'Гренландский кит (молодой)', threshold: 4500 },
+        { name: 'Южный морской слон', threshold: 5000 },
+        { name: 'Кашалот (молодой)', threshold: 5500 },
+        { name: 'Китовая акула (молодая)', threshold: 6000 },
+        { name: 'Косатка', threshold: 6500 }
+      ];
+      
+      // Находим текущего зверя и следующего по порогу
+      const currentBeast = BEAST_LEVELS.find(beast => beast.name === achievement.title) || { name: 'Новичок', threshold: 0 };
+      const nextBeast = BEAST_LEVELS.find(beast => beast.threshold > numericValue) || BEAST_LEVELS[BEAST_LEVELS.length - 1];
+      
+      currentThreshold = currentBeast.threshold;
+      nextThreshold = nextBeast.threshold;
+    }
+    
     setShareModalData({
       isOpen: true,
       userName: userName,
       beastName: achievement.title,
       weightPhrase: achievement.description,
       totalVolume: numericValue,
-      nextBeastThreshold: 0,
-      currentBeastThreshold: 0,
+      nextBeastThreshold: nextThreshold,
+      currentBeastThreshold: currentThreshold,
       beastImage: achievement.bgImage || '',
       isBeast: achievement.beastComponent || false,
       displayValue: displayValue,

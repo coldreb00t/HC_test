@@ -121,7 +121,7 @@ export function RaiseTheBeastMotivation({ totalVolume, userName, onShare }: Rais
   const nextBeast = BEAST_LEVELS.find(beast => beast.threshold > totalVolume) || 
     BEAST_LEVELS[BEAST_LEVELS.length - 1];
 
-  const volumeToNext = nextBeast.threshold - totalVolume;
+  const volumeToNext = Math.max(0, nextBeast.threshold - totalVolume);
   const progressPercentage = Math.min(
     ((totalVolume - currentBeast.threshold) / (nextBeast.threshold - currentBeast.threshold)) * 100, 
     100

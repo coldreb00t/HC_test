@@ -1446,8 +1446,16 @@ export function AchievementsView() {
         <ShareAchievementModal
           isOpen={showShareModal}
           onClose={() => setShowShareModal(false)}
-          achievement={selectedAchievement}
+          beastName={selectedAchievement.title}
+          weightPhrase={selectedAchievement.description}
+          totalVolume={parseFloat(selectedAchievement.value?.replace(/[^\d.-]/g, '') || '0')}
+          nextBeastThreshold={0}
+          currentBeastThreshold={0}
+          beastImage=""
           userName={clientData ? `${clientData.first_name} ${clientData.last_name}` : 'Пользователь HARDCASE'}
+          isBeast={false}
+          displayValue={selectedAchievement.value}
+          unit=""
         />
       )}
     </SidebarLayout>

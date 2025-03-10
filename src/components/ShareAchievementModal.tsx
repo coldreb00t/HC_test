@@ -50,7 +50,8 @@ export function ShareAchievementModal({
 
   const canNativeShare = typeof navigator !== 'undefined' && navigator.share !== undefined;
 
-  const volumeToNext = nextBeastThreshold - totalVolume;
+  // Исправляем расчет оставшегося веса до следующего уровня, предотвращая отрицательные значения
+  const volumeToNext = Math.max(0, nextBeastThreshold - totalVolume);
   const progressPercentage = Math.min(
     ((totalVolume - currentBeastThreshold) / (nextBeastThreshold - currentBeastThreshold)) * 100,
     100
