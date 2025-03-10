@@ -66,6 +66,11 @@ function App() {
             <NutritionView />
           </ProtectedRoute>
         } />
+        <Route path="/client/nutrition/new" element={
+          <ProtectedRoute allowedRole="client">
+            <NutritionView />
+          </ProtectedRoute>
+        } />
         <Route path="/client/activity" element={
           <ProtectedRoute allowedRole="client">
             <ActivityForm />

@@ -12,3 +12,38 @@
   -ms-overflow-x: hidden; /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* Оптимизация для мобильных устройств */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent; /* Убираем подсветку при тапе */
+    touch-action: manipulation; /* Оптимизация для тач-устройств */
+    -webkit-overflow-scrolling: touch; /* Плавный скроллинг на iOS */
+  }
+  
+  /* Улучшение отзывчивости для активных состояний */
+  button, a {
+    -webkit-touch-callout: none; /* Отключаем контекстное меню на iOS */
+    -webkit-user-select: none; /* Отключаем выделение текста */
+    user-select: none;
+  }
+  
+  /* Оптимизация для iPhone 16 */
+  @media screen and (min-width: 390px) and (max-width: 430px) {
+    body {
+      font-size: 16px; /* Оптимальный размер шрифта для iPhone */
+    }
+    
+    input, select, textarea {
+      font-size: 16px; /* Предотвращает масштабирование при фокусе на iOS */
+    }
+  }
+  
+  /* Безопасная область для iPhone с вырезом */
+  .safe-area-inset-padding {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}

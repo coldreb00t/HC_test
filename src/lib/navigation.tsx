@@ -57,7 +57,8 @@ export const useClientNavigation = (
                       e.preventDefault();
                       e.stopPropagation();
                       setShowFabMenu(false);
-                      navigate('/client/activity/new');
+                      // Используем handleMenuItemClick для единообразия
+                      handleMenuItemClick('activity');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >
@@ -69,7 +70,8 @@ export const useClientNavigation = (
                       e.preventDefault();
                       e.stopPropagation();
                       setShowFabMenu(false);
-                      navigate('/client/progress-photo/new');
+                      // Используем handleMenuItemClick для единообразия
+                      handleMenuItemClick('photo');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >
@@ -99,7 +101,8 @@ export const useClientNavigation = (
                       e.preventDefault();
                       e.stopPropagation();
                       setShowFabMenu(false);
-                      navigate('/client/nutrition');
+                      // Используем handleMenuItemClick для единообразия
+                      handleMenuItemClick('nutrition');
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 cursor-pointer"
                   >

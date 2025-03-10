@@ -160,12 +160,10 @@ export function ClientDashboard() {
     try {
       const now = new Date().toISOString();
       
+      // Получаем следующую тренировку без вложенных запросов
       const { data: workouts, error } = await supabase
         .from('workouts')
-        .select(`
-          *,
-          program:training_programs(*)
-        `)
+        .select('*')
         .eq('client_id', clientId)
         .gte('start_time', now)
         .order('start_time', { ascending: true })
@@ -174,9 +172,32 @@ export function ClientDashboard() {
       if (error) throw error;
       
       if (workouts && workouts.length > 0) {
-        setNextWorkout(workouts[0] as NextWorkout);
+        const workout = workouts[0];
+        
+        // Если у тренировки есть program_id, получаем информацию о программе отдельным запросом
+        if (workout.training_program_id) {
+          const { data: programData, error: programError } = await supabase
+            .from('training_programs')
+            .select('*')
+            .eq('id', workout.training_program_id)
+            .single();
+            
+          if (!programError && programData) {
+            // Объединяем данные и устанавливаем в состояние
+            setNextWorkout({
+              ...workout,
+              program: programData
+            } as NextWorkout);
+          } else {
+            // Устанавливаем тренировку без программы
+            setNextWorkout(workout as NextWorkout);
+          }
+        } else {
+          // Устанавливаем тренировку без программы
+          setNextWorkout(workout as NextWorkout);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching next workout:', error);
     }
   };
@@ -229,11 +250,9 @@ export function ClientDashboard() {
         const { data: programExercises } = await supabase
           .from('program_exercises')
           .select(`
-            *,
-            exercise_id,
-            exercise_sets
+            *
           `)
-          .in('training_program_id', programIds);
+          .in('program_id', programIds);
         
         // Подсчет общего объема
         if (programExercises) {
@@ -241,14 +260,22 @@ export function ClientDashboard() {
             if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
               const exercise = programExercises.find((pe: any) => pe.exercise_id === completion.exercise_id);
               
-              if (exercise && exercise.exercise_sets) {
+              if (exercise) {
+                // Используем информацию о подходах из таблицы program_exercises
+                // Так как в таблице program_exercises нет поля exercise_sets,
+                // мы используем информацию о подходах из самой записи
                 completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
-                  if (isCompleted && exercise.exercise_sets[index]) {
-                    const set = exercise.exercise_sets[index];
-                    const reps = parseInt(set.reps, 10) || 0;
-                    const weight = parseFloat(set.weight) || 0;
+                  if (isCompleted) {
+                    // Рассчитываем объем на основе доступных данных
+                    // Если в базе данных есть sets, reps и weight, используем их
+                    // В противном случае используем значения по умолчанию или пропускаем
+                    const sets = exercise.sets || 0;
+                    const reps = parseInt(exercise.reps, 10) || 0;
+                    const weight = parseFloat(exercise.weight) || 0;
                     
-                    totalVolume += reps * weight;
+                    if (sets > 0 && reps > 0 && weight > 0) {
+                      totalVolume += reps * weight;
+                    }
                   }
                 });
               }
@@ -275,7 +302,7 @@ export function ClientDashboard() {
     try {
       // Получаем все активности клиента
       const { data: activities, error } = await supabase
-        .from('activities')
+        .from('client_activities')
         .select('*')
         .eq('client_id', clientId);
         
@@ -314,10 +341,10 @@ export function ClientDashboard() {
     try {
       // Получаем все измерения клиента, отсортированные по дате
       const { data: measurements, error } = await supabase
-        .from('measurements')
+        .from('client_measurements')
         .select('*')
         .eq('client_id', clientId)
-        .eq('measurement_type', 'weight')
+        .not('weight', 'is', null)
         .order('date', { ascending: true });
         
       if (error) throw error;
@@ -327,8 +354,8 @@ export function ClientDashboard() {
       let weightChange = null;
       
       if (measurements && measurements.length > 0) {
-        initialWeight = measurements[0].value;
-        currentWeight = measurements[measurements.length - 1].value;
+        initialWeight = measurements[0].weight;
+        currentWeight = measurements[measurements.length - 1].weight;
         weightChange = currentWeight - initialWeight;
       }
       
@@ -341,30 +368,22 @@ export function ClientDashboard() {
           weightChange
         }
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching measurement stats:', error);
     }
   };
   
   const fetchAchievementsStats = async (clientId: string) => {
     try {
-      // Получаем все достижения клиента
-      const { data: achievementsData, error } = await supabase
-        .from('achievements')
-        .select('*')
-        .eq('client_id', clientId);
-        
-      if (error) throw error;
-      
-      // Обновляем статистику достижений
+      // Поскольку таблица achievements не существует, просто устанавливаем значения по умолчанию
       setUserStats((prev: UserStats) => ({
         ...prev,
         achievements: {
           total: 5, // Фиксированное количество возможных достижений
-          completed: achievementsData?.length || 0
+          completed: 0 // Пока нет достижений
         }
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching achievements stats:', error);
     }
   };
@@ -380,8 +399,19 @@ export function ClientDashboard() {
   };
   
   const handleMenuItemClick = (action: string) => {
-    if (action === 'measurements') {
-      navigate('/client/measurements/new');
+    switch (action) {
+      case 'activity':
+        navigate('/client/activity/new');
+        break;
+      case 'photo':
+        navigate('/client/progress-photo/new');
+        break;
+      case 'measurements':
+        navigate('/client/measurements/new');
+        break;
+      case 'nutrition':
+        navigate('/client/nutrition/new');
+        break;
     }
   };
   

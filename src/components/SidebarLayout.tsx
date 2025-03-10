@@ -65,12 +65,12 @@ export function SidebarLayout({
 
   if (variant === 'bottom') {
     return (
-      <div className="min-h-screen bg-gray-100 pb-16">
+      <div className="min-h-screen bg-gray-100 pb-[calc(4rem+env(safe-area-inset-bottom))]">
         {/* Header */}
         {customHeader ? (
           customHeader
         ) : (
-          <div className="bg-white shadow-sm">
+          <div className="bg-white shadow-sm pt-safe-top">
             <div className="px-4 py-3 flex justify-between items-center">
               {backTo && (
                 <button 
@@ -113,20 +113,20 @@ export function SidebarLayout({
         </div>
 
         {/* Bottom navigation */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe-bottom">
           <div className="flex justify-around items-end">
             {menuItems.map((item, index) => (
               <button
                 key={index}
                 onClick={item.onClick}
-                className="flex-1 flex flex-col items-center py-2 text-gray-600 hover:text-orange-500"
+                className="flex-1 flex flex-col items-center py-2 text-gray-600 hover:text-orange-500 active:text-orange-600 transition-colors"
               >
                 <div className="p-1" style={iconWrapperStyle}>
                   {React.isValidElement(item.icon) 
-                    ? React.cloneElement(item.icon as React.ReactElement, { style: iconStyle })
+                    ? React.cloneElement(item.icon as React.ReactElement, { style: iconStyle, className: "w-5 h-5 xs:w-6 xs:h-6 iphone:w-6 iphone:h-6" })
                     : item.icon}
                 </div>
-                <span className="text-xs">{item.label}</span>
+                <span className="text-xs iphone:text-sm">{item.label}</span>
               </button>
             ))}
           </div>
@@ -141,7 +141,7 @@ export function SidebarLayout({
       {customHeader ? (
         customHeader
       ) : (
-        <div className="lg:hidden flex items-center justify-between p-4 bg-white shadow-sm">
+        <div className="lg:hidden flex items-center justify-between p-4 bg-white shadow-sm pt-safe-top">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-2 hover:bg-gray-50 rounded-lg"
@@ -178,7 +178,7 @@ export function SidebarLayout({
       )}
 
       {/* Sidebar */}
-      <div className={`fixed top-0 left-0 w-64 h-full bg-white shadow-lg transition-transform duration-300 ease-in-out z-50
+      <div className={`fixed top-0 left-0 w-64 h-full bg-white shadow-lg transition-transform duration-300 ease-in-out z-50 pt-safe-top
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >
         <div className="flex flex-col h-full">
@@ -207,7 +207,7 @@ export function SidebarLayout({
                   item.onClick();
                   setIsSidebarOpen(false);
                 }}
-                className="flex items-center w-full px-4 py-3 text-gray-700 rounded-lg hover:bg-orange-50 hover:text-orange-500"
+                className="flex items-center w-full px-4 py-3 text-gray-700 rounded-lg hover:bg-orange-50 hover:text-orange-500 active:bg-orange-100"
               >
                 <div style={iconWrapperStyle}>
                   {React.isValidElement(item.icon) 
@@ -219,7 +219,7 @@ export function SidebarLayout({
             ))}
           </nav>
 
-          <div className="p-4 border-t">
+          <div className="p-4 border-t pb-safe-bottom">
             <button
               onClick={handleLogout}
               className="flex items-center w-full px-4 py-3 text-gray-700 rounded-lg hover:bg-orange-50 hover:text-orange-500"
@@ -241,7 +241,7 @@ export function SidebarLayout({
       )}
 
       {/* Main content */}
-      <div className="lg:ml-64 p-4">
+      <div className="lg:ml-64 p-4 pt-[calc(4rem+env(safe-area-inset-top))] lg:pt-4">
         {children}
       </div>
     </div>

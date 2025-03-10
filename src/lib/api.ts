@@ -61,6 +61,13 @@ export const clientsApi = {
       });
   },
 
+  // Получение всех клиентов
+  getAllClients: async () => {
+    return await supabase
+      .from('clients')
+      .select('*');
+  },
+
   // Получение клиента по ID пользователя
   getClientByUserId: async (userId: string) => {
     return await supabase
@@ -68,13 +75,6 @@ export const clientsApi = {
       .select('*')
       .eq('user_id', userId)
       .single();
-  },
-
-  // Получение всех клиентов
-  getAllClients: async () => {
-    return await supabase
-      .from('clients')
-      .select('*');
   }
 };
 
@@ -82,42 +82,116 @@ export const clientsApi = {
 export const workoutsApi = {
   // Получение тренировки по ID
   getWorkoutById: async (workoutId: string) => {
-    return await supabase
+    // Получаем базовую информацию о тренировке
+    const { data: workout, error } = await supabase
       .from('workouts')
-      .select(`
-        *,
-        program:training_programs(*)
-      `)
+      .select('*')
       .eq('id', workoutId)
       .single();
+      
+    if (error) {
+      return { data: null, error };
+    }
+    
+    // Если у тренировки есть training_program_id, получаем связанную программу
+    if (workout && workout.training_program_id) {
+      const { data: program, error: programError } = await supabase
+        .from('training_programs')
+        .select('*')
+        .eq('id', workout.training_program_id)
+        .single();
+        
+      if (!programError && program) {
+        return { 
+          data: { ...workout, program }, 
+          error: null 
+        };
+      }
+    }
+    
+    return { data: workout, error: null };
   },
 
   // Получение всех тренировок пользователя
   getUserWorkouts: async (userId: string) => {
-    return await supabase
+    // Получаем все тренировки пользователя
+    const { data: workouts, error } = await supabase
       .from('workouts')
-      .select(`
-        *,
-        program:training_programs(*)
-      `)
+      .select('*')
       .eq('user_id', userId)
       .order('start_time', { ascending: false });
+      
+    if (error) {
+      return { data: null, error };
+    }
+    
+    // Если есть тренировки с training_program_id, получаем их программы
+    if (workouts && workouts.length > 0) {
+      const programIds = workouts
+        .map(w => w.training_program_id)
+        .filter(Boolean);
+        
+      if (programIds.length > 0) {
+        const { data: programs, error: programsError } = await supabase
+          .from('training_programs')
+          .select('*')
+          .in('id', programIds);
+          
+        if (!programsError && programs) {
+          // Связываем тренировки с программами
+          const workoutsWithPrograms = workouts.map(workout => {
+            const program = programs.find(p => p.id === workout.training_program_id);
+            return { ...workout, program: program || null };
+          });
+          
+          return { data: workoutsWithPrograms, error: null };
+        }
+      }
+    }
+    
+    return { data: workouts, error: null };
   },
 
   // Получение следующей тренировки пользователя
   getNextWorkout: async (userId: string) => {
     const now = new Date().toISOString();
-    return await supabase
+    
+    // Получаем следующую тренировку
+    const { data: workouts, error } = await supabase
       .from('workouts')
-      .select(`
-        *,
-        program:training_programs(*)
-      `)
+      .select('*')
       .eq('user_id', userId)
       .gte('start_time', now)
       .order('start_time', { ascending: true })
-      .limit(1)
-      .single();
+      .limit(1);
+      
+    if (error) {
+      return { data: null, error };
+    }
+    
+    if (workouts && workouts.length > 0) {
+      const workout = workouts[0];
+      
+      // Если у тренировки есть training_program_id, получаем связанную программу
+      if (workout.training_program_id) {
+        const { data: program, error: programError } = await supabase
+          .from('training_programs')
+          .select('*')
+          .eq('id', workout.training_program_id)
+          .single();
+          
+        if (!programError && program) {
+          return { 
+            data: { ...workout, program }, 
+            error: null 
+          };
+        }
+      }
+      
+      return { data: workout, error: null };
+    }
+    
+    return { data: null, error: null };
   },
 
   // Создание новой тренировки
