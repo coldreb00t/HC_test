@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Calendar, Trash2 } from 'lucide-react';
+import { Camera, Calendar, Trash2, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
@@ -34,6 +34,13 @@ export function ProgressPhotosView() {
   const [loading, setLoading] = useState(true);
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
+  
+  // Новое состояние для управления диалогом подтверждения удаления
+  const [confirmDeleteDialog, setConfirmDeleteDialog] = useState({
+    show: false,
+    filename: '',
+  });
+  
   const navigate = useNavigate();
 
   // Определяем fetchPhotos внутри компонента
@@ -183,11 +190,20 @@ export function ProgressPhotosView() {
     fetchPhotos();
   }, []); // Вызываем fetchPhotos при монтировании компонента
 
-  const handleDeletePhoto = async (filename: string) => {
-    if (!window.confirm('Вы уверены, что хотите удалить это фото?')) {
-      return;
-    }
+  // Обновленная функция для начала процесса удаления
+  const initiatePhotoDelete = (filename: string) => {
+    console.log('Инициирован процесс удаления фото:', filename);
+    setConfirmDeleteDialog({
+      show: true,
+      filename: filename,
+    });
+  };
 
+  // Функция для подтверждения удаления
+  const confirmDelete = async () => {
+    const filename = confirmDeleteDialog.filename;
+    console.log('Подтверждено удаление фото:', filename);
+    
     try {
       console.log('Удаление фото:', filename);
       console.log('Полный путь для удаления:', `progress-photos/${filename}`);
@@ -210,7 +226,16 @@ export function ProgressPhotosView() {
     } catch (error: any) {
       console.error('Error deleting photo:', error);
       toast.error('Ошибка при удалении фото');
+    } finally {
+      // Закрываем диалог подтверждения
+      setConfirmDeleteDialog({ show: false, filename: '' });
     }
+  };
+
+  // Функция для отмены удаления
+  const cancelDelete = () => {
+    console.log('Отмена удаления фото');
+    setConfirmDeleteDialog({ show: false, filename: '' });
   };
 
   const handleOpenMeasurementsModal = () => {
@@ -263,12 +288,13 @@ export function ProgressPhotosView() {
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{photo.date}</span>
                       <button
-                        onClick={() => handleDeletePhoto(photo.filename)}
-                        className="p-2 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                        onClick={() => initiatePhotoDelete(photo.filename)}
+                        className="p-3 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
                         title="Удалить фото"
                         aria-label="Удалить фото"
+                        type="button"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-6 h-6" />
                       </button>
                     </div>
                   </div>
@@ -306,7 +332,36 @@ export function ProgressPhotosView() {
         </div>
       </div>
 
-      {/* Measurements Input Modal */}
+      {/* Кастомный диалог подтверждения удаления */}
+      {confirmDeleteDialog.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-500 mr-2" />
+              <h3 className="text-lg font-semibold">Подтверждение удаления</h3>
+            </div>
+            <p className="mb-6">Вы уверены, что хотите удалить это фото? Это действие нельзя отменить.</p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                type="button"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                type="button"
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Остальные модальные окна */}
       {showMeasurementsModal && (
         <MeasurementsInputModal
           isOpen={showMeasurementsModal}
