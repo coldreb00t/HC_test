@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
 import { X, Share2, Download, Copy, Instagram, Send } from 'lucide-react';
-import domToImage from 'dom-to-image';
 import toast, { Toast } from 'react-hot-toast';
 
 // Расширяем тип опций toast, добавляя поддержку 'type'
@@ -39,287 +38,266 @@ export function ShareAchievementModal({
 }: ShareAchievementModalProps) {
   const [shareableImage, setShareableImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [imageUrlId, setImageUrlId] = useState<string | null>(null);
+  const [canNativeShare, setCanNativeShare] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageData, setImageData] = useState<string | null>(null);
+  
   const achievementCardRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Фиксированные размеры (уменьшены для лучшей адаптации на iPhone)
-  const cardWidth = 290;
-  const cardHeight = 540;
-
-  const canNativeShare = typeof navigator !== 'undefined' && navigator.share !== undefined;
-
-  // Исправляем расчет оставшегося веса до следующего уровня, предотвращая отрицательные значения
-  const volumeToNext = Math.max(0, nextBeastThreshold - totalVolume);
+  // Расчет прогресса до следующего зверя
   const progressPercentage = Math.min(
-    ((totalVolume - currentBeastThreshold) / (nextBeastThreshold - currentBeastThreshold)) * 100,
-    100
+    100,
+    Math.round(((totalVolume - currentBeastThreshold) / (nextBeastThreshold - currentBeastThreshold)) * 100)
   );
 
-  const isMaxLevel = beastName === 'Косатка';
-  const fallbackGradient = 'linear-gradient(to bottom, #1f2937, #111827)';
+  // Фиксируем размеры карточки
+  const cardWidth = 320;
+  const cardHeight = 570;
 
-  // Сохраняем ID URL-объекта для очистки
-  const [imageUrlId, setImageUrlId] = useState<string | null>(null);
+  // Сохраняем текущий фон для дальнейшего использования
+  const fallbackGradient = 'linear-gradient(135deg, #4338ca, #7e22ce)';
+  const [imageData, setImageData] = useState<string | null>(null);
 
+  // Проверяем поддержку нативного шаринга
   useEffect(() => {
-    if (beastImage && isOpen) {
-      console.log('Получено изображение зверя (URL):', beastImage, 'Тип:', typeof beastImage);
+    setCanNativeShare(
+      typeof navigator !== 'undefined' &&
+        navigator.share !== undefined &&
+        typeof navigator.canShare === 'function'
+    );
+  }, []);
 
-      setImageData(null);
+  // Загружаем изображение зверя при открытии модального окна
+  useEffect(() => {
+    if (isOpen && isBeast && beastImage) {
+      setLoading(true);
       setImageLoaded(false);
-
-      const img = new Image();
-      img.crossOrigin = ''; // Убрано для локальных ресурсов, так как не нужно
-
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0);
-            const dataUrl = canvas.toDataURL('image/png');
-            setImageData(dataUrl);
-            console.log('Изображение успешно сконвертировано в Data URL:', dataUrl.slice(0, 50));
-          }
-        } catch (e) {
-          console.error('Ошибка при конвертации изображения в Data URL:', e);
-        } finally {
-          setImageLoaded(true);
-        }
-      };
-
-      img.onerror = (e) => {
-        console.error('Ошибка загрузки изображения:', beastImage, e);
-        toast('Не удалось загрузить изображение зверя', { type: 'error' } as CustomToastOptions);
-        setImageLoaded(true); // Продолжаем, даже если изображение не загрузилось
-        setImageData(null); // Сбрасываем imageData при ошибке
-      };
-
-      img.src = beastImage;
-
-      const timeout = setTimeout(() => {
-        if (!imageLoaded) {
-          console.warn('Время загрузки изображения истекло (120 секунд), продолжаем без него');
-          toast('Загрузка изображения заняла слишком много времени, используется запасной фон', { type: 'warning' } as CustomToastOptions);
-          setImageLoaded(true); // Увеличили таймаут до 120 секунд для надежности
-          setImageData(null); // Сбрасываем imageData при таймауте
-        }
-      }, 120000); // Увеличили таймаут до 120 секунд для надежности
-
-      return () => clearTimeout(timeout);
-    } else {
-      setImageLoaded(true);
-    }
-  }, [beastImage, isOpen]);
-
-  useEffect(() => {
-    if (isOpen && imageLoaded && achievementCardRef.current) {
-      // Даем элементу немного времени для рендеринга
-      setTimeout(() => {
-        generateImage();
-      }, 500);
-    }
-  }, [isOpen, imageLoaded]);
-
-  const prepareElementForCapture = (element: HTMLDivElement) => {
-    // Добавляем стили непосредственно к элементу для устранения проблемы с белой полосой
-    element.style.padding = '0';
-    element.style.margin = '0 auto';
-    element.style.border = 'none';
-    element.style.overflow = 'hidden';
-    element.style.boxSizing = 'border-box';
-    element.style.backgroundColor = imageData ? 'transparent' : '#4c1d95';
-    
-    // Устанавливаем фоновое изображение напрямую
-    if (imageData) {
-      element.style.backgroundImage = `url(${imageData})`;
-      element.style.backgroundSize = 'cover';
-      element.style.backgroundPosition = 'center';
-      element.style.backgroundRepeat = 'no-repeat';
-    } else if (isBeast && beastImage) {
-      // Если это карточка зверя и есть URL изображения, явно устанавливаем фон
-      element.style.backgroundImage = `url(${beastImage})`;
-      element.style.backgroundSize = 'cover';
-      element.style.backgroundPosition = 'center';
-      element.style.backgroundRepeat = 'no-repeat';
-    }
-    
-    // Проверяем и исправляем все дочерние изображения
-    const images = element.querySelectorAll('img');
-    images.forEach(img => {
-      img.crossOrigin = 'anonymous'; // Добавляем crossOrigin для всех изображений
-      img.style.left = '0';
-      img.style.width = '100%';
-      img.style.height = '100%';
-      img.style.objectFit = 'cover';
-      img.style.position = 'absolute';
       
-      // Проверяем, загружено ли изображение
-      if (!img.complete) {
-        console.log('Изображение не загружено, устанавливаем обработчик onload');
-        img.onload = () => console.log('Изображение загрузилось:', img.src);
-        img.onerror = () => console.error('Ошибка загрузки изображения:', img.src);
-      } else {
-        console.log('Изображение уже загружено:', img.src);
-      }
-    });
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        setImageData(beastImage);
+        setImageLoaded(true);
+        // Генерируем изображение сразу после загрузки фона
+        generateShareImage();
+      };
+      img.onerror = () => {
+        console.error('Ошибка загрузки изображения зверя');
+        setImageData(null);
+        setImageLoaded(true);
+        // Все равно пытаемся сгенерировать, но с градиентным фоном
+        generateShareImage();
+      };
+      img.src = beastImage;
+    }
+  }, [isOpen, beastImage, isBeast]);
+
+  // Функция рисования на canvas
+  const drawAchievementCard = async (canvas: HTMLCanvasElement): Promise<boolean> => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
     
-    return element;
+    // Устанавливаем размеры canvas
+    canvas.width = cardWidth * 2; // Увеличиваем разрешение в 2 раза для более четкого изображения
+    canvas.height = cardHeight * 2;
+    ctx.scale(2, 2); // Масштабируем контекст
+    
+    // Очищаем canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    try {
+      // Шаг 1: Рисуем фон
+      if (isBeast && beastImage) {
+        const backgroundImg = new Image();
+        backgroundImg.crossOrigin = 'anonymous';
+        
+        // Ждем загрузки фонового изображения
+        await new Promise<void>((resolve, reject) => {
+          backgroundImg.onload = () => resolve();
+          backgroundImg.onerror = () => reject(new Error('Не удалось загрузить фоновое изображение'));
+          backgroundImg.src = beastImage;
+        }).catch(() => {
+          // В случае ошибки загрузки рисуем градиентный фон
+          const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
+          gradient.addColorStop(0, '#4338ca');
+          gradient.addColorStop(1, '#7e22ce');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, cardWidth, cardHeight);
+        });
+        
+        // Если изображение успешно загружено, рисуем его
+        if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
+          ctx.drawImage(backgroundImg, 0, 0, cardWidth, cardHeight);
+        }
+      } else {
+        // Для не-зверей используем градиентный фон
+        const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
+        gradient.addColorStop(0, '#4338ca');
+        gradient.addColorStop(1, '#7e22ce');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, cardWidth, cardHeight);
+      }
+      
+      // Шаг 2: Добавляем верхний градиент
+      const topGradient = ctx.createLinearGradient(0, 0, 0, 150);
+      topGradient.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
+      topGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = topGradient;
+      ctx.fillRect(0, 0, cardWidth, 150);
+      
+      // Шаг 3: Добавляем нижний градиент
+      const bottomGradient = ctx.createLinearGradient(0, cardHeight - 200, 0, cardHeight);
+      bottomGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      bottomGradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
+      ctx.fillStyle = bottomGradient;
+      ctx.fillRect(0, cardHeight - 200, cardWidth, 200);
+      
+      // Шаг 4: Добавляем логотип в верхнем правом углу
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.4)';
+      ctx.filter = 'blur(10px)';
+      ctx.fillRect(cardWidth - 115, 20, 95, 30);
+      ctx.filter = 'none';
+      
+      ctx.font = '500 12px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.fillText('HARDCASE.TRAINING', cardWidth - 67, 38);
+      
+      // Шаг 5: Добавляем имя зверя
+      ctx.font = 'bold 36px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 80);
+      
+      // Шаг 6: Добавляем основной текст, если это зверь
+      if (isBeast) {
+        // Вес
+        ctx.font = 'bold 52px Inter, system-ui, sans-serif';
+        ctx.fillStyle = '#f97316';
+        ctx.textAlign = 'center';
+        ctx.fillText(totalVolume.toString(), cardWidth / 2, cardHeight - 130);
+        
+        // Единица измерения
+        ctx.font = '500 18px Inter, system-ui, sans-serif';
+        ctx.fillStyle = '#f97316';
+        ctx.textAlign = 'center';
+        ctx.fillText('кг', cardWidth / 2 + 35, cardHeight - 130);
+        
+        // Текст под весом
+        ctx.font = '500 12px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.fillText('ОБЩИЙ ОБЪЕМ', cardWidth / 2, cardHeight - 110);
+        
+        // Мотивационная фраза
+        ctx.font = '500 18px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        // Разбиваем текст на несколько строк, если он слишком длинный
+        const words = weightPhrase.split(' ');
+        let line = '';
+        let yPos = cardHeight - 80;
+        const lineHeight = 24;
+        
+        for (let i = 0; i < words.length; i++) {
+          const testLine = line + words[i] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > cardWidth - 60 && i > 0) {
+            ctx.fillText(line, cardWidth / 2, yPos);
+            line = words[i] + ' ';
+            yPos += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, cardWidth / 2, yPos);
+      } else {
+        // Отображение для обычных достижений
+        // ...
+      }
+      
+      // Шаг 7: Добавляем имя пользователя
+      ctx.font = '500 14px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.fillText(`@${userName}`, cardWidth / 2, cardHeight - 25);
+      
+      // Шаг 8: Добавляем полосу прогресса
+      ctx.fillStyle = 'rgba(55, 65, 81, 0.6)';
+      ctx.fillRect(cardWidth * 0.05, cardHeight - 180, cardWidth * 0.9, 12);
+      
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(cardWidth * 0.05, cardHeight - 180, cardWidth * 0.9 * progressPercentage / 100, 12);
+      
+      // Шаг 9: Добавляем текст прогресса
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.filter = 'blur(10px)';
+      const progressTextWidth = 120;
+      ctx.fillRect(cardWidth / 2 - progressTextWidth / 2, cardHeight - 160, progressTextWidth, 22);
+      ctx.filter = 'none';
+      
+      ctx.font = '500 12px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `${progressPercentage}% до ${nextBeastThreshold} кг`,
+        cardWidth / 2,
+        cardHeight - 145
+      );
+      
+      return true;
+    } catch (error) {
+      console.error('Ошибка при рисовании на canvas:', error);
+      return false;
+    }
   };
 
-  const generateImage = async () => {
-    if (!achievementCardRef.current) return;
-
+  // Генерация изображения
+  const generateShareImage = async () => {
+    if (!canvasRef.current) return;
+    
     setLoading(true);
-
+    
     try {
-      // Увеличиваем задержку для надежной загрузки всех изображений
-      await new Promise((resolve) => setTimeout(resolve, 1000)); 
-
-      const element = achievementCardRef.current;
-      const preparedElement = prepareElementForCapture(element);
+      // Рисуем карточку на canvas
+      const success = await drawAchievementCard(canvasRef.current);
       
-      // Принудительно заставляем браузер перерисовать элемент
-      preparedElement.style.display = 'none';
-      preparedElement.offsetHeight; // Trigger reflow
-      preparedElement.style.display = 'block';
-
-      // Убедимся, что размеры DOM-элемента фиксированы
-      const computedStyle = window.getComputedStyle(element);
-      console.log('Размеры элемента перед захватом:', {
-        width: computedStyle.width,
-        height: computedStyle.height,
-      });
-
-      // Предварительно загружаем фоновое изображение, если это карточка зверя
-      let backgroundLoaded = !isBeast; // Если не зверь, считаем что фон готов
-      if (isBeast && beastImage) {
-        console.log('Предварительно загружаем фоновое изображение зверя:', beastImage);
-        backgroundLoaded = false;
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          console.log('Фоновое изображение зверя загружено успешно');
-          backgroundLoaded = true;
-        };
-        img.onerror = () => {
-          console.error('Ошибка загрузки фонового изображения зверя');
-          backgroundLoaded = true; // Все равно продолжаем, считая что готово
-        };
-        img.src = beastImage;
-        // Ждем загрузки фонового изображения, но не более 3 секунд
-        await Promise.race([
-          new Promise<void>(resolve => img.onload = () => resolve()),
-          new Promise<void>(resolve => img.onerror = () => resolve()),
-          new Promise<void>(resolve => setTimeout(() => resolve(), 3000))
-        ]);
+      if (!success) {
+        throw new Error('Не удалось нарисовать карточку на canvas');
       }
-
-      const scale = 2; // Фиксированный масштаб
-      const options = {
-        width: cardWidth * scale,
-        height: cardHeight * scale,
-        style: {
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left', // Уточняем начало координат
-          width: `${cardWidth}px`,
-          height: `${cardHeight}px`,
-          margin: 0,
-          padding: 0,
-          boxSizing: 'border-box' as const,
-          borderWidth: 0,
-          overflow: 'hidden',
-          backgroundColor: imageData ? 'transparent' : '#4c1d95', // Фиолетовый фон по умолчанию
-          position: 'absolute',
-          left: 0,
-          top: 0,
-        },
-        quality: 0.95, // Немного уменьшаем качество для быстрой обработки на мобильных устройствах
-        imagePlaceholder: imageData || fallbackGradient, // Используем наше изображение в первую очередь
-        bgcolor: imageData ? 'transparent' : '#4c1d95', // Дополнительный параметр для dom-to-image
-        cacheBust: true, // Предотвращаем кэширование для обеспечения свежих данных
-        fetchRequestInit: { // Настройки для fetch запросов к внешним ресурсам
-          mode: 'cors',
-          credentials: 'same-origin',
-        },
-      };
-
-      // Используем dom-to-image-more вместо стандартного dom-to-image для лучшей обработки фоновых изображений
-      domToImage.toBlob(element, options)
-        .then((blob: Blob) => {
-          if (!blob) {
-            throw new Error('Не удалось создать изображение');
-          }
-
-          console.log('Создан blob размером:', blob.size);
-          
-          // Проверяем размер blob - если он слишком маленький, это может указывать на проблему
-          if (blob.size < 5000) { // Менее 5KB обычно указывает на проблему
-            console.warn('Создан слишком маленький blob, возможно изображение неполное');
-            
-            // Повторная попытка с дополнительной задержкой
-            setTimeout(() => {
-              console.log('Повторная попытка создания изображения с дополнительной задержкой');
-              domToImage.toBlob(element, options)
-                .then((retryBlob: Blob) => {
-                  if (!retryBlob || retryBlob.size < 5000) {
-                    console.error('Повторная попытка не удалась или создан маленький blob');
-                    throw new Error('Не удалось создать качественное изображение');
-                  }
-                  
-                  if (imageUrlId) {
-                    URL.revokeObjectURL(imageUrlId);
-                  }
-                  const newImageUrl = URL.createObjectURL(retryBlob);
-                  setShareableImage(newImageUrl);
-                  setImageUrlId(newImageUrl);
-                  console.log('Сгенерировано изображение при повторной попытке:', newImageUrl);
-                  setLoading(false);
-                })
-                .catch((retryError: unknown) => {
-                  console.error('Ошибка при повторной генерации изображения:', retryError);
-                  toast('Не удалось создать изображение', { type: 'error' } as CustomToastOptions);
-                  setLoading(false);
-                });
-            }, 2000); // Увеличенная задержка для второй попытки
-            return;
-          }
-          
-          if (imageUrlId) {
-            URL.revokeObjectURL(imageUrlId);
-          }
-          const newImageUrl = URL.createObjectURL(blob);
-          setShareableImage(newImageUrl);
-          setImageUrlId(newImageUrl); // Сохраняем ID URL для очистки
-          console.log('Сгенерировано изображение для шаринга (Blob URL):', newImageUrl);
-          
-          // Дополнительная проверка созданного URL
-          fetch(newImageUrl)
-            .then(response => {
-              if (!response.ok) {
-                console.warn('Созданный URL вернул не-OK статус');
-              } else {
-                console.log('Проверка URL прошла успешно');
-              }
-            })
-            .catch(error => {
-              console.error('Ошибка при проверке созданного URL:', error);
-            });
-            
-          setLoading(false);
-        })
-        .catch((error: unknown) => {
-          console.error('Ошибка при генерации изображения:', error);
-          toast('Не удалось создать изображение', { type: 'error' } as CustomToastOptions);
-          setLoading(false);
-        });
-    } catch (error: unknown) {
+      
+      // Конвертируем canvas в URL
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      
+      // Проверяем, что созданный dataUrl валидный и не пустой
+      if (!dataUrl || dataUrl === 'data:,') {
+        throw new Error('Созданный dataUrl невалидный или пустой');
+      }
+      
+      // Очищаем предыдущий URL, если он существует
+      if (imageUrlId) {
+        URL.revokeObjectURL(imageUrlId);
+      }
+      
+      // Конвертируем dataUrl в Blob для более надежного шаринга
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      
+      // Проверяем размер Blob
+      if (blob.size < 5000) {
+        console.warn('Создан слишком маленький blob, возможно изображение неполное');
+        throw new Error('Изображение получилось слишком маленьким');
+      }
+      
+      const newImageUrl = URL.createObjectURL(blob);
+      setShareableImage(newImageUrl);
+      setImageUrlId(newImageUrl);
+      console.log('Сгенерировано изображение для шаринга:', newImageUrl);
+    } catch (error) {
       console.error('Ошибка при генерации изображения:', error);
       toast('Не удалось создать изображение', { type: 'error' } as CustomToastOptions);
+    } finally {
       setLoading(false);
     }
   };
@@ -327,95 +305,19 @@ export function ShareAchievementModal({
   const handleDownload = () => {
     if (!shareableImage) return;
 
-    // Определяем, используется ли iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    
-    if (isIOS) {
-      // Специальная обработка для iOS - открываем изображение в новой вкладке
-      try {
-        // Создаем временный элемент img для предварительной загрузки изображения
-        const img = new Image();
-        img.src = shareableImage;
-        
-        // Открываем изображение в новой вкладке
-        window.open(shareableImage, '_blank');
-        
-        toast('Изображение открыто. Нажмите "Поделиться" и выберите "Сохранить изображение"', 
-          { type: 'success', duration: 5000 } as CustomToastOptions);
-      } catch (error) {
-        console.error('Ошибка при открытии изображения на iOS:', error);
-        toast('Не удалось открыть изображение. Попробуйте использовать кнопку "Поделиться"', 
-          { type: 'error' } as CustomToastOptions);
-      }
-      return;
+    try {
+      const link = document.createElement('a');
+      link.href = shareableImage;
+      link.download = `hardcase-beast-${beastName}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast('Изображение скачано', { type: 'success' } as CustomToastOptions);
+    } catch (error) {
+      console.error('Ошибка при скачивании изображения:', error);
+      toast('Не удалось скачать изображение', { type: 'error' } as CustomToastOptions);
     }
-
-    // Стандартная обработка для других платформ
-    fetch(shareableImage)
-      .then((response) => response.blob())
-      .then((blob) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(blob);
-        img.onload = () => {
-          console.log('Размеры Blob перед сохранением:', img.width, 'x', img.height);
-
-          // Ожидаемые размеры с учетом нового масштаба
-          const expectedWidth = cardWidth * 2; // 580px
-          const expectedHeight = cardHeight * 2; // 1080px
-
-          // Проверяем, соответствуют ли размеры ожидаемым пропорциям
-          if (img.width !== expectedWidth || img.height !== expectedHeight) {
-            console.warn(`Размеры Blob не соответствуют ожидаемым (${expectedWidth}x${expectedHeight}), корректируем пропорции`);
-            // Создаем новый canvas для строгой коррекции пропорций
-            const correctedCanvas = document.createElement('canvas');
-            correctedCanvas.width = expectedWidth; // Фиксированная ширина
-            correctedCanvas.height = expectedHeight; // Фиксированная высота
-            const ctx = correctedCanvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, expectedWidth, expectedHeight); // Рисуем с правильными пропорциями
-              correctedCanvas.toBlob(
-                (correctedBlob: Blob | null) => {
-                  if (correctedBlob) {
-                    saveBlobWithMetadata(correctedBlob, `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`, expectedWidth, expectedHeight);
-                  } else {
-                    throw new Error('Не удалось создать исправленный Blob');
-                  }
-                },
-                'image/png',
-                1.0 // Максимальное качество
-              );
-            }
-          } else {
-            // Если размеры корректны, сохраняем как есть
-            saveBlobWithMetadata(blob, `hardcase-beast-${beastName.toLowerCase().replace(/\s+/g, '-')}.png`, expectedWidth, expectedHeight);
-          }
-
-          URL.revokeObjectURL(img.src); // Освобождаем URL для изображения
-        };
-      })
-      .catch((error: Error) => {
-        console.error('Ошибка при загрузке Blob:', error);
-        toast('Не удалось скачать изображение', { type: 'error' } as CustomToastOptions);
-      });
-  };
-
-  // Новая функция для сохранения Blob с явными метаданными размеров
-  const saveBlobWithMetadata = (blob: Blob, filename: string, expectedWidth: number, expectedHeight: number) => {
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-
-    // Устанавливаем метаданные размеров и DPI в ссылке
-    link.setAttribute('data-width', `${expectedWidth}`);
-    link.setAttribute('data-height', `${expectedHeight}`);
-    link.setAttribute('data-dpi', '72'); // Стандартное DPI для веб-изображений
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-
-    toast('Изображение сохранено', { type: 'success' } as CustomToastOptions);
   };
 
   const handleCopyImage = async () => {
@@ -424,18 +326,14 @@ export function ShareAchievementModal({
     try {
       const response = await fetch(shareableImage);
       const blob = await response.blob();
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          [blob.type]: blob,
-        }),
-      ]);
-
-      setCopied(true);
+      const item = new ClipboardItem({ 'image/png': blob });
+      await navigator.clipboard.write([item]);
       toast('Изображение скопировано в буфер обмена', { type: 'success' } as CustomToastOptions);
-      setTimeout(() => setCopied(false), 2000);
+      return true;
     } catch (error) {
       console.error('Ошибка при копировании изображения:', error);
       toast('Не удалось скопировать изображение', { type: 'error' } as CustomToastOptions);
+      return false;
     }
   };
 
@@ -492,313 +390,48 @@ export function ShareAchievementModal({
     });
   };
 
-  // Очистка URL-объекта при закрытии модального окна или размонтировании компонента
-  useEffect(() => {
-    return () => {
-      if (imageUrlId) {
-        URL.revokeObjectURL(imageUrlId);
-        console.log('Очищен URL-объект изображения:', imageUrlId);
-      }
-      setShareableImage(null);
-      setImageUrlId(null);
-    };
-  }, []);
-
-  if (!isOpen) return null;
-
+  // Стили для карточки
   const inlineStyles = {
     cardContainer: {
       position: 'relative' as const,
-      width: '320px',
-      height: '570px',
+      width: `${cardWidth}px`,
+      height: `${cardHeight}px`,
       margin: '0 auto',
       borderRadius: '16px',
       overflow: 'hidden',
-      background: isBeast ? `url(${beastImage})` : 'linear-gradient(135deg, #4338ca, #7e22ce)',
-      backgroundSize: 'cover' as const,
-      backgroundPosition: 'center' as const,
-      backgroundRepeat: 'no-repeat' as const,
+      backgroundColor: 'transparent',
       boxSizing: 'border-box' as const,
       border: '2px solid rgba(255, 255, 255, 0.1)',
       boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-      zIndex: 1,
-      padding: 0,
     },
-    topGradient: {
-      position: 'absolute' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      height: '120px',
-      background: 'linear-gradient(to bottom, rgba(17, 24, 39, 0.95), transparent)',
-      zIndex: 5,
-    },
-    bottomGradient: {
-      position: 'absolute' as const,
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: '180px',
-      background: 'linear-gradient(to top, rgba(17, 24, 39, 0.95), transparent)',
-      zIndex: 5,
-    },
-    weightContainer: {
-      position: 'absolute' as const,
-      top: '20px',
-      left: '20px',
-      zIndex: 10,
-      background: 'rgba(0, 0, 0, 0.7)',
-      backdropFilter: 'blur(10px)',
-      padding: '10px 15px',
-      borderRadius: '10px',
-    },
-    weightValue: {
-      fontSize: '36px',
-      fontWeight: 'bold',
-      color: '#f97316',
-      textShadow: '0 2px 4px rgba(0, 0, 0, 0.7)',
-    },
-    weightUnit: {
-      fontSize: '18px',
-      fontWeight: '500',
-      color: '#f97316',
-    },
-    weightLabel: {
-      fontSize: '12px',
-      color: 'white',
-      marginTop: '4px',
-    },
-    logoContainer: {
-      position: 'absolute' as const,
-      top: '20px',
-      right: '20px',
-      zIndex: 10,
-      background: 'rgba(249, 115, 22, 0.4)',
-      backdropFilter: 'blur(10px)',
-      padding: '8px 15px',
-      borderRadius: '8px',
-    },
-    logo: {
-      fontSize: '12px',
-      fontWeight: '500',
-      color: 'white',
-    },
-    progressContainer: {
-      position: 'absolute' as const,
-      bottom: '160px',
-      left: 0,
-      right: 0,
-      zIndex: 10,
-    },
-    progressBar: {
-      height: '12px',
-      width: '90%',
-      margin: '0 auto',
-      background: 'rgba(55, 65, 81, 0.6)',
-    },
-    progressFill: {
-      height: '100%',
-      background: '#f97316',
-      width: `${progressPercentage}%`,
-      transition: 'width 0.7s ease-out',
-    },
-    progressText: {
-      display: 'flex',
-      justifyContent: 'center',
-      marginTop: '8px',
-    },
-    progressTextContainer: {
-      fontSize: '12px', // Уменьшили размер шрифта с 14px до 12px
-      fontWeight: '500',
-      color: 'white',
-      padding: '4px 16px', // Уменьшили отступы для компактности
-      background: 'rgba(0, 0, 0, 0.8)',
-      backdropFilter: 'blur(10px)',
-      borderRadius: '9999px',
-    },
-    progressHighlight: {
-      color: '#fb923c',
-      fontWeight: 'bold',
-    },
-    beastInfo: {
-      position: 'absolute' as const,
-      bottom: '20px',
-      left: 0,
-      right: 0,
-      padding: '20px 0',
-      width: '100%',
-      textAlign: 'center' as const,
-      zIndex: 10,
-    },
-    beastName: {
-      fontSize: '28px',
-      fontWeight: 'bold',
-      color: '#fb923c',
-      textShadow: '0 2px 4px rgba(0, 0, 0, 0.7)',
-      marginBottom: '8px',
-    },
-    beastPhrase: {
-      fontSize: '16px',
-      color: 'white',
-      textShadow: '0 1px 2px rgba(0, 0, 0, 0.7)',
-      maxWidth: '260px',
-      margin: '0 auto',
-      lineHeight: 1.4,
-    },
-    userName: {
-      fontSize: '14px',
-      color: '#d1d5db',
-      marginTop: '12px',
-    },
-    coverImage: {
-      position: 'absolute' as const,
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover' as const, // Сохраняем пропорции без искажений
-      zIndex: 0,
-      opacity: 1,
-    },
+    canvas: {
+      width: `${cardWidth}px`,
+      height: `${cardHeight}px`,
+      borderRadius: '16px',
+      display: 'block',
+    }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-2 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden max-w-md w-full mx-auto my-4">
-        <div className="p-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800">Поделиться достижением</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
+    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
+      <div className="bg-gray-900 rounded-xl max-w-md w-full p-5 mx-auto relative border border-gray-800">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
+        >
+          <X className="w-6 h-6" />
+        </button>
 
-        <div className="p-4">
-          <div
-            ref={achievementCardRef}
-            data-html2canvas-beast-card
-            style={inlineStyles.cardContainer}
-            className="beast-card-container"
-          >
-            {isBeast ? (
-              // Шаблон для зверей
-              <>
-                {imageData && (
-                  <img
-                    src={imageData}
-                    alt={`Зверь ${beastName}`}
-                    crossOrigin="anonymous"
-                    style={{
-                      ...inlineStyles.coverImage,
-                      position: 'absolute',
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      zIndex: 1
-                    }}
-                    onError={(e) => {
-                      console.error('Ошибка отображения изображения:', e);
-                    }}
-                  />
-                )}
+        <h2 className="text-xl font-bold text-white mb-5 text-center">
+          {isBeast ? `Зверь ${beastName}` : 'Достижение'}
+        </h2>
 
-                <div style={inlineStyles.topGradient}></div>
-                <div style={inlineStyles.bottomGradient}></div>
-
-                <div style={inlineStyles.weightContainer}>
-                  <p style={inlineStyles.weightValue}>
-                    {totalVolume} <span style={inlineStyles.weightUnit}>кг</span>
-                  </p>
-                  <p style={inlineStyles.weightLabel}>Поднятый вес</p>
-                </div>
-
-                <div style={inlineStyles.logoContainer}>
-                  <div style={inlineStyles.logo}>HARDCASE.TRAINING</div>
-                </div>
-
-                {!isMaxLevel && (
-                  <div style={inlineStyles.progressContainer}>
-                    <div style={inlineStyles.progressBar}>
-                      <div style={inlineStyles.progressFill}></div>
-                    </div>
-                    <div style={inlineStyles.progressText}>
-                      <div style={inlineStyles.progressTextContainer}>
-                        До следующего уровня{' '}
-                        <span style={inlineStyles.progressHighlight}>осталось {volumeToNext} кг</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div style={inlineStyles.beastInfo}>
-                  <h3 style={inlineStyles.beastName}>{beastName}</h3>
-                  <p style={inlineStyles.beastPhrase}>{weightPhrase}</p>
-                  <p style={inlineStyles.userName}>@{userName}</p>
-                </div>
-              </>
-            ) : (
-              // Шаблон для обычных достижений
-              <div style={{
-                ...inlineStyles.cardContainer,
-                background: 'linear-gradient(135deg, #4338ca, #7e22ce)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '30px 15px'
-              }}>
-                <div style={inlineStyles.logoContainer}>
-                  <div style={inlineStyles.logo}>HARDCASE.TRAINING</div>
-                </div>
-                
-                <div style={{
-                  fontSize: '48px',
-                  fontWeight: 'bold',
-                  color: 'white',
-                  margin: '30px 0 10px',
-                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center'
-                }}>
-                  {displayValue || totalVolume.toString()}
-                  {unit && (
-                    <span style={{
-                      fontSize: '18px',
-                      fontWeight: 'normal',
-                      color: 'rgba(255, 255, 255, 0.9)',
-                      marginTop: '5px'
-                    }}>
-                      {unit}
-                    </span>
-                  )}
-                </div>
-                
-                <h3 style={{
-                  fontSize: '32px',
-                  fontWeight: 'bold',
-                  color: 'white',
-                  marginBottom: '15px',
-                  textAlign: 'center',
-                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)'
-                }}>
-                  {beastName}
-                </h3>
-                
-                <p style={{
-                  fontSize: '18px',
-                  color: 'white',
-                  textAlign: 'center',
-                  maxWidth: '280px',
-                  marginBottom: '30px',
-                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)'
-                }}>
-                  {weightPhrase}
-                </p>
-                
-                <p style={inlineStyles.userName}>@{userName}</p>
-              </div>
-            )}
+        <div className="text-center">
+          <div className="beast-card-container" ref={achievementCardRef} style={inlineStyles.cardContainer}>
+            {/* Скрытый canvas для генерации изображения */}
+            <canvas ref={canvasRef} style={inlineStyles.canvas} />
           </div>
 
           {loading && (
