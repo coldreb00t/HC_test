@@ -105,7 +105,7 @@ export function PhotoUploadView() {
       
       console.log('Preparing to upload', selectedFiles.length, 'files');
       
-      // Добавим детальное логирование внутрь метода обработки каждого файла
+      // Используем альтернативный подход с FormData для загрузки
       const uploadPromises = selectedFiles.map(async ({ file }, index) => {
         try {
           console.log(`Processing file ${index+1}/${selectedFiles.length}:`, file.name);
@@ -117,39 +117,46 @@ export function PhotoUploadView() {
           console.log(`Uploading to path: ${path}`);
           console.log(`File details - size: ${file.size}, type: ${file.type}`);
 
-          // Проверка на корректность Blob
-          if (!(file instanceof Blob)) {
-            console.error('File is not a valid Blob');
-            throw new Error('Invalid file object');
-          }
-
-          // Проверяем, что файл доступен перед загрузкой
-          try {
-            const slice = file.slice(0, 10);
-            console.log('File slice test successful, file is accessible');
-          } catch (sliceError) {
-            console.error('File slice test failed:', sliceError);
-            throw new Error('File is not accessible');
-          }
-
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('images')
-            .upload(path, file, {
-              cacheControl: '0', // Отключаем кеширование
-              upsert: true // Перезаписывать при совпадении имени
-            });
-
-          if (uploadError) {
-            console.error(`Upload error for file ${file.name}:`, uploadError);
-            throw uploadError;
+          // Создаем FormData для более надежной загрузки
+          const formData = new FormData();
+          formData.append('file', file);
+          
+          // Получаем API URL и токен для загрузки
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Supabase configuration missing');
           }
           
-          console.log('Upload successful, data:', uploadData);
+          // Прямой запрос к Storage API
+          const uploadUrl = `${supabaseUrl}/storage/v1/object/client-photos/${path}`;
+          
+          console.log('Attempting direct upload via fetch API...');
+          console.log('Upload URL:', uploadUrl);
+          
+          const uploadResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'x-upsert': 'true'
+            },
+            body: formData
+          });
+          
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            console.error('Upload response error:', uploadResponse.status, errorText);
+            throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`);
+          }
+          
+          const uploadResult = await uploadResponse.json();
+          console.log('Upload successful, response:', uploadResult);
 
           // Получаем публичный URL для фото
           console.log('Getting public URL...');
           const { data: { publicUrl } } = supabase.storage
-            .from('images')
+            .from('client-photos')
             .getPublicUrl(path);
             
           console.log('Public URL:', publicUrl);
