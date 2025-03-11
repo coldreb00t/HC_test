@@ -272,6 +272,8 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
           <input
             ref={fileInputRef}
             type="file"
+            accept="image/*"
+            capture="environment"
             multiple
             onChange={handleFileSelect}
             className="hidden"

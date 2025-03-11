@@ -470,6 +470,7 @@ export function NutritionView() {
                 type="file"
                 accept="image/*"
                 capture="environment"
+                multiple
                 onChange={handleFileSelect}
                 className="hidden"
               />

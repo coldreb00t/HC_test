@@ -175,6 +175,7 @@ export function MeasurementsUploadView() {
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             onChange={handleFileSelect}
             className="hidden"
           />
