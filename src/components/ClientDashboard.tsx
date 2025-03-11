@@ -25,7 +25,6 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
-import { WorkoutProgramModal } from './WorkoutProgramModal';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
 import { Exercise, Program, Workout } from '../types/workout';
 import { RaiseTheBeastMotivation } from './RaiseTheBeastMotivation';
@@ -85,7 +84,6 @@ export function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [clientData, setClientData] = useState<{
@@ -977,7 +975,17 @@ export function ClientDashboard() {
           </div>
         ) : (
           <button
-            onClick={() => setShowWorkoutModal(true)}
+            onClick={() => {
+              console.log('Opening workout details with data:', nextWorkout);
+              // Проверяем, что у нас есть все необходимые данные для отображения
+              if (!nextWorkout || !nextWorkout.id) {
+                console.error('Invalid workout data:', nextWorkout);
+                toast.error('Не удалось открыть тренировку. Данные отсутствуют или повреждены.');
+                return;
+              }
+              // Вместо открытия модального окна переходим на страницу деталей тренировки
+              navigate(`/client/workouts/${nextWorkout.id}`);
+            }}
             className="w-full flex items-center justify-between p-4 bg-[#dddddd] rounded-lg hover:bg-[#d0d0d0] transition-colors"
           >
             <div className="flex items-center">
@@ -1020,20 +1028,42 @@ export function ClientDashboard() {
       )}
 
       {/* Workout Program Modal */}
+      {/* 
       {showWorkoutModal && nextWorkout && (
-        <WorkoutProgramModal
-          isOpen={showWorkoutModal}
-          onClose={() => setShowWorkoutModal(false)}
-          program={nextWorkout.program}
-          title={nextWorkout.title}
-          time={new Date(nextWorkout.start_time).toLocaleString('ru-RU', {
-            weekday: 'long',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-          training_program_id={nextWorkout.training_program_id}
-        />
+        <>
+          {(() => {
+            // Проверяем данные перед рендерингом
+            if (!nextWorkout.start_time) {
+              console.error('Invalid workout data (missing start_time):', nextWorkout);
+              return null;
+            }
+            
+            console.log('Rendering WorkoutProgramModal with:', {
+              program: nextWorkout.program,
+              title: nextWorkout.title,
+              time: new Date(nextWorkout.start_time).toLocaleString('ru-RU'),
+              training_program_id: nextWorkout.training_program_id
+            });
+            return null;
+          })()}
+          <WorkoutProgramModal
+            isOpen={showWorkoutModal}
+            onClose={() => setShowWorkoutModal(false)}
+            program={nextWorkout.program}
+            title={nextWorkout.title || 'Тренировка'}
+            time={nextWorkout.start_time 
+              ? new Date(nextWorkout.start_time).toLocaleString('ru-RU', {
+                  weekday: 'long',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              : 'Время не указано'
+            }
+            training_program_id={nextWorkout.training_program_id}
+          />
+        </>
       )}
+      */}
 
       {/* Share Achievement Modal */}
       {shareModalData && (
