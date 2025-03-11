@@ -802,7 +802,7 @@ export function ClientDashboard() {
   
   // Кастомный компонент топ-бара с добавленным дроп-даун меню
   const CustomHeader = (
-    <div className="bg-white shadow-sm w-full pt-safe-top">
+    <div className="bg-white shadow-sm w-full">
       <div className="px-4 py-3 flex justify-between items-center">
         <div className="flex-1 text-center">
           <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>

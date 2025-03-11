@@ -66,11 +66,11 @@ export function SidebarLayout({
   if (variant === 'bottom') {
     return (
       <div className="min-h-screen bg-gray-100 pb-[calc(4rem+env(safe-area-inset-bottom))]">
-        <div className="fixed top-0 left-0 right-0 z-[100]">
+        <div className="fixed top-0 left-0 right-0 z-[100] pt-safe-top">
           {customHeader ? (
             customHeader
           ) : (
-            <div className="bg-white shadow-sm pt-safe-top">
+            <div className="bg-white shadow-sm">
               <div className="px-4 py-3 flex justify-between items-center">
                 {backTo && (
                   <button 
@@ -108,7 +108,7 @@ export function SidebarLayout({
           )}
         </div>
 
-        <div className="p-4 pb-32 pt-[calc(3.5rem+env(safe-area-inset-top))]">
+        <div className="p-4 pb-32 pt-[calc(4rem+env(safe-area-inset-top))]">
           {children}
         </div>
 
