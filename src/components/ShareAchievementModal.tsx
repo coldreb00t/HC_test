@@ -20,6 +20,7 @@ interface ShareAchievementModalProps {
   isBeast?: boolean; // Флаг для различения зверей и обычных достижений
   displayValue?: string; // Отформатированное значение для отображения
   unit?: string; // Единица измерения
+  motivationalPhrase?: string; // Мотивационная фраза для обычных достижений
 }
 
 export function ShareAchievementModal({
@@ -35,6 +36,7 @@ export function ShareAchievementModal({
   isBeast,
   displayValue,
   unit,
+  motivationalPhrase,
 }: ShareAchievementModalProps) {
   const [shareableImage, setShareableImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -381,9 +383,9 @@ export function ShareAchievementModal({
       }
       
       // Мотивационная фраза (в полупрозрачном блоке)
-      // В обычных достижениях мотивационная фраза не приходит отдельным параметром,
-      // поэтому используем weightPhrase
-      if (weightPhrase) {
+      // Используем motivationalPhrase если он есть, иначе weightPhrase
+      const phraseToShow = motivationalPhrase || weightPhrase;
+      if (phraseToShow) {
         // Увеличиваем блок для мотивационной фразы и адаптируем его положение
         const motivationBlockY = cardHeight * 0.68; // Немного выше, чем было
         const motivationBlockHeight = 100; // Увеличиваем высоту блока
@@ -418,7 +420,7 @@ export function ShareAchievementModal({
         ctx.textBaseline = 'middle';
         
         // Подготавливаем текст мотивационной фразы в кавычках
-        const motivationalText = `"${weightPhrase}"`;
+        const motivationalText = `"${phraseToShow}"`;
         
         // Разбиваем текст мотивации на строки
         const motivationWords = motivationalText.split(' ');
