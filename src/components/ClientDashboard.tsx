@@ -1027,44 +1027,6 @@ export function ClientDashboard() {
         />
       )}
 
-      {/* Workout Program Modal */}
-      {/* 
-      {showWorkoutModal && nextWorkout && (
-        <>
-          {(() => {
-            // Проверяем данные перед рендерингом
-            if (!nextWorkout.start_time) {
-              console.error('Invalid workout data (missing start_time):', nextWorkout);
-              return null;
-            }
-            
-            console.log('Rendering WorkoutProgramModal with:', {
-              program: nextWorkout.program,
-              title: nextWorkout.title,
-              time: new Date(nextWorkout.start_time).toLocaleString('ru-RU'),
-              training_program_id: nextWorkout.training_program_id
-            });
-            return null;
-          })()}
-          <WorkoutProgramModal
-            isOpen={showWorkoutModal}
-            onClose={() => setShowWorkoutModal(false)}
-            program={nextWorkout.program}
-            title={nextWorkout.title || 'Тренировка'}
-            time={nextWorkout.start_time 
-              ? new Date(nextWorkout.start_time).toLocaleString('ru-RU', {
-                  weekday: 'long',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              : 'Время не указано'
-            }
-            training_program_id={nextWorkout.training_program_id}
-          />
-        </>
-      )}
-      */}
-
       {/* Share Achievement Modal */}
       {shareModalData && (
         <ShareAchievementModal
