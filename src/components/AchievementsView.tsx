@@ -152,23 +152,14 @@ export function AchievementsView() {
   const [nutritionStats, setNutritionStats] = useState<NutritionStats | null>(null);
   const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto[] | null>(null);
   const [lastPhoto, setLastPhoto] = useState<ProgressPhoto[] | null>(null);
-  const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string, motivationalPhrase?: string}[]>([]);
+  const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition'>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedAchievement, setSelectedAchievement] = useState<{
-    title: string, 
-    description: string, 
-    icon: React.ReactNode, 
-    value: string,
-    motivationalPhrase?: string
-  } | null>(null);
+  const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
   const [editRowId, setEditRowId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Measurement | null>(null);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
-  const [bodyCompositionData, setBodyCompositionData] = useState<any[]>([]);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'achievements' | 'measurements'>('overview');
-  const [showPhotosModal, setShowPhotosModal] = useState(false);
 
   useEffect(() => {
     fetchClientData();
@@ -534,40 +525,35 @@ export function AchievementsView() {
         description: "Завершена первая тренировка",
         icon: <Dumbbell className="w-5 h-5 text-orange-500" />,
         achieved: true,
-        value: "Достигнуто!",
-        motivationalPhrase: "Первый шаг всегда самый важный. Ты на верном пути к своим целям!"
+        value: "Достигнуто!"
       },
       {
         title: "Регулярность",
         description: "10 тренировок посещено",
         icon: <Calendar className="w-5 h-5 text-orange-500" />,
         achieved: workoutStats ? workoutStats.totalWorkouts >= 10 : false,
-        value: workoutStats ? `${workoutStats.totalWorkouts}/10 тренировок` : "0/10 тренировок",
-        motivationalPhrase: "Регулярность — залог успеха. Твоя настойчивость вдохновляет!"
+        value: workoutStats ? `${workoutStats.totalWorkouts}/10 тренировок` : "0/10 тренировок"
       },
       {
         title: "Прогресс",
         description: "Первое измерение тела",
         icon: <Scale className="w-5 h-5 text-orange-500" />,
         achieved: measurements.length > 0,
-        value: measurements.length > 0 ? "Достигнуто!" : "Не выполнено",
-        motivationalPhrase: "Отслеживая результаты, ты контролируешь свой путь к идеальному телу!"
+        value: measurements.length > 0 ? "Достигнуто!" : "Не выполнено"
       },
       {
         title: "Активность",
         description: "Регулярная ежедневная активность в течение недели",
         icon: <Activity className="w-5 h-5 text-orange-500" />,
         achieved: activityStats ? activityStats.totalActivities >= 7 : false,
-        value: activityStats ? `${activityStats.totalActivities}/7 дней` : "0/7 дней",
-        motivationalPhrase: "Движение — это жизнь. Каждый активный день приближает тебя к цели!"
+        value: activityStats ? `${activityStats.totalActivities}/7 дней` : "0/7 дней"
       },
       {
         title: "Питание",
         description: "Ведение дневника питания в течение недели",
         icon: <LineChart className="w-5 h-5 text-orange-500" />,
         achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false,
-        value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней",
-        motivationalPhrase: "Питание — это ключ к здоровью. Ты делаешь отличный выбор для своего тела!"
+        value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней"
       }
     ];
 
@@ -584,8 +570,7 @@ export function AchievementsView() {
       title: achievement.title,
       description: achievement.description,
       icon: achievement.icon,
-      value: achievement.value || 'Достигнуто!',
-      motivationalPhrase: achievement.motivationalPhrase || "Твои достижения вдохновляют! Продолжай двигаться вперед!"
+      value: achievement.value || 'Достигнуто!'
     });
     setShowShareModal(true);
   };
@@ -1471,7 +1456,6 @@ export function AchievementsView() {
           isBeast={false}
           displayValue={selectedAchievement.value}
           unit=""
-          motivationalPhrase={selectedAchievement.motivationalPhrase || "Твои достижения вдохновляют! Продолжай двигаться вперед!"}
         />
       )}
     </SidebarLayout>
