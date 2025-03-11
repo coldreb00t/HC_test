@@ -36,11 +36,10 @@ export function NutritionView() {
     proteins: null,
     fats: null,
     carbs: null,
-    calories: null,
+    calories: null, // Добавлено начальное значение для калорий
     water: null,
     photos: []
   });
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -154,46 +153,31 @@ export function NutritionView() {
         proteins: newEntry.proteins || 0,
         fats: newEntry.fats || 0,
         carbs: newEntry.carbs || 0,
-        calories: newEntry.calories || 0,
+        calories: newEntry.calories || 0, // Добавлено для калорий
         water: newEntry.water || 0
       };
 
-      // Обработка редактирования
-      if (editingEntryId) {
+      const existingEntry = entries.find(entry => entry.date === newEntry.date);
+
+      if (existingEntry) {
         const { error: updateError } = await supabase
           .from('client_nutrition')
           .update(dataToSave)
-          .eq('id', editingEntryId);
+          .eq('id', existingEntry.id);
 
         if (updateError) throw updateError;
         toast.success('Данные обновлены');
-        
-        // Сбрасываем режим редактирования
-        setEditingEntryId(null);
       } else {
-        // Проверка на существующую запись по дате
-        const existingEntry = entries.find(entry => entry.date === newEntry.date);
+        const { error: insertError } = await supabase
+          .from('client_nutrition')
+          .insert({
+            client_id: clientData.id,
+            date: newEntry.date,
+            ...dataToSave
+          });
 
-        if (existingEntry) {
-          const { error: updateError } = await supabase
-            .from('client_nutrition')
-            .update(dataToSave)
-            .eq('id', existingEntry.id);
-
-          if (updateError) throw updateError;
-          toast.success('Данные обновлены');
-        } else {
-          const { error: insertError } = await supabase
-            .from('client_nutrition')
-            .insert({
-              client_id: clientData.id,
-              date: newEntry.date,
-              ...dataToSave
-            });
-
-          if (insertError) throw insertError;
-          toast.success('Данные сохранены');
-        }
+        if (insertError) throw insertError;
+        toast.success('Данные сохранены');
       }
 
       if (selectedFiles.length > 0) {
@@ -216,57 +200,24 @@ export function NutritionView() {
         await Promise.all(uploadPromises);
       }
 
-      await fetchNutritionData();
-      resetForm();
+      fetchNutritionData();
+      
+      setNewEntry({
+        date: new Date().toISOString().split('T')[0],
+        proteins: null,
+        fats: null,
+        carbs: null,
+        calories: null, // Сброс значения калорий
+        water: null,
+        photos: []
+      });
+      setSelectedFiles([]);
     } catch (error: any) {
       console.error('Error saving nutrition data:', error);
       toast.error('Ошибка при сохранении данных');
     } finally {
       setUploading(false);
     }
-  };
-
-  // Функция для сброса формы
-  const resetForm = () => {
-    setNewEntry({
-      date: new Date().toISOString().split('T')[0],
-      proteins: null,
-      fats: null,
-      carbs: null,
-      calories: null,
-      water: null,
-      photos: []
-    });
-    setSelectedFiles([]);
-    setEditingEntryId(null);
-  };
-
-  // Функция начала редактирования записи
-  const handleEdit = (entry: NutritionEntry) => {
-    // Прокручиваем страницу вверх к форме
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-    
-    // Устанавливаем данные записи в форму
-    setNewEntry({
-      date: entry.date,
-      proteins: entry.proteins,
-      fats: entry.fats,
-      carbs: entry.carbs,
-      calories: entry.calories,
-      water: entry.water,
-      photos: entry.photos
-    });
-    
-    // Устанавливаем ID редактируемой записи
-    setEditingEntryId(entry.id);
-  };
-
-  // Функция отмены редактирования
-  const handleCancelEdit = () => {
-    resetForm();
   };
 
   const handleDelete = async (entryId: string) => {
@@ -344,9 +295,7 @@ export function NutritionView() {
       <div className="p-4">
         <div className="bg-white rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">
-              {editingEntryId ? 'Редактирование записи' : 'Дневник питания'}
-            </h2>
+            <h2 className="text-lg font-semibold">Дневник питания</h2>
             <Apple className="w-5 h-5 text-gray-400" />
           </div>
 
@@ -438,6 +387,15 @@ export function NutritionView() {
                   placeholder="0"
                 />
               </div>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="w-full p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                >
+                  {uploading ? 'Сохранение...' : 'Сохранить'}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -477,26 +435,6 @@ export function NutritionView() {
                 className="hidden"
               />
             </div>
-
-            <div className="flex space-x-2">
-              <button
-                type="submit"
-                disabled={uploading}
-                className={`px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {uploading ? 'Сохранение...' : (editingEntryId ? 'Сохранить изменения' : 'Сохранить')}
-              </button>
-              
-              {editingEntryId && (
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                >
-                  Отменить редактирование
-                </button>
-              )}
-            </div>
           </form>
 
           {loading ? (
@@ -514,29 +452,16 @@ export function NutritionView() {
                         <span>Б: {entry.proteins}г</span>
                         <span>Ж: {entry.fats}г</span>
                         <span>У: {entry.carbs}г</span>
-                        <span>Ккал: {entry.calories}ккал</span>
+                        <span>Ккал: {entry.calories}ккал</span> {/* Добавлено отображение калорий */}
                         <span>Вода: {entry.water}мл</span>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(entry)}
-                        className="text-blue-500 hover:text-blue-600 transition-colors"
-                        title="Редактировать"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(entry.id)}
-                        className="text-red-500 hover:text-red-600 transition-colors"
-                        title="Удалить"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleDelete(entry.id)}
+                      className="text-red-500 hover:text-red-600 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                   {entry.photos && entry.photos.length > 0 && (
                     <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
