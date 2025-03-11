@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Apple, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Apple, Plus, Trash2, Upload, X, Edit, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
@@ -31,12 +31,13 @@ export function NutritionView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id'>>({
     date: new Date().toISOString().split('T')[0],
     proteins: null,
     fats: null,
     carbs: null,
-    calories: null, // Добавлено начальное значение для калорий
+    calories: null,
     water: null,
     photos: []
   });
@@ -153,31 +154,44 @@ export function NutritionView() {
         proteins: newEntry.proteins || 0,
         fats: newEntry.fats || 0,
         carbs: newEntry.carbs || 0,
-        calories: newEntry.calories || 0, // Добавлено для калорий
+        calories: newEntry.calories || 0,
         water: newEntry.water || 0
       };
 
-      const existingEntry = entries.find(entry => entry.date === newEntry.date);
-
-      if (existingEntry) {
+      if (editingEntryId) {
+        // Обновление существующей записи
         const { error: updateError } = await supabase
           .from('client_nutrition')
           .update(dataToSave)
-          .eq('id', existingEntry.id);
+          .eq('id', editingEntryId);
 
         if (updateError) throw updateError;
-        toast.success('Данные обновлены');
+        toast.success('Запись обновлена');
+        setEditingEntryId(null);
       } else {
-        const { error: insertError } = await supabase
-          .from('client_nutrition')
-          .insert({
-            client_id: clientData.id,
-            date: newEntry.date,
-            ...dataToSave
-          });
+        // Проверка на существующую запись по дате
+        const existingEntry = entries.find(entry => entry.date === newEntry.date);
 
-        if (insertError) throw insertError;
-        toast.success('Данные сохранены');
+        if (existingEntry) {
+          const { error: updateError } = await supabase
+            .from('client_nutrition')
+            .update(dataToSave)
+            .eq('id', existingEntry.id);
+
+          if (updateError) throw updateError;
+          toast.success('Данные обновлены');
+        } else {
+          const { error: insertError } = await supabase
+            .from('client_nutrition')
+            .insert({
+              client_id: clientData.id,
+              date: newEntry.date,
+              ...dataToSave
+            });
+
+          if (insertError) throw insertError;
+          toast.success('Данные сохранены');
+        }
       }
 
       if (selectedFiles.length > 0) {
@@ -202,16 +216,7 @@ export function NutritionView() {
 
       fetchNutritionData();
       
-      setNewEntry({
-        date: new Date().toISOString().split('T')[0],
-        proteins: null,
-        fats: null,
-        carbs: null,
-        calories: null, // Сброс значения калорий
-        water: null,
-        photos: []
-      });
-      setSelectedFiles([]);
+      resetForm();
     } catch (error: any) {
       console.error('Error saving nutrition data:', error);
       toast.error('Ошибка при сохранении данных');
@@ -285,6 +290,40 @@ export function NutritionView() {
   };
 
   const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
+
+  const resetForm = () => {
+    setNewEntry({
+      date: new Date().toISOString().split('T')[0],
+      proteins: null,
+      fats: null,
+      carbs: null,
+      calories: null,
+      water: null,
+      photos: []
+    });
+    setSelectedFiles([]);
+    setEditingEntryId(null);
+  };
+
+  const handleEdit = (entry: NutritionEntry) => {
+    setEditingEntryId(entry.id);
+    setNewEntry({
+      date: entry.date,
+      proteins: entry.proteins,
+      fats: entry.fats,
+      carbs: entry.carbs,
+      calories: entry.calories,
+      water: entry.water,
+      photos: entry.photos
+    });
+    // Прокрутка к форме
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    resetForm();
+    setEditingEntryId(null);
+  };
 
   return (
     <SidebarLayout
@@ -393,7 +432,7 @@ export function NutritionView() {
                   disabled={uploading}
                   className="w-full p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
                 >
-                  {uploading ? 'Сохранение...' : 'Сохранить'}
+                  {uploading ? 'Сохранение...' : (editingEntryId ? 'Обновить' : 'Сохранить')}
                 </button>
               </div>
             </div>
@@ -452,16 +491,24 @@ export function NutritionView() {
                         <span>Б: {entry.proteins}г</span>
                         <span>Ж: {entry.fats}г</span>
                         <span>У: {entry.carbs}г</span>
-                        <span>Ккал: {entry.calories}ккал</span> {/* Добавлено отображение калорий */}
+                        <span>Ккал: {entry.calories}ккал</span>
                         <span>Вода: {entry.water}мл</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDelete(entry.id)}
-                      className="text-red-500 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(entry)}
+                        className="text-blue-500 hover:text-blue-600 transition-colors"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(entry.id)}
+                        className="text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   {entry.photos && entry.photos.length > 0 && (
                     <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
