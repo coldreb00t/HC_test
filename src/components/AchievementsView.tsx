@@ -1273,8 +1273,8 @@ export function AchievementsView() {
           <LineChart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">Нет данных о питании</p>
           <button
-            onClick={() => navigate('/client/nutrition')}
-            className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+            onClick={() => navigate('/client/nutrition/new')}
+            className="flex flex-col items-center gap-2 w-1/4 p-3"
           >
             Добавить запись о питании
           </button>
@@ -1352,7 +1352,7 @@ export function AchievementsView() {
                 Замеры
               </button>
               <button
-                onClick={() => navigate('/client/nutrition')}
+                onClick={() => navigate('/client/nutrition/new')}
                 className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
               >
                 Питание

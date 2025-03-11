@@ -127,7 +127,7 @@ export const useClientNavigation = (
     {
       icon: <Apple className="w-8 h-8 text-gray-600 hover:text-orange-500 transition-colors" />,
       label: '',
-      onClick: () => navigate('/client/nutrition')
+      onClick: () => navigate('/client/nutrition/new')
     }
   ];
 };
