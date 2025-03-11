@@ -645,51 +645,19 @@ export function ShareAchievementModal({
 
           {!loading && shareableImage && (
             <>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleDownload}
-                  className="flex items-center justify-center gap-2 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>{/iPad|iPhone|iPod/.test(navigator.userAgent) ? 'Открыть' : 'Скачать'}</span>
-                </button>
-                <button
-                  onClick={handleCopyImage}
-                  className="flex items-center justify-center gap-2 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  <Copy className="w-5 h-5" />
-                  <span>{copied ? 'Скопировано!' : 'Копировать'}</span>
-                </button>
-              </div>
-
-              <div className="mt-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Поделиться в соцсетях</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={handleInstagramShare}
-                    className="flex flex-col items-center justify-center gap-1 p-4 bg-gradient-to-br from-purple-600 to-pink-500 text-white rounded-lg hover:opacity-90 transition-opacity"
-                  >
-                    <Instagram className="w-6 h-6" />
-                    <span className="text-xs">Instagram Stories</span>
-                  </button>
-                  <button
-                    onClick={handleTelegramShare}
-                    className="flex flex-col items-center justify-center gap-1 p-4 bg-blue-500 text-white rounded-lg hover:opacity-90 transition-opacity"
-                  >
-                    <Send className="w-6 h-6" />
-                    <span className="text-xs">Telegram</span>
-                  </button>
-                </div>
-              </div>
-
-              {canNativeShare && (
+              {canNativeShare ? (
                 <button
                   onClick={handleNativeShare}
-                  className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                  className="w-full mt-6 flex items-center justify-center gap-2 p-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-lg font-semibold"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2 className="w-6 h-6" />
                   <span>Поделиться</span>
                 </button>
+              ) : (
+                <div className="mt-6 text-center">
+                  <p className="text-gray-500">Ваше устройство не поддерживает прямой шеринг.</p>
+                  <p className="text-gray-500 mt-2">Сделайте скриншот, чтобы сохранить изображение.</p>
+                </div>
               )}
             </>
           )}
