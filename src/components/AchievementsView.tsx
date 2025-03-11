@@ -63,8 +63,16 @@ interface Measurement {
   height: number;
   chest: number;
   waist: number;
-  hips: number;
-  biceps: number;
+  pelvis: number;
+  biceps_right: number;
+  biceps_left: number;
+  wrist_right: number;
+  wrist_left: number;
+  stomach: number;
+  thigh_right: number;
+  thigh_left: number;
+  calf_right: number;
+  calf_left: number;
   [key: string]: any;
 }
 
@@ -230,7 +238,30 @@ export function AchievementsView() {
         throw error;
       }
       console.log('Measurements fetched:', data);
-      setMeasurements(data || []);
+      
+      // Преобразование данных к нужному типу с учетом старой и новой структуры
+      const typedData = (data || []).map((item: any): Measurement => {
+        return {
+          id: item.id,
+          date: item.date,
+          weight: item.weight,
+          height: item.height,
+          chest: item.chest,
+          waist: item.waist,
+          pelvis: item.pelvis || item.hips, // Поддержка старых записей с полем hips
+          biceps_right: item.biceps_right || item.biceps, // Поддержка старых записей с полем biceps
+          biceps_left: item.biceps_left || item.biceps, // Поддержка старых записей
+          wrist_right: item.wrist_right || null,
+          wrist_left: item.wrist_left || null,
+          stomach: item.stomach || null,
+          thigh_right: item.thigh_right || item.thigh, // Поддержка старых записей с полем thigh
+          thigh_left: item.thigh_left || item.thigh, // Поддержка старых записей
+          calf_right: item.calf_right || item.calves, // Поддержка старых записей с полем calves
+          calf_left: item.calf_left || item.calves // Поддержка старых записей
+        };
+      });
+      
+      setMeasurements(typedData);
     } catch (error) {
       console.error('Error in fetchMeasurements:', error);
     }
@@ -739,15 +770,15 @@ export function AchievementsView() {
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Бицепс</span>
                 <div className="flex items-center">
-                  {getMeasurementChange('biceps').direction === 'up' ? (
+                  {getMeasurementChange('biceps_right').direction === 'up' ? (
                     <ArrowUp className="w-4 h-4 text-green-500 mr-1" />
-                  ) : getMeasurementChange('biceps').direction === 'down' ? (
+                  ) : getMeasurementChange('biceps_right').direction === 'down' ? (
                     <ArrowDown className="w-4 h-4 text-red-500 mr-1" />
                   ) : (
                     <Minus className="w-4 h-4 text-gray-500 mr-1" />
                   )}
-                  <span className={`font-medium ${getMeasurementChange('biceps').direction === 'up' ? 'text-green-500' : getMeasurementChange('biceps').direction === 'down' ? 'text-red-500' : 'text-gray-500'}`}>
-                    {getMeasurementChange('biceps').value.toFixed(1)} см ({getMeasurementChange('biceps').percent.toFixed(1)}%)
+                  <span className={`font-medium ${getMeasurementChange('biceps_right').direction === 'up' ? 'text-green-500' : getMeasurementChange('biceps_right').direction === 'down' ? 'text-red-500' : 'text-gray-500'}`}>
+                    {getMeasurementChange('biceps_right').value.toFixed(1)} см ({getMeasurementChange('biceps_right').percent.toFixed(1)}%)
                   </span>
                 </div>
               </div>
@@ -886,11 +917,23 @@ export function AchievementsView() {
     const chartData = measurements.map(m => ({
       date: new Date(m.date).toLocaleDateString('ru-RU'),
       weight: m.weight,
+      height: m.height,
       chest: m.chest,
       waist: m.waist,
-      hips: m.hips,
-      arm: m.arm,
-      thigh: m.thigh
+      pelvis: m.pelvis,
+      biceps_right: m.biceps_right,
+      biceps_left: m.biceps_left,
+      wrist_right: m.wrist_right,
+      wrist_left: m.wrist_left,
+      stomach: m.stomach,
+      thigh_right: m.thigh_right,
+      thigh_left: m.thigh_left,
+      calf_right: m.calf_right,
+      calf_left: m.calf_left,
+      // Агрегированные значения для графиков
+      arm: (m.biceps_right || 0) + (m.biceps_left || 0) / 2, // Среднее значение бицепсов
+      thigh: (m.thigh_right || 0) + (m.thigh_left || 0) / 2, // Среднее значение бедер
+      calf: (m.calf_right || 0) + (m.calf_left || 0) / 2 // Среднее значение икр
     }));
 
     console.log('Full chartData:', chartData);
@@ -915,11 +958,19 @@ export function AchievementsView() {
           .from('client_measurements')
           .update({
             weight: editValues?.weight,
+            height: editValues?.height,
             chest: editValues?.chest,
             waist: editValues?.waist,
-            hips: editValues?.hips,
-            arm: editValues?.arm,
-            thigh: editValues?.thigh,
+            pelvis: editValues?.pelvis,
+            biceps_right: editValues?.biceps_right,
+            biceps_left: editValues?.biceps_left,
+            wrist_right: editValues?.wrist_right,
+            wrist_left: editValues?.wrist_left,
+            stomach: editValues?.stomach,
+            thigh_right: editValues?.thigh_right,
+            thigh_left: editValues?.thigh_left,
+            calf_right: editValues?.calf_right,
+            calf_left: editValues?.calf_left,
             date: editValues?.date
           })
           .eq('id', measurement.id);
@@ -961,9 +1012,10 @@ export function AchievementsView() {
         weight: '#FF5722',
         waist: '#4CAF50',
         chest: '#3F51B5',
-        hips: '#F44336',
+        pelvis: '#F44336',
         arm: '#00BCD4',
         thigh: '#00BCD4',
+        calf: '#00BCD4',
       };
 
       return (
@@ -1011,10 +1063,19 @@ export function AchievementsView() {
                   <tr className="bg-gray-100">
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Дата</th>
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Вес (кг)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Талия (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Рост (см)</th>
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Грудь (см)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бедра (см)</th>
-                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бицепс (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Талия (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Живот (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Таз (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бицепс П (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бицепс Л (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Запястье П (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Запястье Л (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бедро П (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Бедро Л (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Икра П (см)</th>
+                    <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Икра Л (см)</th>
                     <th className="py-2 px-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
@@ -1042,8 +1103,8 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.waist ?? ''}
-                              onChange={(e) => handleInputChange('waist', e.target.value)}
+                              value={editValues?.height ?? ''}
+                              onChange={(e) => handleInputChange('height', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
                           </td>
@@ -1058,24 +1119,88 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.hips ?? ''}
-                              onChange={(e) => handleInputChange('hips', e.target.value)}
+                              value={editValues?.waist ?? ''}
+                              onChange={(e) => handleInputChange('waist', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
                           </td>
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.arm ?? ''}
-                              onChange={(e) => handleInputChange('arm', e.target.value)}
+                              value={editValues?.stomach ?? ''}
+                              onChange={(e) => handleInputChange('stomach', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
                           </td>
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.thigh ?? ''}
-                              onChange={(e) => handleInputChange('thigh', e.target.value)}
+                              value={editValues?.pelvis ?? ''}
+                              onChange={(e) => handleInputChange('pelvis', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.biceps_right ?? ''}
+                              onChange={(e) => handleInputChange('biceps_right', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.biceps_left ?? ''}
+                              onChange={(e) => handleInputChange('biceps_left', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.wrist_right ?? ''}
+                              onChange={(e) => handleInputChange('wrist_right', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.wrist_left ?? ''}
+                              onChange={(e) => handleInputChange('wrist_left', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.thigh_right ?? ''}
+                              onChange={(e) => handleInputChange('thigh_right', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.thigh_left ?? ''}
+                              onChange={(e) => handleInputChange('thigh_left', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.calf_right ?? ''}
+                              onChange={(e) => handleInputChange('calf_right', e.target.value)}
+                              className="w-full p-1 border rounded"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-sm text-gray-700">
+                            <input
+                              type="number"
+                              value={editValues?.calf_left ?? ''}
+                              onChange={(e) => handleInputChange('calf_left', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
                           </td>
@@ -1100,11 +1225,19 @@ export function AchievementsView() {
                         <>
                           <td className="py-2 px-3 text-sm text-gray-700">{new Date(measurement.date).toLocaleDateString('ru-RU')}</td>
                           <td className="py-2 px-3 text-sm text-gray-700">{measurement.weight || '-'}</td>
-                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.waist || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.height || '-'}</td>
                           <td className="py-2 px-3 text-sm text-gray-700">{measurement.chest || '-'}</td>
-                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.hips || '-'}</td>
-                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.arm || '-'}</td>
-                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.thigh || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.waist || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.stomach || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.pelvis || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.biceps_right || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.biceps_left || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.wrist_right || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.wrist_left || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.thigh_right || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.thigh_left || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.calf_right || '-'}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{measurement.calf_left || '-'}</td>
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <button
                               onClick={() => handleEditClick(measurement)}
@@ -1122,11 +1255,19 @@ export function AchievementsView() {
               </table>
             </div>
             {renderLineChart('weight', 'Динамика веса', 'кг', '#FF5722')}
-            {renderLineChart('waist', 'Динамика талии', 'см', '#4CAF50')}
+            {renderLineChart('height', 'Динамика роста', 'см', '#2196F3')}
             {renderLineChart('chest', 'Динамика груди', 'см', '#3F51B5')}
-            {renderLineChart('hips', 'Динамика бедер', 'см', '#F44336')}
-            {renderLineChart('arm', 'Динамика верхней части руки', 'см', '#00BCD4')}
-            {renderLineChart('thigh', 'Динамика ноги', 'см', '#00BCD4')}
+            {renderLineChart('waist', 'Динамика талии', 'см', '#4CAF50')}
+            {renderLineChart('stomach', 'Динамика живота', 'см', '#009688')}
+            {renderLineChart('pelvis', 'Динамика таза', 'см', '#F44336')}
+            {renderLineChart('biceps_right', 'Динамика правого бицепса', 'см', '#00BCD4')}
+            {renderLineChart('biceps_left', 'Динамика левого бицепса', 'см', '#00BCD4')}
+            {renderLineChart('wrist_right', 'Динамика правого запястья', 'см', '#795548')}
+            {renderLineChart('wrist_left', 'Динамика левого запястья', 'см', '#795548')}
+            {renderLineChart('thigh_right', 'Динамика правого бедра', 'см', '#9C27B0')}
+            {renderLineChart('thigh_left', 'Динамика левого бедра', 'см', '#9C27B0')}
+            {renderLineChart('calf_right', 'Динамика правой икры', 'см', '#607D8B')}
+            {renderLineChart('calf_left', 'Динамика левой икры', 'см', '#607D8B')}
           </div>
         ) : (
           <div className="bg-gray-50 rounded-lg p-6 text-center shadow-sm">

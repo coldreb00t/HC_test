@@ -12,8 +12,16 @@ interface Measurement {
   height: number;
   chest: number;
   waist: number;
-  hips: number;
-  biceps: number;
+  pelvis: number;
+  biceps_right: number;
+  biceps_left: number;
+  wrist_right: number;
+  wrist_left: number;
+  stomach: number;
+  thigh_right: number;
+  thigh_left: number;
+  calf_right: number;
+  calf_left: number;
   [key: string]: any;
 }
 
