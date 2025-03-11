@@ -3,10 +3,13 @@ import { SidebarLayout } from './SidebarLayout';
 import { WorkoutsCalendarView } from './WorkoutsCalendarView';
 import { useNavigate } from 'react-router-dom';
 import { useClientNavigation } from '../lib/navigation';
+import { MeasurementsInputModal } from './MeasurementsInputModal';
+import toast from 'react-hot-toast';
 
 export function ClientWorkoutsView() {
   const navigate = useNavigate();
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
 
   const handleMenuItemClick = (action: string) => {
     setShowFabMenu(false);
@@ -26,7 +29,11 @@ export function ClientWorkoutsView() {
     }
   };
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
+  const handleOpenMeasurementsModal = () => {
+    setShowMeasurementsModal(true);
+  };
+
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
 
   return (
     <SidebarLayout
@@ -35,6 +42,18 @@ export function ClientWorkoutsView() {
       backTo="/client"
     >
       <WorkoutsCalendarView />
+      
+      {/* Measurements Input Modal */}
+      {showMeasurementsModal && (
+        <MeasurementsInputModal
+          isOpen={showMeasurementsModal}
+          onClose={() => setShowMeasurementsModal(false)}
+          onSave={() => {
+            setShowMeasurementsModal(false);
+            toast.success('Замеры сохранены');
+          }}
+        />
+      )}
     </SidebarLayout>
   );
 }
