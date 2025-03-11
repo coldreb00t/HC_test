@@ -214,53 +214,72 @@ export function ShareAchievementModal({
       ctx.textAlign = 'center';
       ctx.fillText('ОБЩИЙ ОБЪЕМ', weightBoxCenterX, weightBoxY + 55);
       
-      // Шаг 6: Добавляем имя зверя, центрированное по горизонтали
+      // Шаг 6: Добавляем имя зверя или название достижения, центрированное по горизонтали
       ctx.font = 'bold 42px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 110);
       
-      // Шаг 7: Добавляем прогресс-бар в нижней части карточки
-      // Фон прогресс-бара
-      ctx.fillStyle = 'rgba(55, 65, 81, 0.6)';
-      const progressBarY = cardHeight - 130;
-      ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9, 10);
-      
-      // Заполнение прогресс-бара
-      // Градиент от оранжевого к красному
-      const progressGradient = ctx.createLinearGradient(
-        cardWidth * 0.05, 0, 
-        cardWidth * 0.05 + cardWidth * 0.9 * progressPercentage / 100, 0
-      );
-      progressGradient.addColorStop(0, '#f97316');
-      progressGradient.addColorStop(1, '#ef4444');
-      ctx.fillStyle = progressGradient;
-      ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9 * progressPercentage / 100, 10);
-      
-      // Шаг 8: Добавляем индикатор прогресса с процентами и кг до следующего уровня
-      // Рассчитываем сколько кг осталось до следующего уровня
-      const volumeToNext = nextBeastThreshold - totalVolume;
-      
-      // Базовый текст
-      ctx.font = '500 14px Inter, system-ui, sans-serif';
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        "До следующего уровня осталось ",
-        cardWidth / 2 - 35,
-        progressBarY + 35
-      );
-      
-      // Значение кг выделенное оранжевым и с увеличенным размером
-      ctx.font = 'bold 16px Inter, system-ui, sans-serif';
-      ctx.fillStyle = '#f97316';
-      const kgValueText = `${volumeToNext} кг!`;
-      const kgTextWidth = ctx.measureText("До следующего уровня осталось ").width;
-      ctx.fillText(
-        kgValueText,
-        cardWidth / 2 + kgTextWidth/2 - 35,
-        progressBarY + 35
-      );
+      if (isBeast) {
+        // Для зверей добавляем прогресс-бар и информацию о прогрессе
+        // Шаг 7: Добавляем прогресс-бар в нижней части карточки
+        // Фон прогресс-бара
+        ctx.fillStyle = 'rgba(55, 65, 81, 0.6)';
+        const progressBarY = cardHeight - 130;
+        ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9, 10);
+        
+        // Заполнение прогресс-бара
+        // Градиент от оранжевого к красному
+        const progressGradient = ctx.createLinearGradient(
+          cardWidth * 0.05, 0, 
+          cardWidth * 0.05 + cardWidth * 0.9 * progressPercentage / 100, 0
+        );
+        progressGradient.addColorStop(0, '#f97316');
+        progressGradient.addColorStop(1, '#ef4444');
+        ctx.fillStyle = progressGradient;
+        ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9 * progressPercentage / 100, 10);
+        
+        // Шаг 8: Добавляем индикатор прогресса с процентами и кг до следующего уровня
+        // Рассчитываем сколько кг осталось до следующего уровня
+        const volumeToNext = nextBeastThreshold - totalVolume;
+        
+        // Создаем цельную строку текста вместо отдельных частей
+        const baseText = "До следующего уровня осталось ";
+        const fullText = baseText + volumeToNext + " кг!";
+        
+        // Измеряем ширину базового текста и полного текста
+        ctx.font = '500 14px Inter, system-ui, sans-serif';
+        const baseTextWidth = ctx.measureText(baseText).width;
+        const fullTextWidth = ctx.measureText(fullText).width;
+        
+        // Позиционируем текст по центру
+        const textStartX = cardWidth / 2 - fullTextWidth / 2;
+        
+        // Рисуем базовый текст
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'left'; // Меняем на left для точного позиционирования
+        ctx.fillText(baseText, textStartX, progressBarY + 35);
+        
+        // Рисуем выделенную часть (количество кг)
+        ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+        ctx.fillStyle = '#f97316';
+        ctx.fillText(volumeToNext + " кг!", textStartX + baseTextWidth, progressBarY + 35);
+      } else {
+        // Для обычных достижений отображаем значение и единицу измерения
+        // Отображаем значение (большое, по центру)
+        ctx.font = 'bold 64px Inter, system-ui, sans-serif';
+        ctx.fillStyle = '#f97316';
+        ctx.textAlign = 'center';
+        ctx.fillText(displayValue || totalVolume.toString(), cardWidth / 2, cardHeight / 2);
+        
+        // Отображаем единицу измерения, если она есть
+        if (unit) {
+          ctx.font = '500 20px Inter, system-ui, sans-serif';
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'center';
+          ctx.fillText(unit, cardWidth / 2, cardHeight / 2 + 40);
+        }
+      }
       
       // Шаг 9: Добавляем мотивационную фразу
       if (weightPhrase) {
@@ -272,7 +291,7 @@ export function ShareAchievementModal({
         // Разбиваем текст на несколько строк, если он слишком длинный
         const words = weightPhrase.split(' ');
         let line = '';
-        let yPos = cardHeight - 80;
+        let yPos = isBeast ? cardHeight - 80 : cardHeight / 2 + 80;
         const lineHeight = 24;
         const maxWidth = cardWidth - 40;
         
