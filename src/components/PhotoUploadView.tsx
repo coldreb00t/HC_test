@@ -128,24 +128,39 @@ export function PhotoUploadView() {
           console.log(`Uploading to path: ${path}`);
           
           // Самый базовый вариант загрузки для максимальной совместимости
-          const { data, error } = await supabase.storage
-            .from('client-photos')
-            .upload(path, file);
+          console.log(`Начинаем загрузку файла: ${file.name}, размер: ${file.size}, тип: ${file.type}`);
+          
+          try {
+            const { data, error } = await supabase.storage
+              .from('client-photos')
+              .upload(path, file);
+              
+            if (error) {
+              console.error('Ошибка загрузки:', error);
+              console.error('Детали ошибки:', JSON.stringify(error, null, 2));
+              
+              let detailedError = `Ошибка загрузки файла ${file.name}: `;
+              if (error.message) detailedError += error.message;
+              if ('statusCode' in error) detailedError += ` (Код: ${(error as any).statusCode})`;
+              if ('error' in error) detailedError += ` - ${(error as any).error}`;
+              
+              toast.error(detailedError, { duration: 6000 });
+              throw error;
+            }
             
-          if (error) {
-            console.error('Upload error:', error);
+            console.log('Загрузка успешна:', data);
+            
+            // Получаем публичный URL для фото
+            const { data: { publicUrl } } = supabase.storage
+              .from('client-photos')
+              .getPublicUrl(path);
+            
+            console.log('Public URL:', publicUrl);
+            return publicUrl;
+          } catch (error) {
+            console.error('Error in file upload:', error);
             throw error;
           }
-          
-          console.log('Upload successful:', data);
-          
-          // Получаем публичный URL для фото
-          const { data: { publicUrl } } = supabase.storage
-            .from('client-photos')
-            .getPublicUrl(path);
-            
-          console.log('Public URL:', publicUrl);
-          return publicUrl;
         } catch (error) {
           console.error('Error in file upload:', error);
           throw error;
@@ -191,18 +206,38 @@ export function PhotoUploadView() {
       navigate('/client/progress');
 
     } catch (error: any) {
-      console.error('Error uploading photos:', error);
+      console.error('Ошибка загрузки фото:', error);
       
-      // Более информативное сообщение об ошибке
+      // Максимально детальное сообщение об ошибке
       let errorMessage = 'Ошибка при загрузке фото';
+      
+      // Обрабатываем Supabase ошибки
       if (error.message) {
         errorMessage += `: ${error.message}`;
       }
-      if (error.details) {
-        console.error('Error details:', error.details);
+      
+      // Обрабатываем ошибки с кодом статуса
+      if ('statusCode' in error) {
+        errorMessage += ` (Код: ${(error as any).statusCode})`;
       }
       
-      toast.error(errorMessage);
+      // Обрабатываем расширенные детали ошибки
+      if ('error' in error) {
+        errorMessage += ` - ${(error as any).error}`;
+        console.error('Ошибка в деталях:', (error as any).error);
+      }
+      
+      // Обрабатываем вложенные детали
+      if (error.details) {
+        console.error('Детали ошибки:', error.details);
+        errorMessage += ` (${JSON.stringify(error.details)})`;
+      }
+      
+      // Отображаем ошибку в более полном виде
+      console.error('Полная структура ошибки:', JSON.stringify(error, null, 2));
+      
+      // Показываем сообщение дольше, чтобы его можно было прочитать
+      toast.error(errorMessage, { duration: 6000 });
     } finally {
       setUploading(false);
     }
