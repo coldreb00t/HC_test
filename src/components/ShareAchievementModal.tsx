@@ -191,7 +191,7 @@ export function ShareAchievementModal({
           height: `${cardHeight}px`,
           margin: 0,
           padding: 0,
-          boxSizing: 'border-box',
+          boxSizing: 'border-box' as const,
           borderWidth: 0,
           overflow: 'hidden',
           backgroundColor: imageData ? 'transparent' : '#4c1d95', // Фиолетовый фон по умолчанию
@@ -360,11 +360,25 @@ export function ShareAchievementModal({
       const blob = await response.blob();
       const file = new File([blob], `hardcase-beast-${beastName}.png`, { type: 'image/png' });
 
-      await navigator.share({
-        title: `HARDCASE.TRAINING: Зверь ${beastName}`,
-        text: `${weightPhrase} - ${totalVolume} кг`,
-        files: [file],
-      });
+      // Проверяем поддержку шаринга файлов
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+          text: `${weightPhrase} - ${totalVolume} кг`,
+          files: [file],
+        });
+      } else {
+        // Если файлы не поддерживаются, пробуем шарить только текст
+        await navigator.share({
+          title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+          text: `${weightPhrase} - ${totalVolume} кг\nhardcase.training`,
+          url: 'https://hardcase.training'
+        });
+        
+        // Показываем сообщение о копировании
+        handleCopyImage();
+        toast('Изображение скопировано в буфер обмена', { type: 'info' } as CustomToastOptions);
+      }
 
       toast('Успешно отправлено', { type: 'success' } as CustomToastOptions);
     } catch (error) {
@@ -408,22 +422,20 @@ export function ShareAchievementModal({
   const inlineStyles = {
     cardContainer: {
       position: 'relative' as const,
-      width: `${cardWidth}px`,
-      height: `${cardHeight}px`,
+      width: '320px',
+      height: '570px',
       margin: '0 auto',
-      borderRadius: '0.75rem',
+      borderRadius: '16px',
       overflow: 'hidden',
-      background: imageData ? `url(${imageData})` : fallbackGradient,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-      minWidth: `${cardWidth}px`, // Гарантируем минимальную ширину
-      minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
-      maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
-      maxHeight: `${cardHeight}px`, // Ограничиваем максимальную высоту
-      boxSizing: 'border-box', // Важно для правильного расчета размеров
-      border: 'none', // Убираем любые возможные границы
-      padding: 0, // Убираем отступы
+      background: isBeast ? `url(${beastImage})` : 'linear-gradient(135deg, #4338ca, #7e22ce)',
+      backgroundSize: 'cover' as const,
+      backgroundPosition: 'center' as const,
+      backgroundRepeat: 'no-repeat' as const,
+      boxSizing: 'border-box' as const,
+      border: '2px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+      zIndex: 1,
+      padding: 0,
     },
     topGradient: {
       position: 'absolute' as const,
