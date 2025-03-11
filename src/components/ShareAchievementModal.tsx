@@ -259,23 +259,81 @@ export function ShareAchievementModal({
       
       // Значение достижения (крупным шрифтом)
       const valueY = iconCenterY + iconRadius + 60;
-      ctx.font = 'bold 60px Inter, system-ui, sans-serif';
+      // Адаптивный шрифт в зависимости от длины значения
+      const achievementValue = displayValue || totalVolume.toString();
+      let valueFontSize = 60;
+      
+      // Уменьшаем размер шрифта для длинных значений
+      if (achievementValue.length > 8) {
+        valueFontSize = 45;
+      } else if (achievementValue.length > 5) {
+        valueFontSize = 50;
+      }
+      
+      ctx.font = `bold ${valueFontSize}px Inter, system-ui, sans-serif`;
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const achievementValue = displayValue || totalVolume.toString();
       ctx.fillText(achievementValue, contentCenterX, valueY);
       
-      // Заголовок достижения
+      // Заголовок достижения - добавляем поддержку длинных заголовков
       const titleY = valueY + 50;
       ctx.font = 'bold 28px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(beastName, contentCenterX, titleY);
       
-      // Описание достижения
-      const descY = titleY + 30;
+      // Проверяем, нужно ли разбивать заголовок на строки
+      const titleMaxWidth = cardWidth - 40;
+      const metrics = ctx.measureText(beastName);
+      
+      if (metrics.width > titleMaxWidth) {
+        // Разбиваем заголовок на слова и пытаемся их сгруппировать
+        const titleWords = beastName.split(' ');
+        let firstLine = '';
+        let secondLine = '';
+        let middleIndex = Math.ceil(titleWords.length / 2);
+        
+        // Первая попытка - разделить строго пополам по словам
+        for (let i = 0; i < titleWords.length; i++) {
+          if (i < middleIndex) {
+            firstLine += titleWords[i] + ' ';
+          } else {
+            secondLine += titleWords[i] + ' ';
+          }
+        }
+        
+        // Если первая строка все равно слишком длинная, пробуем балансировать лучше
+        const firstLineMetrics = ctx.measureText(firstLine);
+        const secondLineMetrics = ctx.measureText(secondLine);
+        
+        if (firstLineMetrics.width > titleMaxWidth || secondLineMetrics.width > titleMaxWidth) {
+          // Пробуем найти лучшее разделение
+          firstLine = '';
+          secondLine = '';
+          let currentWidth = 0;
+          
+          for (let i = 0; i < titleWords.length; i++) {
+            const wordWidth = ctx.measureText(titleWords[i] + ' ').width;
+            if (currentWidth + wordWidth <= titleMaxWidth * 0.9) {
+              firstLine += titleWords[i] + ' ';
+              currentWidth += wordWidth;
+            } else {
+              secondLine += titleWords[i] + ' ';
+            }
+          }
+        }
+        
+        // Отрисовываем заголовок в две строки
+        ctx.fillText(firstLine.trim(), contentCenterX, titleY - 14);
+        ctx.fillText(secondLine.trim(), contentCenterX, titleY + 14);
+      } else {
+        // Обычный рендеринг однострочного заголовка
+        ctx.fillText(beastName, contentCenterX, titleY);
+      }
+      
+      // Описание достижения - начинаем с правильной позиции Y в зависимости от количества строк в заголовке
+      const descY = metrics.width > titleMaxWidth ? titleY + 45 : titleY + 30;
       ctx.font = '18px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.textAlign = 'center';
@@ -288,6 +346,8 @@ export function ShareAchievementModal({
         let yPos = descY;
         const lineHeight = 24;
         const maxWidth = cardWidth - 100;
+        let lineCount = 0;
+        const maxLines = 3; // Максимальное количество строк для описания
         
         for (let i = 0; i < words.length; i++) {
           const testLine = line + words[i] + ' ';
@@ -297,22 +357,37 @@ export function ShareAchievementModal({
             ctx.fillText(line, contentCenterX, yPos);
             line = words[i] + ' ';
             yPos += lineHeight;
+            lineCount++;
+            
+            // Если достигли максимального количества строк, и еще есть слова, добавляем многоточие
+            if (lineCount >= maxLines && i < words.length - 1) {
+              // Убедимся, что текст с многоточием не превышает максимальную ширину
+              let lastLine = line;
+              while (ctx.measureText(lastLine + '...').width > maxWidth && lastLine.length > 3) {
+                lastLine = lastLine.slice(0, -4) + ' ';
+              }
+              ctx.fillText(lastLine + '...', contentCenterX, yPos);
+              break;
+            }
           } else {
             line = testLine;
           }
         }
         
-        ctx.fillText(line, contentCenterX, yPos);
+        // Вывод последней строки, если она не была выведена в цикле и не превышен лимит строк
+        if (line.length > 0 && lineCount < maxLines) {
+          ctx.fillText(line, contentCenterX, yPos);
+        }
       }
       
       // Мотивационная фраза (в полупрозрачном блоке)
       // В обычных достижениях мотивационная фраза не приходит отдельным параметром,
       // поэтому используем weightPhrase
       if (weightPhrase) {
-        // Создаем полупрозрачный блок для мотивационной фразы
-        const motivationBlockY = cardHeight * 0.7;
-        const motivationBlockHeight = 80;
-        const motivationBlockWidth = cardWidth * 0.8;
+        // Увеличиваем блок для мотивационной фразы и адаптируем его положение
+        const motivationBlockY = cardHeight * 0.68; // Немного выше, чем было
+        const motivationBlockHeight = 100; // Увеличиваем высоту блока
+        const motivationBlockWidth = cardWidth * 0.85; // Увеличиваем ширину блока
         const motivationBlockX = (cardWidth - motivationBlockWidth) / 2;
         
         ctx.save();
@@ -350,7 +425,9 @@ export function ShareAchievementModal({
         let motivationLine = '';
         let motivationY = motivationBlockY + 24;
         const motivationLineHeight = 22;
-        const motivationMaxWidth = motivationBlockWidth - 30;
+        const motivationMaxWidth = motivationBlockWidth - 40; // Больше отступы для текста
+        let motivationLineCount = 0;
+        const maxMotivationLines = 4; // Максимальное количество строк для мотивационной фразы
         
         for (let i = 0; i < motivationWords.length; i++) {
           const testLine = motivationLine + motivationWords[i] + ' ';
@@ -360,19 +437,32 @@ export function ShareAchievementModal({
             ctx.fillText(motivationLine, contentCenterX, motivationY);
             motivationLine = motivationWords[i] + ' ';
             motivationY += motivationLineHeight;
+            motivationLineCount++;
+            
+            // Если достигли максимального количества строк, и еще есть слова, добавляем многоточие
+            if (motivationLineCount >= maxMotivationLines - 1 && i < motivationWords.length - 1) {
+              // Убедимся, что текст с многоточием не превышает максимальную ширину
+              let lastLine = motivationLine;
+              while (ctx.measureText(lastLine + '...').width > motivationMaxWidth && lastLine.length > 3) {
+                lastLine = lastLine.slice(0, -4) + ' ';
+              }
+              ctx.fillText(lastLine + '..."', contentCenterX, motivationY);
+              break;
+            }
           } else {
             motivationLine = testLine;
           }
         }
         
-        // Последняя строка 
-        if (motivationLine.length > 1) {
+        // Вывод последней строки, если она не была выведена в цикле и не превышен лимит строк
+        if (motivationLine.length > 0 && motivationLineCount < maxMotivationLines) {
           ctx.fillText(motivationLine.trim(), contentCenterX, motivationY);
         }
       }
       
       // Добавляем кнопку поделиться (имитация)
-      const shareButtonY = cardHeight * 0.9;
+      // Адаптируем позицию в зависимости от размеров других элементов
+      const shareButtonY = cardHeight * 0.92;
       ctx.save();
       ctx.beginPath();
       const shareButtonRadius = 16;
