@@ -187,32 +187,38 @@ export function ShareAchievementModal({
       ctx.save();
       ctx.filter = 'blur(5px)';
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(20, 20, 100, 60);
+      // Увеличиваем размер фона примерно на 15% во все стороны
+      const weightBoxWidth = 115; // Было 100
+      const weightBoxHeight = 70; // Было 60
+      const weightBoxX = 15; // Было 20
+      const weightBoxY = 15; // Было 20
+      ctx.fillRect(weightBoxX, weightBoxY, weightBoxWidth, weightBoxHeight);
       ctx.restore();
       
       ctx.font = 'bold 28px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
       ctx.textAlign = 'center';
-      ctx.fillText(totalVolume.toString(), 70, 50);
+      const weightBoxCenterX = weightBoxX + weightBoxWidth / 2;
+      const weightTextY = weightBoxY + 35;
+      ctx.fillText(totalVolume.toString(), weightBoxCenterX, weightTextY);
       
       // Отступ для "кг" с учетом размера числа, чтобы не наезжал
       const weightWidth = ctx.measureText(totalVolume.toString()).width;
       ctx.font = '500 14px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
       ctx.textAlign = 'left';
-      ctx.fillText('кг', 70 + weightWidth/2 + 5, 50);
+      ctx.fillText('кг', weightBoxCenterX + weightWidth/2 + 5, weightTextY);
       
       ctx.font = '500 12px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
-      ctx.fillText('ОБЩИЙ ОБЪЕМ', 70, 70);
+      ctx.fillText('ОБЩИЙ ОБЪЕМ', weightBoxCenterX, weightBoxY + 55);
       
-      // Шаг 6: Добавляем имя зверя в правой части под логотипом
-      // (сдвигаем вправо под блок HARDCASE.TRAINING)
+      // Шаг 6: Добавляем имя зверя, центрированное по горизонтали
       ctx.font = 'bold 42px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
-      ctx.textAlign = 'right';
-      ctx.fillText(beastName.toUpperCase(), cardWidth - 20, 110);
+      ctx.textAlign = 'center';
+      ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 110);
       
       // Шаг 7: Добавляем прогресс-бар в нижней части карточки
       // Фон прогресс-бара
@@ -235,13 +241,24 @@ export function ShareAchievementModal({
       // Рассчитываем сколько кг осталось до следующего уровня
       const volumeToNext = nextBeastThreshold - totalVolume;
       
-      // Просто текст без фона (прозрачный)
-      ctx.font = '500 12px Inter, system-ui, sans-serif';
+      // Базовый текст
+      ctx.font = '500 14px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.fillText(
-        `${progressPercentage}% до ${nextBeastThreshold} кг (осталось ${volumeToNext} кг)`,
-        cardWidth / 2,
+        "До следующего уровня осталось ",
+        cardWidth / 2 - 35,
+        progressBarY + 35
+      );
+      
+      // Значение кг выделенное оранжевым и с увеличенным размером
+      ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#f97316';
+      const kgValueText = `${volumeToNext} кг!`;
+      const kgTextWidth = ctx.measureText("До следующего уровня осталось ").width;
+      ctx.fillText(
+        kgValueText,
+        cardWidth / 2 + kgTextWidth/2 - 35,
         progressBarY + 35
       );
       
