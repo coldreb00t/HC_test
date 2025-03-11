@@ -61,3 +61,22 @@
   transform: translateZ(0);
   will-change: transform;
 }
+
+/* Стили для исправления отображения карточки зверя при шаринге */
+.beast-card-container {
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  border: none !important;
+  overflow: hidden !important;
+  left: 0 !important;
+  right: 0 !important;
+}
+
+.beast-card-container img {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}

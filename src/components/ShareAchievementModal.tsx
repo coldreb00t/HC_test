@@ -118,9 +118,35 @@ export function ShareAchievementModal({
 
   useEffect(() => {
     if (isOpen && imageLoaded && achievementCardRef.current) {
-      generateImage();
+      // Даем элементу немного времени для рендеринга
+      setTimeout(() => {
+        generateImage();
+      }, 500);
     }
   }, [isOpen, imageLoaded]);
+
+  // Функция для подготовки элемента перед генерацией изображения
+  const prepareElementForCapture = (element: HTMLDivElement) => {
+    // Добавляем стили непосредственно к элементу для устранения проблемы с белой полосой
+    element.style.padding = '0';
+    element.style.margin = '0 auto';
+    element.style.border = 'none';
+    element.style.overflow = 'hidden';
+    element.style.boxSizing = 'border-box';
+    element.style.backgroundColor = imageData ? 'transparent' : '#4c1d95';
+    
+    // Также проверяем и исправляем все дочерние изображения
+    const images = element.querySelectorAll('img');
+    images.forEach(img => {
+      img.style.left = '0';
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+      img.style.position = 'absolute';
+    });
+    
+    return element;
+  };
 
   const generateImage = async () => {
     if (!achievementCardRef.current) return;
@@ -128,12 +154,16 @@ export function ShareAchievementModal({
     setLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Задержка 1 секунда
+      // Даем элементу немного времени для рендеринга
+      await new Promise((resolve) => setTimeout(resolve, 300)); 
 
       const element = achievementCardRef.current;
-      element.style.display = 'none';
-      element.offsetHeight;
-      element.style.display = 'block';
+      const preparedElement = prepareElementForCapture(element);
+      
+      // Принудительно заставляем браузер перерисовать элемент
+      preparedElement.style.display = 'none';
+      preparedElement.offsetHeight; // Trigger reflow
+      preparedElement.style.display = 'block';
 
       // Убедимся, что размеры DOM-элемента фиксированы
       const computedStyle = window.getComputedStyle(element);
@@ -148,12 +178,22 @@ export function ShareAchievementModal({
         height: cardHeight * scale,
         style: {
           transform: `scale(${scale})`,
-          transformOrigin: 'top left',
+          transformOrigin: '0 0', // Более точное указание начала координат
           width: `${cardWidth}px`,
           height: `${cardHeight}px`,
+          margin: 0,
+          padding: 0,
+          boxSizing: 'border-box',
+          borderWidth: 0,
+          overflow: 'hidden',
+          backgroundColor: imageData ? 'transparent' : '#4c1d95', // Фиолетовый фон по умолчанию
+          position: 'absolute',
+          left: 0,
+          top: 0,
         },
         quality: 0.95, // Немного уменьшаем качество для быстрой обработки на мобильных устройствах
         imagePlaceholder: fallbackGradient, // Используем градиент, если изображение не загрузилось
+        bgcolor: imageData ? 'transparent' : '#4c1d95', // Дополнительный параметр для dom-to-image
       };
 
       domToImage.toBlob(element, options)
@@ -368,6 +408,9 @@ export function ShareAchievementModal({
       minHeight: `${cardHeight}px`, // Гарантируем минимальную высоту
       maxWidth: `${cardWidth}px`, // Ограничиваем максимальную ширину
       maxHeight: `${cardHeight}px`, // Ограничиваем максимальную высоту
+      boxSizing: 'border-box', // Важно для правильного расчета размеров
+      border: 'none', // Убираем любые возможные границы
+      padding: 0, // Убираем отступы
     },
     topGradient: {
       position: 'absolute' as const,
@@ -522,6 +565,7 @@ export function ShareAchievementModal({
             ref={achievementCardRef}
             data-html2canvas-beast-card
             style={inlineStyles.cardContainer}
+            className="beast-card-container"
           >
             {isBeast ? (
               // Шаблон для зверей
