@@ -37,3 +37,6 @@ yarn-error.log*
 # Supabase
 .supabase
 .vercel
+
+# Local Netlify folder
+.netlify
