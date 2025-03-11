@@ -112,7 +112,7 @@ export function PhotoUploadView() {
           
           const timestamp = Date.now();
           const filename = `${clientData.id}-${timestamp}-${file.name}`;
-          const path = `progress-photos/${clientData.id}/${filename}`;
+          const path = `progress-photos/${filename}`;
           
           console.log(`Uploading to path: ${path}`);
           console.log(`File details - size: ${file.size}, type: ${file.type}`);
@@ -139,7 +139,11 @@ export function PhotoUploadView() {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${supabaseKey}`,
-              'x-upsert': 'true'
+              'x-upsert': 'true',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Content-Type': 'multipart/form-data',
+              'Accept': 'application/json'
             },
             body: formData
           });
