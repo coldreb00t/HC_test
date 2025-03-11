@@ -50,6 +50,11 @@ export function PhotoUploadView() {
     const file = files[0];
     
     console.log('Processing file:', file.name, file.type, file.size);
+    // Выводим дополнительную информацию о файле для диагностики
+    console.log('File object:', file);
+    console.log('File lastModified:', file.lastModified);
+    console.log('File is instanceof File:', file instanceof File);
+    console.log('File is instanceof Blob:', file instanceof Blob);
     
     if (!file.type.startsWith('image/')) {
       toast.error(`Файл не является изображением`);
@@ -82,6 +87,12 @@ export function PhotoUploadView() {
     try {
       setUploading(true);
       console.log('Starting photo upload');
+      
+      // Диагностическая информация
+      console.log('Navigator platform:', navigator.platform);
+      console.log('User agent:', navigator.userAgent);
+      console.log('Is WebKit:', /AppleWebKit/.test(navigator.userAgent));
+      console.log('Is iOS:', /iPhone|iPad|iPod/.test(navigator.userAgent));
 
       // Получаем текущего пользователя
       console.log('Getting current user...');
@@ -131,32 +142,76 @@ export function PhotoUploadView() {
           console.log(`Начинаем загрузку файла: ${file.name}, размер: ${file.size}, тип: ${file.type}`);
           
           try {
-            const { data, error } = await supabase.storage
-              .from('client-photos')
-              .upload(path, file);
-              
-            if (error) {
-              console.error('Ошибка загрузки:', error);
-              console.error('Детали ошибки:', JSON.stringify(error, null, 2));
-              
-              let detailedError = `Ошибка загрузки файла ${file.name}: `;
-              if (error.message) detailedError += error.message;
-              if ('statusCode' in error) detailedError += ` (Код: ${(error as any).statusCode})`;
-              if ('error' in error) detailedError += ` - ${(error as any).error}`;
-              
-              toast.error(detailedError, { duration: 6000 });
-              throw error;
+            // Попробуем прочитать первые байты файла для проверки доступности
+            try {
+              const filePart = file.slice(0, 1024);
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                console.log('File preview read successfully, length:', e.target?.result ? (e.target.result as ArrayBuffer).byteLength : 'unknown');
+              };
+              reader.onerror = (e) => {
+                console.error('File preview read error:', e);
+              };
+              reader.readAsArrayBuffer(filePart);
+            } catch (fileReadError) {
+              console.error('Error reading file preview:', fileReadError);
             }
             
-            console.log('Загрузка успешна:', data);
-            
-            // Получаем публичный URL для фото
-            const { data: { publicUrl } } = supabase.storage
-              .from('client-photos')
-              .getPublicUrl(path);
-            
-            console.log('Public URL:', publicUrl);
-            return publicUrl;
+            // Создаем копию файла, чтобы избежать проблем с доступом
+            try {
+              const newFile = new File([file], file.name, { type: file.type });
+              console.log('Created new file copy:', newFile.name, newFile.size);
+              
+              const { data, error } = await supabase.storage
+                .from('client-photos')
+                .upload(path, newFile);
+              
+              if (error) {
+                console.error('Ошибка загрузки:', error);
+                console.error('Детали ошибки:', JSON.stringify(error, null, 2));
+                
+                let detailedError = `Ошибка загрузки файла ${file.name}: `;
+                if (error.message) detailedError += error.message;
+                if ('statusCode' in error) detailedError += ` (Код: ${(error as any).statusCode})`;
+                if ('error' in error) detailedError += ` - ${(error as any).error}`;
+                
+                toast.error(detailedError, { duration: 6000 });
+                throw error;
+              }
+              
+              console.log('Загрузка успешна:', data);
+              
+              // Получаем публичный URL для фото
+              const { data: { publicUrl } } = supabase.storage
+                .from('client-photos')
+                .getPublicUrl(path);
+              
+              console.log('Public URL:', publicUrl);
+              return publicUrl;
+            } catch (fileCopyError) {
+              console.error('Ошибка создания копии файла:', fileCopyError);
+              
+              // Fallback к исходному методу загрузки, если создание копии не сработало
+              console.log('Fallback к оригинальному методу загрузки');
+              const { data, error } = await supabase.storage
+                .from('client-photos')
+                .upload(path, file);
+                
+              if (error) {
+                console.error('Ошибка загрузки (fallback):', error);
+                console.error('Детали ошибки (fallback):', JSON.stringify(error, null, 2));
+                
+                let detailedError = `Ошибка загрузки файла ${file.name}: `;
+                if (error.message) detailedError += error.message;
+                if ('statusCode' in error) detailedError += ` (Код: ${(error as any).statusCode})`;
+                if ('error' in error) detailedError += ` - ${(error as any).error}`;
+                
+                toast.error(detailedError, { duration: 6000 });
+                throw error;
+              }
+              
+              console.log('Загрузка успешна (fallback):', data);
+            }
           } catch (error) {
             console.error('Error in file upload:', error);
             throw error;

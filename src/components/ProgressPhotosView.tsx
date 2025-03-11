@@ -189,12 +189,22 @@ export function ProgressPhotosView() {
     }
 
     try {
-      const { error } = await supabase.storage
+      console.log('Удаление фото:', filename);
+      console.log('Полный путь для удаления:', `progress-photos/${filename}`);
+      
+      const { data, error } = await supabase.storage
         .from('client-photos')
         .remove([`progress-photos/${filename}`]);
 
-      if (error) throw error;
-
+      if (error) {
+        console.error('Ошибка при удалении:', error);
+        throw error;
+      }
+      
+      console.log('Результат удаления:', data);
+      console.log('Обновление состояния, удаление файла из списка:', filename);
+      
+      // Обновляем состояние после успешного удаления
       setPhotos(photos => photos.filter(photo => photo.filename !== filename));
       toast.success('Фото удалено');
     } catch (error: any) {
@@ -254,10 +264,11 @@ export function ProgressPhotosView() {
                       <span className="font-medium">{photo.date}</span>
                       <button
                         onClick={() => handleDeletePhoto(photo.filename)}
-                        className="p-1 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                        className="p-2 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
                         title="Удалить фото"
+                        aria-label="Удалить фото"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
