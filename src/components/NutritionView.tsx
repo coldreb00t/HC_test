@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Apple, Plus, Trash2, Upload, X, Edit, Check } from 'lucide-react';
+import { Apple, Plus, Trash2, Upload, X, Edit, Check, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
@@ -32,6 +32,13 @@ export function NutritionView() {
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  
+  // Новое состояние для управления диалогом подтверждения удаления
+  const [confirmDeleteDialog, setConfirmDeleteDialog] = useState({
+    show: false,
+    entryId: '',
+  });
+  
   const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id'>>({
     date: new Date().toISOString().split('T')[0],
     proteins: null,
@@ -392,6 +399,48 @@ export function NutritionView() {
     setEditingEntryId(null);
   };
 
+  // Обновлённая функция инициации удаления записи
+  const initiateDelete = (entryId: string) => {
+    console.log('Инициирован процесс удаления записи:', entryId);
+    setConfirmDeleteDialog({
+      show: true,
+      entryId: entryId,
+    });
+  };
+
+  // Функция для подтверждения удаления
+  const confirmDelete = async () => {
+    const entryId = confirmDeleteDialog.entryId;
+    console.log('Подтверждено удаление записи:', entryId);
+    
+    try {
+      const { error } = await supabase
+        .from('client_nutrition')
+        .delete()
+        .eq('id', entryId);
+
+      if (error) {
+        console.error('Ошибка при удалении:', error);
+        throw error;
+      }
+
+      toast.success('Запись удалена');
+      fetchNutritionData();
+    } catch (error: any) {
+      console.error('Error deleting entry:', error);
+      toast.error('Ошибка при удалении записи');
+    } finally {
+      // Закрываем диалог подтверждения
+      setConfirmDeleteDialog({ show: false, entryId: '' });
+    }
+  };
+
+  // Функция для отмены удаления
+  const cancelDelete = () => {
+    console.log('Отмена удаления записи');
+    setConfirmDeleteDialog({ show: false, entryId: '' });
+  };
+
   return (
     <SidebarLayout
       menuItems={menuItems}
@@ -570,10 +619,13 @@ export function NutritionView() {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(entry.id)}
-                        className="text-red-500 hover:text-red-600 transition-colors"
+                        onClick={() => initiateDelete(entry.id)}
+                        className="p-2 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                        title="Удалить запись"
+                        aria-label="Удалить запись"
+                        type="button"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
@@ -618,6 +670,35 @@ export function NutritionView() {
             toast.success('Замеры сохранены');
           }}
         />
+      )}
+
+      {/* Кастомный диалог подтверждения удаления */}
+      {confirmDeleteDialog.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-500 mr-2" />
+              <h3 className="text-lg font-semibold">Подтверждение удаления</h3>
+            </div>
+            <p className="mb-6">Вы уверены, что хотите удалить эту запись? Это действие нельзя отменить.</p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                type="button"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                type="button"
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </SidebarLayout>
   );
