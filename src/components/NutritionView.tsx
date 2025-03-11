@@ -47,6 +47,48 @@ export function NutritionView() {
     fetchNutritionData();
   }, []);
 
+  // Эффект для лучшей обработки файлового инпута в iOS WKWebView
+  useEffect(() => {
+    // Функция для инициализации файлового инпута
+    const initFileInput = () => {
+      if (fileInputRef.current) {
+        // Очищаем текущее значение, чтобы событие change срабатывало даже при выборе того же файла
+        fileInputRef.current.value = '';
+        
+        // Добавляем обработчик клика с таймаутом для iOS WebView
+        const clickHandler = async () => {
+          console.log('NutritionView: File input clicked');
+          // Небольшой таймаут для iOS WebView
+          await new Promise(resolve => setTimeout(resolve, 100));
+        };
+        
+        // Удаляем предыдущий обработчик, если он был
+        fileInputRef.current.removeEventListener('click', clickHandler);
+        fileInputRef.current.addEventListener('click', clickHandler);
+      }
+    };
+    
+    initFileInput();
+    
+    // Настраиваем инпут каждый раз перед его использованием
+    const uploadArea = document.getElementById('nutrition-photo-upload-area');
+    if (uploadArea) {
+      uploadArea.addEventListener('click', () => {
+        initFileInput();
+        fileInputRef.current?.click();
+      });
+    }
+    
+    return () => {
+      // Очистка при размонтировании
+      if (uploadArea) {
+        uploadArea.removeEventListener('click', () => {
+          fileInputRef.current?.click();
+        });
+      }
+    };
+  }, []);
+
   const fetchNutritionData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -99,16 +141,21 @@ export function NutritionView() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
+      console.log('NutritionView: Files selected:', e.target.files.length);
+      
       const files = Array.from(e.target.files);
+      console.log('NutritionView: File types:', files.map(f => f.type).join(', '));
       
       const validFiles = files.filter(file => {
         if (!file.type.startsWith('image/')) {
+          console.warn(`NutritionView: File rejected - not an image: ${file.name} (${file.type})`);
           toast.error(`${file.name} не является изображением`);
           return false;
         }
 
         if (file.size > 25 * 1024 * 1024) {
+          console.warn(`NutritionView: File rejected - too large: ${file.name} (${file.size} bytes)`);
           toast.error(`${file.name} превышает допустимый размер 25MB`);
           return false;
         }
@@ -116,20 +163,40 @@ export function NutritionView() {
         return true;
       });
 
+      if (validFiles.length === 0) {
+        console.warn('NutritionView: No valid files found after filtering');
+        return;
+      }
+
       Promise.all(
-        validFiles.map(file => new Promise<PhotoPreview>((resolve) => {
+        validFiles.map(file => new Promise<PhotoPreview>((resolve, reject) => {
+          console.log(`NutritionView: Processing file: ${file.name}`);
           const reader = new FileReader();
+          
           reader.onloadend = () => {
+            console.log(`NutritionView: File loaded successfully: ${file.name}`);
             resolve({
               file,
               preview: reader.result as string
             });
           };
+          
+          reader.onerror = () => {
+            console.error(`NutritionView: Error reading file: ${file.name}`, reader.error);
+            reject(reader.error);
+          };
+          
           reader.readAsDataURL(file);
         }))
       ).then(previews => {
+        console.log(`NutritionView: Generated ${previews.length} previews`);
         setSelectedFiles(prev => [...prev, ...previews]);
+      }).catch(error => {
+        console.error('NutritionView: Error processing files:', error);
+        toast.error('Ошибка при обработке фото. Пожалуйста, попробуйте еще раз.');
       });
+    } else {
+      console.warn('NutritionView: No files selected or files object is null');
     }
   };
 
@@ -457,7 +524,7 @@ export function NutritionView() {
               </div>
 
               <div
-                onClick={() => fileInputRef.current?.click()}
+                id="nutrition-photo-upload-area"
                 className="w-full h-[200px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors"
               >
                 <Upload className="w-8 h-8 text-gray-400 mb-2" />

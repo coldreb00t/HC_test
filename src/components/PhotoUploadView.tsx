@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -15,21 +15,69 @@ export function PhotoUploadView() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  
+  // Эффект для лучшей обработки камеры в iOS WKWebView
+  useEffect(() => {
+    // Функция для инициализации файлового инпута
+    const initFileInput = () => {
+      if (fileInputRef.current) {
+        // Очищаем текущее значение, чтобы событие change срабатывало даже при выборе того же файла
+        fileInputRef.current.value = '';
+        
+        // Добавляем обработчик клика с таймаутом для iOS WebView
+        const clickHandler = async () => {
+          console.log('File input clicked');
+          // Небольшой таймаут для iOS WebView
+          await new Promise(resolve => setTimeout(resolve, 100));
+        };
+        
+        // Удаляем предыдущий обработчик, если он был
+        fileInputRef.current.removeEventListener('click', clickHandler);
+        fileInputRef.current.addEventListener('click', clickHandler);
+      }
+    };
+    
+    initFileInput();
+    
+    // Настраиваем инпут каждый раз перед его использованием
+    const uploadArea = document.getElementById('photo-upload-area');
+    if (uploadArea) {
+      uploadArea.addEventListener('click', () => {
+        initFileInput();
+        fileInputRef.current?.click();
+      });
+    }
+    
+    return () => {
+      // Очистка при размонтировании
+      if (uploadArea) {
+        uploadArea.removeEventListener('click', () => {
+          fileInputRef.current?.click();
+        });
+      }
+    };
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
+      console.log('Files selected:', e.target.files.length);
+      
       const files = Array.from(e.target.files);
+      console.log('File types:', files.map(f => f.type).join(', '));
+      console.log('File sizes:', files.map(f => f.size).join(', '));
       
       // Validate each file
       const validFiles = files.filter(file => {
         // Check file type
         if (!file.type.startsWith('image/')) {
+          console.warn(`File rejected - not an image: ${file.name} (${file.type})`);
           toast.error(`${file.name} не является изображением`);
           return false;
         }
 
         // Check file size (25MB)
         if (file.size > 25 * 1024 * 1024) {
+          console.warn(`File rejected - too large: ${file.name} (${file.size} bytes)`);
           toast.error(`${file.name} превышает допустимый размер 25MB`);
           return false;
         }
@@ -37,21 +85,41 @@ export function PhotoUploadView() {
         return true;
       });
 
+      if (validFiles.length === 0) {
+        console.warn('No valid files found after filtering');
+        return;
+      }
+
       // Create previews for valid files
       Promise.all(
-        validFiles.map(file => new Promise<PhotoPreview>((resolve) => {
+        validFiles.map(file => new Promise<PhotoPreview>((resolve, reject) => {
+          console.log(`Processing file: ${file.name} (${file.type})`);
           const reader = new FileReader();
+          
           reader.onloadend = () => {
+            console.log(`File loaded successfully: ${file.name}`);
             resolve({
               file,
               preview: reader.result as string
             });
           };
+          
+          reader.onerror = () => {
+            console.error(`Error reading file: ${file.name}`, reader.error);
+            reject(reader.error);
+          };
+          
           reader.readAsDataURL(file);
         }))
       ).then(previews => {
+        console.log(`Generated ${previews.length} previews`);
         setSelectedFiles(prev => [...prev, ...previews]);
+      }).catch(error => {
+        console.error('Error processing files:', error);
+        toast.error('Ошибка при обработке фото. Пожалуйста, попробуйте еще раз.');
       });
+    } else {
+      console.warn('No files selected or files object is null');
     }
   };
 
@@ -169,7 +237,7 @@ export function PhotoUploadView() {
 
             {/* Upload Area */}
             <div
-              onClick={() => fileInputRef.current?.click()}
+              id="photo-upload-area"
               className="w-full h-[300px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors"
             >
               <Upload className="w-8 h-8 text-gray-400 mb-2" />
