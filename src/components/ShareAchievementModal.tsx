@@ -44,9 +44,9 @@ export function ShareAchievementModal({
   const [imageData, setImageData] = useState<string | null>(null);
   const achievementCardRef = useRef<HTMLDivElement>(null);
 
-  // Фиксированные размеры (вернули исходные)
-  const cardWidth = 324;
-  const cardHeight = 600;
+  // Фиксированные размеры (уменьшены для лучшей адаптации на iPhone)
+  const cardWidth = 290;
+  const cardHeight = 540;
 
   const canNativeShare = typeof navigator !== 'undefined' && navigator.share !== undefined;
 
@@ -142,17 +142,17 @@ export function ShareAchievementModal({
         height: computedStyle.height,
       });
 
-      const scale = 2; // Фиксированный масштаб для 648x1200 пикселей
+      const scale = 2; // Фиксированный масштаб
       const options = {
-        width: cardWidth * scale, // 648 пикселей
-        height: cardHeight * scale, // 1200 пикселей
+        width: cardWidth * scale,
+        height: cardHeight * scale,
         style: {
           transform: `scale(${scale})`,
           transformOrigin: 'top left',
           width: `${cardWidth}px`,
           height: `${cardHeight}px`,
         },
-        quality: 1.0, // Максимальное качество
+        quality: 0.95, // Немного уменьшаем качество для быстрой обработки на мобильных устройствах
         imagePlaceholder: fallbackGradient, // Используем градиент, если изображение не загрузилось
       };
 
@@ -187,7 +187,30 @@ export function ShareAchievementModal({
   const handleDownload = () => {
     if (!shareableImage) return;
 
-    // Проверяем размеры Blob через временный объект Image
+    // Определяем, используется ли iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    
+    if (isIOS) {
+      // Специальная обработка для iOS - открываем изображение в новой вкладке
+      try {
+        // Создаем временный элемент img для предварительной загрузки изображения
+        const img = new Image();
+        img.src = shareableImage;
+        
+        // Открываем изображение в новой вкладке
+        window.open(shareableImage, '_blank');
+        
+        toast('Изображение открыто. Нажмите "Поделиться" и выберите "Сохранить изображение"', 
+          { type: 'success', duration: 5000 } as CustomToastOptions);
+      } catch (error) {
+        console.error('Ошибка при открытии изображения на iOS:', error);
+        toast('Не удалось открыть изображение. Попробуйте использовать кнопку "Поделиться"', 
+          { type: 'error' } as CustomToastOptions);
+      }
+      return;
+    }
+
+    // Стандартная обработка для других платформ
     fetch(shareableImage)
       .then((response) => response.blob())
       .then((blob) => {
@@ -196,13 +219,13 @@ export function ShareAchievementModal({
         img.onload = () => {
           console.log('Размеры Blob перед сохранением:', img.width, 'x', img.height);
 
-          // Ожидаемые размеры с scale: 2
-          const expectedWidth = 648;
-          const expectedHeight = 1200;
+          // Ожидаемые размеры с учетом нового масштаба
+          const expectedWidth = cardWidth * 2; // 580px
+          const expectedHeight = cardHeight * 2; // 1080px
 
-          // Проверяем, соответствуют ли размеры ожидаемым пропорциям (9:16)
+          // Проверяем, соответствуют ли размеры ожидаемым пропорциям
           if (img.width !== expectedWidth || img.height !== expectedHeight) {
-            console.warn('Размеры Blob не соответствуют ожидаемым (648x1200), корректируем пропорции');
+            console.warn(`Размеры Blob не соответствуют ожидаемым (${expectedWidth}x${expectedHeight}), корректируем пропорции`);
             // Создаем новый canvas для строгой коррекции пропорций
             const correctedCanvas = document.createElement('canvas');
             correctedCanvas.width = expectedWidth; // Фиксированная ширина
@@ -485,8 +508,8 @@ export function ShareAchievementModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl overflow-hidden max-w-md w-full">
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-2 z-50 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl overflow-hidden max-w-md w-full mx-auto my-4">
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-800">Поделиться достижением</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
@@ -628,7 +651,7 @@ export function ShareAchievementModal({
                   className="flex items-center justify-center gap-2 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
                   <Download className="w-5 h-5" />
-                  <span>Скачать</span>
+                  <span>{/iPad|iPhone|iPod/.test(navigator.userAgent) ? 'Открыть' : 'Скачать'}</span>
                 </button>
                 <button
                   onClick={handleCopyImage}
