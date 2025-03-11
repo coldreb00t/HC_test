@@ -125,7 +125,6 @@ export function ShareAchievementModal({
     }
   }, [isOpen, imageLoaded]);
 
-  // Функция для подготовки элемента перед генерацией изображения
   const prepareElementForCapture = (element: HTMLDivElement) => {
     // Добавляем стили непосредственно к элементу для устранения проблемы с белой полосой
     element.style.padding = '0';
@@ -135,9 +134,18 @@ export function ShareAchievementModal({
     element.style.boxSizing = 'border-box';
     element.style.backgroundColor = imageData ? 'transparent' : '#4c1d95';
     
+    // Устанавливаем фоновое изображение напрямую
+    if (imageData) {
+      element.style.backgroundImage = `url(${imageData})`;
+      element.style.backgroundSize = 'cover';
+      element.style.backgroundPosition = 'center';
+      element.style.backgroundRepeat = 'no-repeat';
+    }
+    
     // Также проверяем и исправляем все дочерние изображения
     const images = element.querySelectorAll('img');
     images.forEach(img => {
+      img.crossOrigin = 'anonymous'; // Добавляем crossOrigin для всех изображений
       img.style.left = '0';
       img.style.width = '100%';
       img.style.height = '100%';
@@ -154,8 +162,8 @@ export function ShareAchievementModal({
     setLoading(true);
 
     try {
-      // Даем элементу немного времени для рендеринга
-      await new Promise((resolve) => setTimeout(resolve, 300)); 
+      // Даем элементу немного времени для рендеринга и загрузки всех изображений
+      await new Promise((resolve) => setTimeout(resolve, 500)); 
 
       const element = achievementCardRef.current;
       const preparedElement = prepareElementForCapture(element);
@@ -178,7 +186,7 @@ export function ShareAchievementModal({
         height: cardHeight * scale,
         style: {
           transform: `scale(${scale})`,
-          transformOrigin: '0 0', // Более точное указание начала координат
+          transformOrigin: 'top left', // Уточняем начало координат
           width: `${cardWidth}px`,
           height: `${cardHeight}px`,
           margin: 0,
@@ -192,25 +200,30 @@ export function ShareAchievementModal({
           top: 0,
         },
         quality: 0.95, // Немного уменьшаем качество для быстрой обработки на мобильных устройствах
-        imagePlaceholder: fallbackGradient, // Используем градиент, если изображение не загрузилось
+        imagePlaceholder: imageData || fallbackGradient, // Используем наше изображение в первую очередь
         bgcolor: imageData ? 'transparent' : '#4c1d95', // Дополнительный параметр для dom-to-image
+        cacheBust: true, // Предотвращаем кэширование для обеспечения свежих данных
+        fetchRequestInit: { // Настройки для fetch запросов к внешним ресурсам
+          mode: 'cors',
+          credentials: 'same-origin',
+        },
       };
 
+      // Используем dom-to-image-more вместо стандартного dom-to-image для лучшей обработки фоновых изображений
       domToImage.toBlob(element, options)
         .then((blob: Blob) => {
-          if (blob) {
-            // Очищаем предыдущий URL, если он есть
-            if (imageUrlId) {
-              URL.revokeObjectURL(imageUrlId);
-            }
-            const newImageUrl = URL.createObjectURL(blob);
-            setShareableImage(newImageUrl);
-            setImageUrlId(newImageUrl); // Сохраняем ID URL для очистки
-            console.log('Сгенерировано изображение для шаринга (Blob URL):', newImageUrl);
-            setLoading(false);
-          } else {
-            throw new Error('Не удалось создать Blob из элемента DOM');
+          if (!blob) {
+            throw new Error('Не удалось создать изображение');
           }
+          console.log('Создан blob размером:', blob.size);
+          if (imageUrlId) {
+            URL.revokeObjectURL(imageUrlId);
+          }
+          const newImageUrl = URL.createObjectURL(blob);
+          setShareableImage(newImageUrl);
+          setImageUrlId(newImageUrl); // Сохраняем ID URL для очистки
+          console.log('Сгенерировано изображение для шаринга (Blob URL):', newImageUrl);
+          setLoading(false);
         })
         .catch((error: unknown) => {
           console.error('Ошибка при генерации изображения:', error);
@@ -574,7 +587,15 @@ export function ShareAchievementModal({
                   <img
                     src={imageData}
                     alt={`Зверь ${beastName}`}
-                    style={inlineStyles.coverImage}
+                    crossOrigin="anonymous"
+                    style={{
+                      ...inlineStyles.coverImage,
+                      position: 'absolute',
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      zIndex: 1
+                    }}
                     onError={(e) => {
                       console.error('Ошибка отображения изображения:', e);
                     }}
