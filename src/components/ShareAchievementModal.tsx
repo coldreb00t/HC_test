@@ -84,9 +84,9 @@ export function ShareAchievementModal({
       
       setLoading(true);
       setImageLoaded(false);
-      
+
       if (isBeast && beastImage) {
-        const img = new Image();
+      const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
           setImageData(beastImage);
@@ -204,7 +204,7 @@ export function ShareAchievementModal({
       ctx.save();
       // Полупрозрачный фон для логотипа
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      const logoX = cardWidth - 120;
+      const logoX = cardWidth - 150;
       const logoY = 15;
       const logoWidth = 110;
       const logoHeight = 24;
@@ -408,131 +408,126 @@ export function ShareAchievementModal({
 
   // Функция рисования карточки, определяет какой шаблон использовать
   const drawAchievementCard = async (canvas: HTMLCanvasElement): Promise<boolean> => {
-    // Если это зверь, используем существующую логику
+    // Проверяем, что это БИСТмодный режим достижения Зверя
     if (isBeast) {
-      console.log("Вызываем отрисовку карточки ЗВЕРЯ");
-      // Существующий код для отрисовки достижения "Подними зверя"
       const ctx = canvas.getContext('2d');
       if (!ctx) return false;
       
-      // Устанавливаем размеры canvas
-      canvas.width = cardWidth * 2; // Увеличиваем разрешение в 2 раза для более четкого изображения
-      canvas.height = cardHeight * 2;
-      ctx.scale(2, 2); // Масштабируем контекст
+      console.log("Начинаем отрисовку карточки БИСТ-достижения");
       
-      // Очищаем canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Устанавливаем размеры canvas
+      canvas.width = cardWidth * 2;
+      canvas.height = cardHeight * 2;
+      ctx.scale(2, 2); // Увеличиваем масштаб для лучшего качества при шаринге
       
       try {
-        // Шаг 1: Рисуем фон
+        // Шаг 1: Рисуем черный градиентный фон
+        const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
+        gradient.addColorStop(0, '#111');
+        gradient.addColorStop(1, '#000');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, cardWidth, cardHeight);
+        
+        // Добавляем логотип HARDCASE.TRAINING в правом верхнем углу
+        ctx.save();
+        // Полупрозрачный фон для логотипа
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        const logoX = cardWidth - 150;
+        const logoY = 15;
+        const logoWidth = 110;
+        const logoHeight = 24;
+        // Рисуем прямоугольник с закругленными углами
+        const logoRadius = 4;
+        ctx.beginPath();
+        ctx.moveTo(logoX + logoRadius, logoY);
+        ctx.lineTo(logoX + logoWidth - logoRadius, logoY);
+        ctx.quadraticCurveTo(logoX + logoWidth, logoY, logoX + logoWidth, logoY + logoRadius);
+        ctx.lineTo(logoX + logoWidth, logoY + logoHeight - logoRadius);
+        ctx.quadraticCurveTo(logoX + logoWidth, logoY + logoHeight, logoX + logoWidth - logoRadius, logoY + logoHeight);
+        ctx.lineTo(logoX + logoRadius, logoY + logoHeight);
+        ctx.quadraticCurveTo(logoX, logoY + logoHeight, logoX, logoY + logoHeight - logoRadius);
+        ctx.lineTo(logoX, logoY + logoRadius);
+        ctx.quadraticCurveTo(logoX, logoY, logoX + logoRadius, logoY);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Добавляем текст логотипа
+        ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('HARDCASE.TRAINING', logoX + logoWidth/2, logoY + logoHeight/2);
+        ctx.restore();
+        
+        // Шаг 2: Рисуем фон
         if (beastImage) {
           const backgroundImg = new Image();
           backgroundImg.crossOrigin = 'anonymous';
+          backgroundImg.src = beastImage;
           
-          // Ждем загрузки фонового изображения
-          await new Promise<void>((resolve, reject) => {
-            backgroundImg.onload = () => resolve();
-            backgroundImg.onerror = () => reject(new Error('Не удалось загрузить фоновое изображение'));
-            backgroundImg.src = beastImage;
-          }).catch(() => {
-            // В случае ошибки загрузки рисуем градиентный фон
-            const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
-            gradient.addColorStop(0, '#4338ca');
-            gradient.addColorStop(1, '#7e22ce');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, cardWidth, cardHeight);
-          });
-          
-          // Если изображение успешно загружено, рисуем его с сохранением пропорций
-          if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
-            // Определяем размер и положение для сохранения правильных пропорций
-            const imgRatio = backgroundImg.naturalWidth / backgroundImg.naturalHeight;
-            const cardRatio = cardWidth / cardHeight;
+          if (backgroundImg.complete) {
+            // Если изображение уже загружено, рисуем его с учетом пропорций
+            const imgRatio = backgroundImg.width / backgroundImg.height;
+            const canvasRatio = cardWidth / cardHeight;
             
-            let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
+            let drawWidth = cardWidth;
+            let drawHeight = cardHeight;
+            let offsetX = 0;
+            let offsetY = 0;
             
-            if (imgRatio > cardRatio) {
-              // Изображение шире, чем нужно - подгоняем по высоте и центрируем по ширине
-              drawHeight = cardHeight;
-              drawWidth = cardHeight * imgRatio;
-              offsetX = -(drawWidth - cardWidth) / 2;
-            } else {
-              // Изображение выше, чем нужно - подгоняем по ширине и центрируем по высоте
-              drawWidth = cardWidth;
+            // Выравниваем изображение по центру, сохраняя пропорции
+            if (imgRatio > canvasRatio) {
               drawHeight = cardWidth / imgRatio;
-              offsetY = -(drawHeight - cardHeight) / 2;
+              offsetY = (cardHeight - drawHeight) / 2;
+            } else {
+              drawWidth = cardHeight * imgRatio;
+              offsetX = (cardWidth - drawWidth) / 2;
             }
             
             ctx.drawImage(backgroundImg, offsetX, offsetY, drawWidth, drawHeight);
+          } else {
+            // Если изображение не загружено, делаем однотонный фон
+            ctx.fillStyle = '#1e1e1e';
+            ctx.fillRect(0, 0, cardWidth, cardHeight);
           }
         } else {
-          // Для не-зверей используем градиентный фон
-          const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
-          gradient.addColorStop(0, '#4338ca'); // Темно-синий
-          gradient.addColorStop(1, '#7e22ce'); // Фиолетовый
-          ctx.fillStyle = gradient;
+          // Если нет изображения, делаем однотонный фон
+          ctx.fillStyle = '#1e1e1e';
           ctx.fillRect(0, 0, cardWidth, cardHeight);
         }
         
-        // Шаг 2: Добавляем верхний градиент для улучшения читаемости
+        // Шаг 3: Добавляем верхний градиент для улучшения читаемости
         const topGradient = ctx.createLinearGradient(0, 0, 0, 150);
         topGradient.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
         topGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = topGradient;
         ctx.fillRect(0, 0, cardWidth, 150);
         
-        // Шаг 3: Добавляем нижний градиент для улучшения читаемости
+        // Шаг 4: Добавляем нижний градиент для улучшения читаемости
         const bottomGradient = ctx.createLinearGradient(0, cardHeight - 200, 0, cardHeight);
         bottomGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
         bottomGradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
         ctx.fillStyle = bottomGradient;
         ctx.fillRect(0, cardHeight - 200, cardWidth, 200);
         
-        // Шаг 4: Добавляем логотип в правом верхнем углу с прозрачным фоном
-        ctx.save();
-        ctx.filter = 'blur(5px)';
-        ctx.fillStyle = 'rgba(249, 115, 22, 0.4)';
-        ctx.fillRect(cardWidth - 125, 20, 110, 30);
-        ctx.restore();
-        
-        ctx.font = '500 12px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.fillText('HARDCASE.TRAINING', cardWidth - 70, 38);
-        
         // Шаг 5: Добавляем блок с весом в левом верхнем углу (по старому дизайну)
         ctx.save();
         ctx.filter = 'blur(5px)';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        // Увеличиваем размер фона примерно на 15% во все стороны
-        const weightBoxWidth = 115; // Было 100
-        const weightBoxHeight = 70; // Было 60
-        const weightBoxX = 15; // Было 20
-        const weightBoxY = 15; // Было 20
-        ctx.fillRect(weightBoxX, weightBoxY, weightBoxWidth, weightBoxHeight);
+        ctx.fillStyle = 'rgba(249, 115, 22, 0.4)';
+        ctx.fillRect(20, 20, 100, 60);
         ctx.restore();
         
-        ctx.font = 'bold 28px Inter, system-ui, sans-serif';
+        ctx.font = 'bold 24px Inter, system-ui, sans-serif';
         ctx.fillStyle = '#f97316';
         ctx.textAlign = 'center';
-        const weightBoxCenterX = weightBoxX + weightBoxWidth / 2;
-        const weightTextY = weightBoxY + 35;
-        ctx.fillText(totalVolume.toString(), weightBoxCenterX, weightTextY);
-        
-        // Отступ для "кг" с учетом размера числа, чтобы не наезжал
-        const weightWidth = ctx.measureText(totalVolume.toString()).width;
-        ctx.font = '500 14px Inter, system-ui, sans-serif';
-        ctx.fillStyle = '#f97316';
-        ctx.textAlign = 'left';
-        ctx.fillText('кг', weightBoxCenterX + weightWidth/2 + 5, weightTextY);
+        ctx.fillText(`${totalVolume}`, 70, 50);
         
         ctx.font = '500 12px Inter, system-ui, sans-serif';
         ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.fillText('ОБЩИЙ ОБЪЕМ', weightBoxCenterX, weightBoxY + 55);
+        ctx.fillText('кг', 70, 70);
         
-        // Шаг 6: Добавляем имя зверя, центрированное по горизонтали
-        ctx.font = 'bold 42px Inter, system-ui, sans-serif';
+        // Шаг 6: Добавляем заголовок (название зверя)
+        ctx.font = 'bold 28px Inter, system-ui, sans-serif';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 110);
@@ -637,7 +632,7 @@ export function ShareAchievementModal({
     
     console.log("Запуск генерации изображения для шаринга");
     setLoading(true);
-    
+
     try {
       // Рисуем карточку на canvas
       const success = await drawAchievementCard(canvasRef.current);
@@ -671,8 +666,8 @@ export function ShareAchievementModal({
         throw new Error('Изображение получилось слишком маленьким');
       }
       
-      const newImageUrl = URL.createObjectURL(blob);
-      setShareableImage(newImageUrl);
+            const newImageUrl = URL.createObjectURL(blob);
+            setShareableImage(newImageUrl);
       setImageUrlId(newImageUrl);
       console.log('Сгенерировано изображение для шаринга:', newImageUrl);
     } catch (error) {
@@ -687,12 +682,12 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      const link = document.createElement('a');
+    const link = document.createElement('a');
       link.href = shareableImage;
       link.download = `hardcase-beast-${beastName}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
       toast('Изображение скачано', { type: 'success' } as CustomToastOptions);
     } catch (error) {
@@ -728,11 +723,11 @@ export function ShareAchievementModal({
 
       // Проверяем поддержку шаринга файлов
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `HARDCASE.TRAINING: Зверь ${beastName}`,
-          text: `${weightPhrase} - ${totalVolume} кг`,
-          files: [file],
-        });
+      await navigator.share({
+        title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+        text: `${weightPhrase} - ${totalVolume} кг`,
+        files: [file],
+      });
       } else {
         // Если файлы не поддерживаются, пробуем шарить только текст
         await navigator.share({
@@ -803,7 +798,7 @@ export function ShareAchievementModal({
           className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
         >
           <X className="w-6 h-6" />
-        </button>
+          </button>
 
         <h2 className="text-xl font-bold text-white mb-5 text-center">
           {isBeast ? `Зверь ${beastName}` : 'Достижение'}
