@@ -47,3 +47,17 @@
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/* Предотвращение просвечивания контента через фиксированные элементы */
+.fixed {
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+/* Принудительное использование GPU-акселерации для элементов с фиксированным позиционированием */
+.fixed-header {
+  position: fixed;
+  transform: translateZ(0);
+  will-change: transform;
+}
