@@ -70,26 +70,45 @@ export function ShareAchievementModal({
 
   // Загружаем изображение зверя при открытии модального окна
   useEffect(() => {
-    if (isOpen && isBeast && beastImage) {
+    if (isOpen) {
+      console.log("Модальное окно открыто, тип достижения:", isBeast ? "зверь" : "обычное");
+      console.log("Параметры достижения:", {
+        beastName,
+        totalVolume,
+        weightPhrase,
+        displayValue,
+        unit
+      });
+      
       setLoading(true);
       setImageLoaded(false);
       
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        setImageData(beastImage);
-        setImageLoaded(true);
-        // Генерируем изображение сразу после загрузки фона
-        generateShareImage();
-      };
-      img.onerror = () => {
-        console.error('Ошибка загрузки изображения зверя');
+      if (isBeast && beastImage) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          setImageData(beastImage);
+          setImageLoaded(true);
+          // Генерируем изображение сразу после загрузки фона
+          generateShareImage();
+        };
+        img.onerror = () => {
+          console.error('Ошибка загрузки изображения зверя');
+          setImageData(null);
+          setImageLoaded(true);
+          // Все равно пытаемся сгенерировать, но с градиентным фоном
+          generateShareImage();
+        };
+        img.src = beastImage;
+      } else {
+        // Для обычных достижений не нужно ждать загрузки изображения
         setImageData(null);
         setImageLoaded(true);
-        // Все равно пытаемся сгенерировать, но с градиентным фоном
-        generateShareImage();
-      };
-      img.src = beastImage;
+        // Запускаем генерацию с небольшой задержкой
+        setTimeout(() => {
+          generateShareImage();
+        }, 100);
+      }
     }
   }, [isOpen, beastImage, isBeast]);
 
@@ -97,6 +116,8 @@ export function ShareAchievementModal({
   const drawAchievementCard = async (canvas: HTMLCanvasElement): Promise<boolean> => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return false;
+    
+    console.log("Начинаем отрисовку карточки на Canvas, тип:", isBeast ? "зверь" : "обычное");
     
     // Устанавливаем размеры canvas
     canvas.width = cardWidth * 2; // Увеличиваем разрешение в 2 раза для более четкого изображения
@@ -150,9 +171,10 @@ export function ShareAchievementModal({
         }
       } else {
         // Для не-зверей используем градиентный фон
+        console.log("Рисуем градиентный фон для обычного достижения");
         const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
-        gradient.addColorStop(0, '#4338ca');
-        gradient.addColorStop(1, '#7e22ce');
+        gradient.addColorStop(0, '#4338ca'); // Темно-синий
+        gradient.addColorStop(1, '#7e22ce'); // Фиолетовый
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, cardWidth, cardHeight);
       }
@@ -265,7 +287,19 @@ export function ShareAchievementModal({
         ctx.fillStyle = '#f97316';
         ctx.fillText(volumeToNext + " кг!", textStartX + baseTextWidth, progressBarY + 35);
       } else {
+        console.log("Рисуем обычное достижение с данными:", {
+          displayValue: displayValue || totalVolume.toString(),
+          unit
+        });
+        
         // Для обычных достижений отображаем значение и единицу измерения
+        // Добавляем блок с оранжевым фоном
+        ctx.save();
+        ctx.filter = 'blur(5px)';
+        ctx.fillStyle = 'rgba(249, 115, 22, 0.2)';
+        ctx.fillRect(cardWidth * 0.1, cardHeight * 0.4, cardWidth * 0.8, cardHeight * 0.2);
+        ctx.restore();
+        
         // Отображаем значение (большое, по центру)
         ctx.font = 'bold 64px Inter, system-ui, sans-serif';
         ctx.fillStyle = '#f97316';
@@ -317,6 +351,7 @@ export function ShareAchievementModal({
       ctx.textAlign = 'center';
       ctx.fillText(`@${userName}`, cardWidth / 2, cardHeight - 25);
       
+      console.log("Отрисовка карточки завершена успешно");
       return true;
     } catch (error) {
       console.error('Ошибка при рисовании на canvas:', error);
@@ -326,8 +361,12 @@ export function ShareAchievementModal({
 
   // Генерация изображения
   const generateShareImage = async () => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current) {
+      console.error("Canvas не найден");
+      return;
+    }
     
+    console.log("Запуск генерации изображения для шаринга");
     setLoading(true);
     
     try {
@@ -340,6 +379,7 @@ export function ShareAchievementModal({
       
       // Конвертируем canvas в URL
       const dataUrl = canvasRef.current.toDataURL('image/png');
+      console.log("Canvas сконвертирован в dataUrl");
       
       // Проверяем, что созданный dataUrl валидный и не пустой
       if (!dataUrl || dataUrl === 'data:,') {
@@ -354,6 +394,7 @@ export function ShareAchievementModal({
       // Конвертируем dataUrl в Blob для более надежного шаринга
       const response = await fetch(dataUrl);
       const blob = await response.blob();
+      console.log("Создан blob размером:", blob.size);
       
       // Проверяем размер Blob
       if (blob.size < 5000) {
