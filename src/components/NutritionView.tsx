@@ -469,7 +469,6 @@ export function NutritionView() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 multiple
                 onChange={handleFileSelect}
                 className="hidden"

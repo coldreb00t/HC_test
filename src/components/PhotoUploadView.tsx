@@ -1,10 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import toast from 'react-hot-toast';
-import { safeOpenCamera, isIOSWKWebView } from '../lib/cameraHelper';
 
 interface PhotoPreview {
   file: File;
@@ -16,11 +15,6 @@ export function PhotoUploadView() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-
-  // Оптимизация для iOS WKWebView при монтировании компонента
-  useEffect(() => {
-    console.log('PhotoUploadView mounted, isIOSWKWebView:', isIOSWKWebView());
-  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -61,76 +55,73 @@ export function PhotoUploadView() {
     }
   };
 
-// Для PhotoUploadView.tsx и MeasurementsUploadView.tsx
-// Полностью заменяем функцию handleUpload
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error('Пожалуйста, выберите фото');
+      return;
+    }
 
-const handleUpload = async () => {
-  if (selectedFiles.length === 0) {
-    toast.error('Пожалуйста, выберите фото');
-    return;
-  }
+    try {
+      setUploading(true);
+      console.log('Starting photo upload');
 
-  try {
-    setUploading(true);
-    console.log('Starting photo upload');
+      // Получаем текущего пользователя
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-    // Получаем текущего пользователя
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+      // Находим ID клиента по user_id
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
 
-    // Находим ID клиента по user_id
-    const { data: clientData, error: clientError } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
+      if (clientError) throw clientError;
 
-    if (clientError) throw clientError;
+      const uploadPromises = selectedFiles.map(async ({ file }) => {
+        const timestamp = Date.now();
+        const filename = `${clientData.id}-${timestamp}-${file.name}`;
+        const path = `progress-photos/${clientData.id}/${filename}`;
 
-    const uploadPromises = selectedFiles.map(async ({ file }) => {
-      const timestamp = Date.now();
-      const filename = `${clientData.id}-${timestamp}-${file.name}`;
-      const path = `progress-photos/${clientData.id}/${filename}`;
+        const { error: uploadError } = await supabase.storage
+          .from('images')
+          .upload(path, file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('images')
-        .upload(path, file);
+        if (uploadError) throw uploadError;
 
-      if (uploadError) throw uploadError;
+        // Получаем публичный URL для фото
+        const { data: { publicUrl } } = supabase.storage
+          .from('images')
+          .getPublicUrl(path);
 
-      // Получаем публичный URL для фото
-      const { data: { publicUrl } } = supabase.storage
-        .from('images')
-        .getPublicUrl(path);
+        return publicUrl;
+      });
 
-      return publicUrl;
-    });
+      const uploadedUrls = await Promise.all(uploadPromises);
 
-    const uploadedUrls = await Promise.all(uploadPromises);
+      // Добавляем записи в progress_photos таблицу
+      const { error: insertError } = await supabase
+        .from('progress_photos')
+        .insert(
+          uploadedUrls.map(url => ({
+            client_id: clientData.id,
+            url,
+            date: new Date().toISOString()
+          }))
+        );
 
-    // Добавляем записи в progress_photos таблицу
-    const { error: insertError } = await supabase
-      .from('progress_photos')
-      .insert(
-        uploadedUrls.map(url => ({
-          client_id: clientData.id,
-          url,
-          date: new Date().toISOString()
-        }))
-      );
+      if (insertError) throw insertError;
 
-    if (insertError) throw insertError;
+      toast.success('Фото успешно загружены');
+      navigate('/client/progress');
 
-    toast.success('Фото успешно загружены');
-    navigate('/client/progress');
-
-  } catch (error: any) {
-    console.error('Error uploading photos:', error);
-    toast.error('Ошибка при загрузке фото');
-  } finally {
-    setUploading(false);
-  }
-};
+    } catch (error: any) {
+      console.error('Error uploading photos:', error);
+      toast.error('Ошибка при загрузке фото');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleRemovePhoto = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
@@ -143,11 +134,6 @@ const handleUpload = async () => {
       onClick: () => navigate('/client/progress')
     }
   ];
-
-  const handleOpenCamera = () => {
-    // Используем новую утилиту вместо прямого клика
-    safeOpenCamera(fileInputRef, handleFileSelect);
-  };
 
   return (
     <SidebarLayout
@@ -183,7 +169,7 @@ const handleUpload = async () => {
 
             {/* Upload Area */}
             <div
-              onClick={handleOpenCamera}
+              onClick={() => fileInputRef.current?.click()}
               className="w-full h-[300px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors"
             >
               <Upload className="w-8 h-8 text-gray-400 mb-2" />
@@ -198,8 +184,6 @@ const handleUpload = async () => {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            multiple
-            onChange={handleFileSelect}
             className="hidden"
           />
 

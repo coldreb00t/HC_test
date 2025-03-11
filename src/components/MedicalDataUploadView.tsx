@@ -1,9 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Upload, X, FileText, Image, File } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { safeOpenCamera, isIOSWKWebView } from '../lib/cameraHelper';
 
 interface FilePreview {
   file: File;
@@ -17,21 +15,9 @@ interface MedicalDataUploadViewProps {
 }
 
 export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataUploadViewProps) {
-  const { clientId } = useParams<{ clientId: string }>();
   const [selectedFiles, setSelectedFiles] = useState<FilePreview[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [category, setCategory] = useState('blood_test'); // По умолчанию анализ крови
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
-  const [isIOS, setIsIOS] = useState(false);
-  
-  // Оптимизация для iOS WKWebView при монтировании компонента
-  useEffect(() => {
-    console.log('MedicalDataUploadView mounted, isIOSWKWebView:', isIOSWKWebView());
-    setIsIOS(isIOSWKWebView());
-  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -93,79 +79,69 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
       return;
     }
 
-    if (!description.trim()) {
-      toast.error('Пожалуйста, добавьте описание');
-      return;
-    }
-
     try {
       setUploading(true);
-      
-      // Проверка аутентификации
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      
-      if (!clientId) {
-        toast.error('ID клиента не найден');
-        return;
-      }
 
-      console.log('Starting medical data upload for client:', clientId);
-      
-      // Используем текущее время для создания уникальных имен файлов
-      const timestamp = Date.now();
-      
-      // Загружаем каждый файл
-      const uploadResults = await Promise.all(
-        selectedFiles.map(async ({ file }, index) => {
-          const fileExt = file.name.split('.').pop() || '';
-          const uniqueId = crypto.randomUUID();
-          // Формируем имя файла с clientId для обеспечения приватности
-          const fileName = `${clientId}-${timestamp + index}-${uniqueId}.${fileExt}`;
-          const filePath = `medical-data/${fileName}`;
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-          console.log(`Uploading file to ${filePath}`);
+      // Get client id
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
 
-          const { error: uploadError, data } = await supabase.storage
-            .from('client-data')
-            .upload(filePath, file, {
-              cacheControl: '3600',
-              upsert: false
-            });
+      if (clientError) throw clientError;
 
-          if (uploadError) throw uploadError;
+      const uploadPromises = selectedFiles.map(async ({ file }) => {
+        const timestamp = Date.now();
+        const filename = `${clientData.id}-${timestamp}-${file.name}`;
+        const path = `medical-documents/${clientData.id}/${filename}`;
 
-          return {
-            file_path: filePath,
-            file_name: fileName,
-            original_name: file.name,
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(path, file);
+
+        if (uploadError) throw uploadError;
+
+        // Get public URL for file
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(path);
+
+        return {
+          url: publicUrl,
+          filename: file.name,
+          type: file.type
+        };
+      });
+
+      const uploadedFiles = await Promise.all(uploadPromises);
+
+      // Add records to medical_data table
+      const { error: insertError } = await supabase
+        .from('medical_data')
+        .insert(
+          uploadedFiles.map(file => ({
+            client_id: clientData.id,
+            file_url: file.url,
+            file_name: file.filename,
             file_type: file.type,
-            file_size: file.size
-          };
-        })
-      );
+            upload_date: new Date().toISOString()
+          }))
+        );
 
-      // Сохраняем запись в БД о медицинских данных
-      const { error: dbError } = await supabase
-        .from('client_medical_data')
-        .insert({
-          client_id: clientId,
-          category: category,
-          description: description,
-          date: date,
-          files: uploadResults,
-          created_by: user?.id,
-          created_at: new Date().toISOString()
-        });
+      if (insertError) throw insertError;
 
-      if (dbError) throw dbError;
-
-      toast.success('Данные успешно загружены');
+      toast.success('Файлы успешно загружены');
       onUploadSuccess();
       onClose();
+
     } catch (error: any) {
-      console.error('Error uploading medical data:', error);
-      toast.error('Ошибка при загрузке данных: ' + (error.message || error));
+      console.error('Error uploading files:', error);
+      toast.error('Ошибка при загрузке файлов');
     } finally {
       setUploading(false);
     }
@@ -176,16 +152,14 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
   };
 
   const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) return '🖼️';
-    if (fileType.includes('pdf')) return '📄';
-    if (fileType.includes('word') || fileType.includes('document')) return '📝';
-    if (fileType.includes('spreadsheet') || fileType.includes('excel')) return '📊';
-    return '📁';
-  };
-
-  const handleOpenFileDialog = () => {
-    // Используем новую утилиту вместо прямого клика
-    safeOpenCamera(fileInputRef, handleFileSelect);
+    switch (fileType) {
+      case 'image':
+        return <Image className="w-12 h-12 text-blue-500" />;
+      case 'pdf':
+        return <FileText className="w-12 h-12 text-red-500" />;
+      default:
+        return <File className="w-12 h-12 text-gray-500" />;
+    }
   };
 
   return (
@@ -207,12 +181,12 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
                   {file.preview ? (
                     <img src={file.preview} alt="Preview" className="w-12 h-12 object-cover rounded" />
                   ) : (
-                    <span>{getFileIcon(file.type)}</span>
+                    getFileIcon(file.type)
                   )}
                   <div className="truncate max-w-[150px]">
                     <p className="font-medium truncate">{file.file.name}</p>
                     <p className="text-xs text-gray-500">
-                      {(file.file.size / 1024).toFixed(1)} KB
+                      {Math.round(file.file.size / 1024)} KB
                     </p>
                   </div>
                 </div>
@@ -228,21 +202,18 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
 
           {/* Upload Area */}
           <div
-            onClick={handleOpenFileDialog}
+            onClick={() => fileInputRef.current?.click()}
             className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center cursor-pointer hover:border-blue-500 transition-colors"
           >
             <Upload className="w-10 h-10 text-gray-400 mb-2" />
             <p className="text-gray-600">Нажмите, чтобы выбрать файлы</p>
             <p className="text-sm text-gray-400 mt-1">Изображения, PDF, документы до 25MB</p>
-            {isIOS && <p className="text-xs text-orange-500 mt-1">* В режиме WKWebView выберите один файл за раз</p>}
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            multiple={!isIOS}
-            onChange={handleFileSelect}
             className="hidden"
           />
         </div>
