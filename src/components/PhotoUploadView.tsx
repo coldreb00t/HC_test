@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,18 @@ export function PhotoUploadView() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  // Очистка URL объектов при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      // Очищаем все созданные URL объекты при выходе из компонента
+      selectedFiles.forEach(file => {
+        if (file.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, [selectedFiles]);
 
   const handleCameraClick = () => {
     if (fileInputRef.current) {
@@ -49,8 +61,7 @@ export function PhotoUploadView() {
       return;
     }
     
-    // Простая обработка без FileReader для минимизации проблем
-    // Используем создание превью через createObjectURL
+    // Создаем превью через createObjectURL
     try {
       const preview = URL.createObjectURL(file);
       console.log('Created preview URL:', preview);
@@ -105,7 +116,7 @@ export function PhotoUploadView() {
       
       console.log('Preparing to upload', selectedFiles.length, 'files');
       
-      // Используем альтернативный подход с FormData для загрузки
+      // Максимально простой подход для загрузки файлов
       const uploadPromises = selectedFiles.map(async ({ file }, index) => {
         try {
           console.log(`Processing file ${index+1}/${selectedFiles.length}:`, file.name);
@@ -115,66 +126,36 @@ export function PhotoUploadView() {
           const path = `progress-photos/${filename}`;
           
           console.log(`Uploading to path: ${path}`);
-          console.log(`File details - size: ${file.size}, type: ${file.type}`);
-
-          // Создаем FormData для более надежной загрузки
-          const formData = new FormData();
-          formData.append('file', file);
           
-          // Получаем API URL и токен для загрузки
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-          
-          if (!supabaseUrl || !supabaseKey) {
-            throw new Error('Supabase configuration missing');
+          // Самый базовый вариант загрузки для максимальной совместимости
+          const { data, error } = await supabase.storage
+            .from('client-photos')
+            .upload(path, file);
+            
+          if (error) {
+            console.error('Upload error:', error);
+            throw error;
           }
           
-          // Прямой запрос к Storage API
-          const uploadUrl = `${supabaseUrl}/storage/v1/object/client-photos/${path}`;
+          console.log('Upload successful:', data);
           
-          console.log('Attempting direct upload via fetch API...');
-          console.log('Upload URL:', uploadUrl);
-          
-          const uploadResponse = await fetch(uploadUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'x-upsert': 'true',
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Content-Type': 'multipart/form-data',
-              'Accept': 'application/json'
-            },
-            body: formData
-          });
-          
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text();
-            console.error('Upload response error:', uploadResponse.status, errorText);
-            throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`);
-          }
-          
-          const uploadResult = await uploadResponse.json();
-          console.log('Upload successful, response:', uploadResult);
-
           // Получаем публичный URL для фото
-          console.log('Getting public URL...');
           const { data: { publicUrl } } = supabase.storage
             .from('client-photos')
             .getPublicUrl(path);
             
           console.log('Public URL:', publicUrl);
           return publicUrl;
-        } catch (fileError) {
-          console.error(`Error processing file ${file.name}:`, fileError);
-          throw fileError;
+        } catch (error) {
+          console.error('Error in file upload:', error);
+          throw error;
         }
       });
-
-      console.log('Waiting for all uploads to complete...');
+      
+      // Ждем завершения всех загрузок
       const uploadedUrls = await Promise.all(uploadPromises);
       console.log('All uploads completed, URLs:', uploadedUrls);
-
+      
       // Добавляем записи в progress_photos таблицу
       console.log('Inserting records into progress_photos...');
       const { data: insertData, error: insertError } = await supabase
@@ -199,27 +180,29 @@ export function PhotoUploadView() {
       selectedFiles.forEach(file => {
         if (file.preview.startsWith('blob:')) {
           URL.revokeObjectURL(file.preview);
-          console.log('Revoked object URL for', file.file.name);
         }
       });
 
+      // Очищаем выбранные файлы
+      setSelectedFiles([]);
+      
       console.log('Upload process completed successfully');
       toast.success('Фото успешно загружены');
       navigate('/client/progress');
 
     } catch (error: any) {
-      console.error('Error uploading photos, details:', error);
-      console.error('Error message:', error.message);
-      if (error.stack) {
-        console.error('Error stack:', error.stack);
-      }
+      console.error('Error uploading photos:', error);
       
       // Более информативное сообщение об ошибке
+      let errorMessage = 'Ошибка при загрузке фото';
       if (error.message) {
-        toast.error(`Ошибка при загрузке фото: ${error.message}`);
-      } else {
-        toast.error('Ошибка при загрузке фото');
+        errorMessage += `: ${error.message}`;
       }
+      if (error.details) {
+        console.error('Error details:', error.details);
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -291,7 +274,7 @@ export function PhotoUploadView() {
           {/* Hidden File Input с минимальными атрибутами для лучшей совместимости */}
           <input
             ref={fileInputRef}
-            type="file"
+            type="file" 
             accept="image/*"
             className="hidden"
             onChange={handleFileSelect}
