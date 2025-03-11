@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { FileText, Upload, X, Plus } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, X, FileText, Image, File } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { safeOpenCamera, isIOSWKWebView } from '../lib/cameraHelper';
 
 interface FilePreview {
   file: File;
@@ -24,14 +25,21 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const [isIOS, setIsIOS] = useState(false);
+  
+  // Оптимизация для iOS WKWebView при монтировании компонента
+  useEffect(() => {
+    console.log('MedicalDataUploadView mounted, isIOSWKWebView:', isIOSWKWebView());
+    setIsIOS(isIOSWKWebView());
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       
-      // Валидация файлов
+      // Validate each file
       const validFiles = files.filter(file => {
-        // Проверка размера (25MB максимум)
+        // Check file size (25MB)
         if (file.size > 25 * 1024 * 1024) {
           toast.error(`${file.name} превышает допустимый размер 25MB`);
           return false;
@@ -40,29 +48,39 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
         return true;
       });
 
-      // Создаем превью для выбранных файлов
+      // Create previews for valid files
       Promise.all(
-        validFiles.map(file => new Promise<FilePreview>((resolve) => {
-          // Для изображений создаем превью
+        validFiles.map(file => {
+          // Determine file type
+          let type = 'document';
           if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              resolve({
-                file,
-                preview: reader.result as string,
-                type: 'image'
-              });
-            };
-            reader.readAsDataURL(file);
-          } else {
-            // Для других типов файлов (PDF, документы) просто показываем иконку
-            resolve({
-              file,
-              preview: null,
-              type: file.type
+            type = 'image';
+          } else if (file.type === 'application/pdf') {
+            type = 'pdf';
+          }
+
+          // For images, create preview
+          if (type === 'image') {
+            return new Promise<FilePreview>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                resolve({
+                  file,
+                  preview: reader.result as string,
+                  type
+                });
+              };
+              reader.readAsDataURL(file);
             });
           }
-        }))
+
+          // For other files, just return file info
+          return Promise.resolve({
+            file,
+            preview: null,
+            type
+          });
+        })
       ).then(previews => {
         setSelectedFiles(prev => [...prev, ...previews]);
       });
@@ -165,139 +183,80 @@ export function MedicalDataUploadView({ onClose, onUploadSuccess }: MedicalDataU
     return '📁';
   };
 
+  const handleOpenFileDialog = () => {
+    // Используем новую утилиту вместо прямого клика
+    safeOpenCamera(fileInputRef, handleFileSelect);
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Загрузка медицинских данных
-        </h2>
-        <button
-          onClick={onClose}
-          className="text-gray-600 hover:text-gray-800"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      <form className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Категория
-          </label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          >
-            <option value="blood_test">Анализ крови</option>
-            <option value="urine_test">Анализ мочи</option>
-            <option value="mri">МРТ</option>
-            <option value="xray">Рентген</option>
-            <option value="ultrasound">УЗИ</option>
-            <option value="ecg">ЭКГ</option>
-            <option value="consultation">Консультация врача</option>
-            <option value="other">Другое</option>
-          </select>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Загрузка медицинских документов</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Дата
-          </label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Описание
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            placeholder="Введите описание или результаты анализа"
-            required
-          />
-        </div>
-
-        {/* Превью файлов */}
-        <div className="space-y-4">
-          {selectedFiles.map((fileData, index) => (
-            <div key={index} className="bg-gray-50 p-3 rounded-lg relative flex items-center">
-              <div className="flex-shrink-0 mr-3 text-2xl">
-                {fileData.preview ? (
-                  <img 
-                    src={fileData.preview} 
-                    alt="Preview" 
-                    className="w-12 h-12 object-cover rounded" 
-                  />
-                ) : (
-                  <span>{getFileIcon(fileData.type)}</span>
-                )}
+        <div className="p-4 flex-1 overflow-auto">
+          {/* File Previews */}
+          <div className="mb-4 space-y-3">
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="border rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {file.preview ? (
+                    <img src={file.preview} alt="Preview" className="w-12 h-12 object-cover rounded" />
+                  ) : (
+                    <span>{getFileIcon(file.type)}</span>
+                  )}
+                  <div className="truncate max-w-[150px]">
+                    <p className="font-medium truncate">{file.file.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {(file.file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemoveFile(index)}
+                  className="text-red-500 hover:text-red-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {fileData.file.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {(fileData.file.size / 1024).toFixed(1)} KB • {fileData.file.type || 'Неизвестный формат'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRemoveFile(index)}
-                className="ml-2 text-red-500 hover:text-red-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          {/* Кнопка выбора файлов */}
+          {/* Upload Area */}
           <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-orange-500 transition-colors"
+            onClick={handleOpenFileDialog}
+            className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center cursor-pointer hover:border-blue-500 transition-colors"
           >
-            <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+            <Upload className="w-10 h-10 text-gray-400 mb-2" />
             <p className="text-gray-600">Нажмите, чтобы выбрать файлы</p>
-            <p className="text-sm text-gray-500 mt-1">JPG, PNG, PDF до 25MB</p>
+            <p className="text-sm text-gray-400 mt-1">Изображения, PDF, документы до 25MB</p>
+            {isIOS && <p className="text-xs text-orange-500 mt-1">* В режиме WKWebView выберите один файл за раз</p>}
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
+            accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            multiple={!isIOS}
             onChange={handleFileSelect}
             className="hidden"
           />
         </div>
 
-        <div className="flex justify-end space-x-4">
+        <div className="p-4 border-t">
           <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-          >
-            Отмена
-          </button>
-          <button
-            type="button"
             onClick={handleUpload}
             disabled={uploading || selectedFiles.length === 0}
-            className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+            className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
           >
-            {uploading ? 'Загрузка...' : 'Сохранить'}
+            {uploading ? 'Загрузка...' : 'Загрузить файлы'}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

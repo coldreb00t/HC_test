@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import toast from 'react-hot-toast';
+import { safeOpenCamera, isIOSWKWebView } from '../lib/cameraHelper';
 
 interface PhotoPreview {
   file: File;
@@ -15,6 +16,11 @@ export function PhotoUploadView() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  // Оптимизация для iOS WKWebView при монтировании компонента
+  useEffect(() => {
+    console.log('PhotoUploadView mounted, isIOSWKWebView:', isIOSWKWebView());
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -68,78 +74,59 @@ const handleUpload = async () => {
     setUploading(true);
     console.log('Starting photo upload');
 
-    // 1. Получаем текущего пользователя
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      console.error('Auth error:', userError);
-      throw userError;
-    }
-    
-    if (!user) {
-      toast.error('Пожалуйста, войдите в систему');
-      navigate('/login');
-      return;
-    }
-    
-    console.log('Current user:', user.id);
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
 
-    // 2. Получаем профиль клиента
+    // Находим ID клиента по user_id
     const { data: clientData, error: clientError } = await supabase
       .from('clients')
       .select('id')
       .eq('user_id', user.id)
       .single();
 
-    if (clientError) {
-      console.error('Client error:', clientError);
-      throw clientError;
-    }
-    
-    const clientId = clientData.id;
-    console.log('Client ID:', clientId);
+    if (clientError) throw clientError;
 
-    // 3. Загружаем каждый файл
-    const uploadPromises = selectedFiles.map(async ({ file }, index) => {
-      // Формируем имя файла с гарантированно корректной структурой
-      const fileExt = file.name.split('.').pop() || 'jpg';
-      const uniqueId = crypto.randomUUID();
-      const timestamp = Date.now() + index; // Используем текущее время + индекс для уникальности
-      
-      // Строго форматируем имя файла: clientId-timestamp-uuid.ext
-      const fileName = `${clientId}-${timestamp}-${uniqueId}.${fileExt}`;
-      
-      // Формируем путь к файлу (progress-photos или measurements-photos в зависимости от компонента)
-      const folderName = window.location.pathname.includes('measurements') ? 
-        'measurements-photos' : 'progress-photos';
-      const filePath = `${folderName}/${fileName}`;
-      
-      console.log(`Uploading file to ${filePath}`);
+    const uploadPromises = selectedFiles.map(async ({ file }) => {
+      const timestamp = Date.now();
+      const filename = `${clientData.id}-${timestamp}-${file.name}`;
+      const path = `progress-photos/${clientData.id}/${filename}`;
 
-      // Загружаем файл
       const { error: uploadError } = await supabase.storage
-        .from('client-photos')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .from('images')
+        .upload(path, file);
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
-      }
-      
-      return fileName;
+      if (uploadError) throw uploadError;
+
+      // Получаем публичный URL для фото
+      const { data: { publicUrl } } = supabase.storage
+        .from('images')
+        .getPublicUrl(path);
+
+      return publicUrl;
     });
 
-    const uploadedFiles = await Promise.all(uploadPromises);
-    console.log('Successfully uploaded files:', uploadedFiles);
+    const uploadedUrls = await Promise.all(uploadPromises);
+
+    // Добавляем записи в progress_photos таблицу
+    const { error: insertError } = await supabase
+      .from('progress_photos')
+      .insert(
+        uploadedUrls.map(url => ({
+          client_id: clientData.id,
+          url,
+          date: new Date().toISOString()
+        }))
+      );
+
+    if (insertError) throw insertError;
 
     toast.success('Фото успешно загружены');
-    navigate(window.location.pathname.includes('measurements') ? 
-      '/client/measurements' : '/client/progress');
+    navigate('/client/progress');
+
   } catch (error: any) {
     console.error('Error uploading photos:', error);
-    toast.error('Ошибка при загрузке фото: ' + (error.message || error));
+    toast.error('Ошибка при загрузке фото');
   } finally {
     setUploading(false);
   }
@@ -156,6 +143,11 @@ const handleUpload = async () => {
       onClick: () => navigate('/client/progress')
     }
   ];
+
+  const handleOpenCamera = () => {
+    // Используем новую утилиту вместо прямого клика
+    safeOpenCamera(fileInputRef, handleFileSelect);
+  };
 
   return (
     <SidebarLayout
@@ -191,7 +183,7 @@ const handleUpload = async () => {
 
             {/* Upload Area */}
             <div
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleOpenCamera}
               className="w-full h-[300px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors"
             >
               <Upload className="w-8 h-8 text-gray-400 mb-2" />
@@ -206,19 +198,18 @@ const handleUpload = async () => {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             multiple
             onChange={handleFileSelect}
             className="hidden"
           />
 
-          {/* Upload Button */}
+          {/* Submit Button */}
           <button
             onClick={handleUpload}
-            disabled={selectedFiles.length === 0 || uploading}
+            disabled={uploading || selectedFiles.length === 0}
             className="w-full py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {uploading ? 'Загрузка...' : `Загрузить фото (${selectedFiles.length})`}
+            {uploading ? 'Загрузка...' : 'Загрузить фото'}
           </button>
         </div>
       </div>
