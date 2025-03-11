@@ -20,6 +20,7 @@ interface ShareAchievementModalProps {
   isBeast?: boolean; // Флаг для различения зверей и обычных достижений
   displayValue?: string; // Отформатированное значение для отображения
   unit?: string; // Единица измерения
+  motivationalPhrase?: string; // Мотивационная фраза для отображения
 }
 
 export function ShareAchievementModal({
@@ -35,6 +36,7 @@ export function ShareAchievementModal({
   isBeast,
   displayValue,
   unit,
+  motivationalPhrase,
 }: ShareAchievementModalProps) {
   const [shareableImage, setShareableImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -198,6 +200,37 @@ export function ShareAchievementModal({
         ctx.fillRect(0, 0, cardWidth, cardHeight);
       }
       
+      // Добавляем логотип HARDCASE.TRAINING в правом верхнем углу
+      ctx.save();
+      // Полупрозрачный фон для логотипа
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      const logoX = cardWidth - 120;
+      const logoY = 15;
+      const logoWidth = 110;
+      const logoHeight = 24;
+      // Рисуем прямоугольник с закругленными углами
+      const logoRadius = 4;
+      ctx.beginPath();
+      ctx.moveTo(logoX + logoRadius, logoY);
+      ctx.lineTo(logoX + logoWidth - logoRadius, logoY);
+      ctx.quadraticCurveTo(logoX + logoWidth, logoY, logoX + logoWidth, logoY + logoRadius);
+      ctx.lineTo(logoX + logoWidth, logoY + logoHeight - logoRadius);
+      ctx.quadraticCurveTo(logoX + logoWidth, logoY + logoHeight, logoX + logoWidth - logoRadius, logoY + logoHeight);
+      ctx.lineTo(logoX + logoRadius, logoY + logoHeight);
+      ctx.quadraticCurveTo(logoX, logoY + logoHeight, logoX, logoY + logoHeight - logoRadius);
+      ctx.lineTo(logoX, logoY + logoRadius);
+      ctx.quadraticCurveTo(logoX, logoY, logoX + logoRadius, logoY);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Добавляем текст логотипа
+      ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('HARDCASE.TRAINING', logoX + logoWidth/2, logoY + logoHeight/2);
+      ctx.restore();
+      
       // Содержимое
       ctx.fillStyle = 'white';
       
@@ -284,7 +317,10 @@ export function ShareAchievementModal({
       }
       
       // Мотивационная фраза (в полупрозрачном блоке)
-      if (weightPhrase) {
+      // Используем motivationalPhrase, если она есть, иначе используем weightPhrase
+      const phraseToUse = motivationalPhrase || weightPhrase;
+      
+      if (phraseToUse) {
         // Создаем полупрозрачный блок для мотивационной фразы
         const motivationBlockY = cardHeight * 0.7;
         const motivationBlockHeight = 80;
@@ -319,7 +355,7 @@ export function ShareAchievementModal({
         ctx.textBaseline = 'middle';
         
         // Разбиваем текст мотивации на строки
-        const motivationWords = weightPhrase.split(' ');
+        const motivationWords = phraseToUse.split(' ');
         let motivationLine = '"';
         let motivationY = motivationBlockY + 24;
         const motivationLineHeight = 22;

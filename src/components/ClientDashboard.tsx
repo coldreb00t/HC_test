@@ -135,6 +135,7 @@ export function ClientDashboard() {
     isBeast: boolean;
     displayValue: string;
     unit: string;
+    motivationalPhrase: string;
   } | null>(null);
   
   useEffect(() => {
@@ -796,7 +797,8 @@ export function ClientDashboard() {
       beastImage: achievement.bgImage || '',
       isBeast: achievement.beastComponent || false,
       displayValue: displayValue,
-      unit: unit
+      unit: unit,
+      motivationalPhrase: achievement.motivationalPhrase
     });
   };
   
@@ -1048,6 +1050,7 @@ export function ClientDashboard() {
           isBeast={shareModalData.isBeast}
           displayValue={shareModalData.displayValue}
           unit={shareModalData.unit}
+          motivationalPhrase={shareModalData.motivationalPhrase}
         />
       )}
     </SidebarLayout>
