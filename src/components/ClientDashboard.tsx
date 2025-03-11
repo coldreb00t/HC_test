@@ -802,7 +802,7 @@ export function ClientDashboard() {
   
   // Кастомный компонент топ-бара с добавленным дроп-даун меню
   const CustomHeader = (
-    <div className="bg-white shadow-sm">
+    <div className="bg-white shadow-sm w-full pt-safe-top">
       <div className="px-4 py-3 flex justify-between items-center">
         <div className="flex-1 text-center">
           <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
@@ -816,7 +816,7 @@ export function ClientDashboard() {
           </button>
           
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-[100]">
               <button
                 onClick={() => {
                   setShowProfileMenu(false);

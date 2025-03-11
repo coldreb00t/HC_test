@@ -1,4 +1,4 @@
-import React, { useState, FormEvent, ChangeEvent } from 'react';
+import React, { useState, FormEvent, ChangeEvent, useEffect } from 'react';
 import { Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +24,45 @@ export function AuthForm() {
     secretPhrase: ''
   });
 
+  // Проверяем наличие сохраненных токенов при загрузке
+  useEffect(() => {
+    async function autoLogin() {
+      const savedToken = localStorage.getItem('hardcase_auth_token');
+      const savedRefreshToken = localStorage.getItem('hardcase_refresh_token');
+      const rememberMe = localStorage.getItem('hardcase_remember_me');
+      
+      if (savedToken && savedRefreshToken && rememberMe === 'true') {
+        setLoading(true);
+        console.log('Найдены сохраненные токены, пытаемся автоматически войти...');
+        
+        try {
+          // Попытка восстановить сессию
+          const { data, error } = await authApi.setSession(savedToken, savedRefreshToken);
+          
+          if (error) {
+            console.error('Ошибка восстановления сессии:', error);
+            // Удаляем устаревшие токены
+            localStorage.removeItem('hardcase_auth_token');
+            localStorage.removeItem('hardcase_refresh_token');
+            localStorage.removeItem('hardcase_user_email');
+            localStorage.removeItem('hardcase_remember_me');
+          } else if (data.user) {
+            console.log('Автоматический вход успешен!');
+            // Определяем роль пользователя и перенаправляем
+            const userRole = data.user.user_metadata?.role || 'client';
+            navigate(userRole === 'client' ? ROUTES.CLIENT.DASHBOARD : ROUTES.TRAINER.DASHBOARD);
+          }
+        } catch (error) {
+          console.error('Ошибка автологина:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+    
+    autoLogin();
+  }, [navigate]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -40,8 +79,43 @@ export function AuthForm() {
         const { data, error } = await authApi.signIn(formData.email, formData.password);
         
         // Set session persistence based on rememberMe
-        if (rememberMe && data.session) {
+        if (data.session) {
           await authApi.setSession(data.session.access_token, data.session.refresh_token);
+          
+          // Если пользователь выбрал "Запомнить меня", сохраняем токены в localStorage
+          if (rememberMe) {
+            try {
+              localStorage.setItem('hardcase_auth_token', data.session.access_token);
+              localStorage.setItem('hardcase_refresh_token', data.session.refresh_token);
+              localStorage.setItem('hardcase_user_email', formData.email);
+              localStorage.setItem('hardcase_remember_me', 'true');
+              
+              // Проверяем, что токены действительно сохранились
+              const savedToken = localStorage.getItem('hardcase_auth_token');
+              if (savedToken) {
+                console.log('Учетные данные успешно сохранены в localStorage', {
+                  token: data.session.access_token.substring(0, 10) + '...',
+                  email: formData.email
+                });
+              } else {
+                console.error('Не удалось сохранить токены в localStorage!');
+                toast.error('Не удалось сохранить данные для автоматического входа');
+              }
+            } catch (storageError) {
+              console.error('Ошибка при сохранении токенов:', storageError);
+              toast.error('Не удалось сохранить данные для автоматического входа');
+            }
+          } else {
+            // Если "Запомнить меня" не выбрано, удаляем сохраненные токены
+            try {
+              localStorage.removeItem('hardcase_auth_token');
+              localStorage.removeItem('hardcase_refresh_token');
+              localStorage.removeItem('hardcase_user_email');
+              localStorage.removeItem('hardcase_remember_me');
+            } catch (storageError) {
+              console.error('Ошибка при очистке токенов:', storageError);
+            }
+          }
         }
         
         if (error) {

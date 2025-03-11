@@ -15,13 +15,52 @@ export function ProtectedRoute({ children, allowedRole }: ProtectedRouteProps) {
 
   useEffect(() => {
     async function getUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        setUserRole(user.user_metadata.role);
+      try {
+        // Проверяем текущего пользователя
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // Если пользователь уже авторизован
+        if (user) {
+          setUser(user);
+          setUserRole(user.user_metadata.role);
+          setLoading(false);
+          return;
+        }
+        
+        // Если пользователь не авторизован, проверяем localStorage
+        const savedToken = localStorage.getItem('hardcase_auth_token');
+        const savedRefreshToken = localStorage.getItem('hardcase_refresh_token');
+        const rememberMe = localStorage.getItem('hardcase_remember_me');
+        
+        if (savedToken && savedRefreshToken && rememberMe === 'true') {
+          console.log('Found saved credentials, attempting auto-login...');
+          
+          // Пытаемся восстановить сессию
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: savedToken,
+            refresh_token: savedRefreshToken
+          });
+          
+          if (sessionError) {
+            console.error('Error restoring session:', sessionError);
+            // Если токены устарели, удаляем их
+            localStorage.removeItem('hardcase_auth_token');
+            localStorage.removeItem('hardcase_refresh_token');
+            localStorage.removeItem('hardcase_user_email');
+            localStorage.removeItem('hardcase_remember_me');
+          } else if (sessionData.user) {
+            console.log('Auto-login successful');
+            setUser(sessionData.user);
+            setUserRole(sessionData.user.user_metadata.role);
+          }
+        }
+      } catch (error) {
+        console.error('Authentication error:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
+    
     getUser();
   }, []);
 

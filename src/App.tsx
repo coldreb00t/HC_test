@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { supabase } from './lib/supabase';
+import type { User } from '@supabase/supabase-js';
 import { AuthForm } from './components/AuthForm';
 import { ClientDashboard } from './components/ClientDashboard';
 import { ClientWorkoutsView } from './components/ClientWorkoutsView';
@@ -18,12 +20,84 @@ import { ActivityForm } from './components/ActivityForm';
 import { AchievementsView } from './components/AchievementsView';
 
 function App() {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const getUser = async () => {
+      // Сначала проверяем текущую сессию
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setUser(data.user);
+        return;
+      }
+
+      // Если текущей сессии нет, проверяем localStorage
+      const savedToken = localStorage.getItem('hardcase_auth_token');
+      const savedRefreshToken = localStorage.getItem('hardcase_refresh_token');
+      const rememberMe = localStorage.getItem('hardcase_remember_me');
+      
+      if (savedToken && savedRefreshToken && rememberMe === 'true') {
+        console.log('App: Найдены сохраненные токены в localStorage, восстанавливаем сессию...');
+        
+        try {
+          const { data: sessionData, error } = await supabase.auth.setSession({
+            access_token: savedToken,
+            refresh_token: savedRefreshToken
+          });
+          
+          if (error) {
+            console.error('App: Ошибка восстановления сессии:', error);
+            // Удаляем недействительные токены
+            localStorage.removeItem('hardcase_auth_token');
+            localStorage.removeItem('hardcase_refresh_token');
+            localStorage.removeItem('hardcase_user_email');
+            localStorage.removeItem('hardcase_remember_me');
+          } else if (sessionData.user) {
+            console.log('App: Сессия успешно восстановлена');
+            setUser(sessionData.user);
+          }
+        } catch (error) {
+          console.error('App: Ошибка автологина:', error);
+        }
+      }
+    };
+
+    getUser();
+
+    // Слушаем изменения состояния аутентификации
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
       <Routes>
         {/* Public routes */}
-        <Route path="/login" element={<AuthForm />} />
+        <Route 
+          path="/login" 
+          element={
+            user ? (
+              <Navigate 
+                to={user.user_metadata?.role === 'trainer' ? '/trainer' : '/client'} 
+                replace 
+              />
+            ) : (
+              <AuthForm />
+            )
+          } 
+        />
 
         {/* Client routes */}
         <Route path="/client" element={

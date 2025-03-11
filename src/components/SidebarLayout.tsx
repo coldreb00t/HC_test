@@ -66,49 +66,49 @@ export function SidebarLayout({
   if (variant === 'bottom') {
     return (
       <div className="min-h-screen bg-gray-100 pb-[calc(4rem+env(safe-area-inset-bottom))]">
-        {/* Header */}
-        {customHeader ? (
-          customHeader
-        ) : (
-          <div className="bg-white shadow-sm pt-safe-top">
-            <div className="px-4 py-3 flex justify-between items-center">
-              {backTo && (
-                <button 
-                  onClick={handleBack}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-              )}
-              <div className="flex-1 text-center">
-                <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
-              </div>
-              <div className="relative">
-                <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
-                >
-                  <User className="w-5 h-5 text-gray-600" />
-                </button>
-                
-                {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
-                    >
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Выйти
-                    </button>
-                  </div>
+        <div className="fixed top-0 left-0 right-0 z-[100]">
+          {customHeader ? (
+            customHeader
+          ) : (
+            <div className="bg-white shadow-sm pt-safe-top">
+              <div className="px-4 py-3 flex justify-between items-center">
+                {backTo && (
+                  <button 
+                    onClick={handleBack}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
                 )}
+                <div className="flex-1 text-center">
+                  <h1 className="text-xl font-bold text-gray-800">HARDCASE</h1>
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                    className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+                  >
+                    <User className="w-5 h-5 text-gray-600" />
+                  </button>
+                  
+                  {showProfileMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Выйти
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Main content */}
-        <div className="p-4 pb-32">
+        <div className="p-4 pb-32 pt-[calc(3.5rem+env(safe-area-inset-top))]">
           {children}
         </div>
 
