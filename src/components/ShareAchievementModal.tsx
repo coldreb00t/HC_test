@@ -195,19 +195,24 @@ export function ShareAchievementModal({
       ctx.textAlign = 'center';
       ctx.fillText(totalVolume.toString(), 70, 50);
       
+      // Отступ для "кг" с учетом размера числа, чтобы не наезжал
+      const weightWidth = ctx.measureText(totalVolume.toString()).width;
       ctx.font = '500 14px Inter, system-ui, sans-serif';
       ctx.fillStyle = '#f97316';
-      ctx.fillText('кг', 70 + ctx.measureText(totalVolume.toString()).width / 2 + 10, 50);
+      ctx.textAlign = 'left';
+      ctx.fillText('кг', 70 + weightWidth/2 + 5, 50);
       
       ctx.font = '500 12px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
       ctx.fillText('ОБЩИЙ ОБЪЕМ', 70, 70);
       
-      // Шаг 6: Добавляем имя зверя вверху карточки
+      // Шаг 6: Добавляем имя зверя в правой части под логотипом
+      // (сдвигаем вправо под блок HARDCASE.TRAINING)
       ctx.font = 'bold 42px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 80);
+      ctx.textAlign = 'right';
+      ctx.fillText(beastName.toUpperCase(), cardWidth - 20, 110);
       
       // Шаг 7: Добавляем прогресс-бар в нижней части карточки
       // Фон прогресс-бара
@@ -226,19 +231,16 @@ export function ShareAchievementModal({
       ctx.fillStyle = progressGradient;
       ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9 * progressPercentage / 100, 10);
       
-      // Шаг 8: Добавляем индикатор прогресса с процентами
-      ctx.save();
-      ctx.filter = 'blur(5px)';
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      const progressTextWidth = 140;
-      ctx.fillRect(cardWidth / 2 - progressTextWidth / 2, progressBarY + 20, progressTextWidth, 24);
-      ctx.restore();
+      // Шаг 8: Добавляем индикатор прогресса с процентами и кг до следующего уровня
+      // Рассчитываем сколько кг осталось до следующего уровня
+      const volumeToNext = nextBeastThreshold - totalVolume;
       
+      // Просто текст без фона (прозрачный)
       ctx.font = '500 12px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.fillText(
-        `${progressPercentage}% до ${nextBeastThreshold} кг`,
+        `${progressPercentage}% до ${nextBeastThreshold} кг (осталось ${volumeToNext} кг)`,
         cardWidth / 2,
         progressBarY + 35
       );
