@@ -140,9 +140,15 @@ export function ShareAchievementModal({
       element.style.backgroundSize = 'cover';
       element.style.backgroundPosition = 'center';
       element.style.backgroundRepeat = 'no-repeat';
+    } else if (isBeast && beastImage) {
+      // Если это карточка зверя и есть URL изображения, явно устанавливаем фон
+      element.style.backgroundImage = `url(${beastImage})`;
+      element.style.backgroundSize = 'cover';
+      element.style.backgroundPosition = 'center';
+      element.style.backgroundRepeat = 'no-repeat';
     }
     
-    // Также проверяем и исправляем все дочерние изображения
+    // Проверяем и исправляем все дочерние изображения
     const images = element.querySelectorAll('img');
     images.forEach(img => {
       img.crossOrigin = 'anonymous'; // Добавляем crossOrigin для всех изображений
@@ -151,6 +157,15 @@ export function ShareAchievementModal({
       img.style.height = '100%';
       img.style.objectFit = 'cover';
       img.style.position = 'absolute';
+      
+      // Проверяем, загружено ли изображение
+      if (!img.complete) {
+        console.log('Изображение не загружено, устанавливаем обработчик onload');
+        img.onload = () => console.log('Изображение загрузилось:', img.src);
+        img.onerror = () => console.error('Ошибка загрузки изображения:', img.src);
+      } else {
+        console.log('Изображение уже загружено:', img.src);
+      }
     });
     
     return element;
@@ -162,8 +177,8 @@ export function ShareAchievementModal({
     setLoading(true);
 
     try {
-      // Даем элементу немного времени для рендеринга и загрузки всех изображений
-      await new Promise((resolve) => setTimeout(resolve, 500)); 
+      // Увеличиваем задержку для надежной загрузки всех изображений
+      await new Promise((resolve) => setTimeout(resolve, 1000)); 
 
       const element = achievementCardRef.current;
       const preparedElement = prepareElementForCapture(element);
@@ -179,6 +194,30 @@ export function ShareAchievementModal({
         width: computedStyle.width,
         height: computedStyle.height,
       });
+
+      // Предварительно загружаем фоновое изображение, если это карточка зверя
+      let backgroundLoaded = !isBeast; // Если не зверь, считаем что фон готов
+      if (isBeast && beastImage) {
+        console.log('Предварительно загружаем фоновое изображение зверя:', beastImage);
+        backgroundLoaded = false;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          console.log('Фоновое изображение зверя загружено успешно');
+          backgroundLoaded = true;
+        };
+        img.onerror = () => {
+          console.error('Ошибка загрузки фонового изображения зверя');
+          backgroundLoaded = true; // Все равно продолжаем, считая что готово
+        };
+        img.src = beastImage;
+        // Ждем загрузки фонового изображения, но не более 3 секунд
+        await Promise.race([
+          new Promise<void>(resolve => img.onload = () => resolve()),
+          new Promise<void>(resolve => img.onerror = () => resolve()),
+          new Promise<void>(resolve => setTimeout(() => resolve(), 3000))
+        ]);
+      }
 
       const scale = 2; // Фиксированный масштаб
       const options = {
@@ -215,7 +254,41 @@ export function ShareAchievementModal({
           if (!blob) {
             throw new Error('Не удалось создать изображение');
           }
+
           console.log('Создан blob размером:', blob.size);
+          
+          // Проверяем размер blob - если он слишком маленький, это может указывать на проблему
+          if (blob.size < 5000) { // Менее 5KB обычно указывает на проблему
+            console.warn('Создан слишком маленький blob, возможно изображение неполное');
+            
+            // Повторная попытка с дополнительной задержкой
+            setTimeout(() => {
+              console.log('Повторная попытка создания изображения с дополнительной задержкой');
+              domToImage.toBlob(element, options)
+                .then((retryBlob: Blob) => {
+                  if (!retryBlob || retryBlob.size < 5000) {
+                    console.error('Повторная попытка не удалась или создан маленький blob');
+                    throw new Error('Не удалось создать качественное изображение');
+                  }
+                  
+                  if (imageUrlId) {
+                    URL.revokeObjectURL(imageUrlId);
+                  }
+                  const newImageUrl = URL.createObjectURL(retryBlob);
+                  setShareableImage(newImageUrl);
+                  setImageUrlId(newImageUrl);
+                  console.log('Сгенерировано изображение при повторной попытке:', newImageUrl);
+                  setLoading(false);
+                })
+                .catch((retryError: unknown) => {
+                  console.error('Ошибка при повторной генерации изображения:', retryError);
+                  toast('Не удалось создать изображение', { type: 'error' } as CustomToastOptions);
+                  setLoading(false);
+                });
+            }, 2000); // Увеличенная задержка для второй попытки
+            return;
+          }
+          
           if (imageUrlId) {
             URL.revokeObjectURL(imageUrlId);
           }
@@ -223,6 +296,20 @@ export function ShareAchievementModal({
           setShareableImage(newImageUrl);
           setImageUrlId(newImageUrl); // Сохраняем ID URL для очистки
           console.log('Сгенерировано изображение для шаринга (Blob URL):', newImageUrl);
+          
+          // Дополнительная проверка созданного URL
+          fetch(newImageUrl)
+            .then(response => {
+              if (!response.ok) {
+                console.warn('Созданный URL вернул не-OK статус');
+              } else {
+                console.log('Проверка URL прошла успешно');
+              }
+            })
+            .catch(error => {
+              console.error('Ошибка при проверке созданного URL:', error);
+            });
+            
           setLoading(false);
         })
         .catch((error: unknown) => {
