@@ -73,41 +73,100 @@ export function PhotoUploadView() {
       console.log('Starting photo upload');
 
       // Получаем текущего пользователя
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      console.log('Getting current user...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('User fetch error:', userError);
+        throw userError;
+      }
+      
+      if (!user) {
+        console.error('No user found');
+        throw new Error('Not authenticated');
+      }
+      
+      console.log('User found, id:', user.id);
 
       // Находим ID клиента по user_id
+      console.log('Fetching client data...');
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('id')
         .eq('user_id', user.id)
         .single();
 
-      if (clientError) throw clientError;
+      if (clientError) {
+        console.error('Client fetch error:', clientError);
+        throw clientError;
+      }
+      
+      console.log('Client found, id:', clientData.id);
+      
+      console.log('Preparing to upload', selectedFiles.length, 'files');
+      
+      // Добавим детальное логирование внутрь метода обработки каждого файла
+      const uploadPromises = selectedFiles.map(async ({ file }, index) => {
+        try {
+          console.log(`Processing file ${index+1}/${selectedFiles.length}:`, file.name);
+          
+          const timestamp = Date.now();
+          const filename = `${clientData.id}-${timestamp}-${file.name}`;
+          const path = `progress-photos/${clientData.id}/${filename}`;
+          
+          console.log(`Uploading to path: ${path}`);
+          console.log(`File details - size: ${file.size}, type: ${file.type}`);
 
-      const uploadPromises = selectedFiles.map(async ({ file }) => {
-        const timestamp = Date.now();
-        const filename = `${clientData.id}-${timestamp}-${file.name}`;
-        const path = `progress-photos/${clientData.id}/${filename}`;
+          // Проверка на корректность Blob
+          if (!(file instanceof Blob)) {
+            console.error('File is not a valid Blob');
+            throw new Error('Invalid file object');
+          }
 
-        const { error: uploadError } = await supabase.storage
-          .from('images')
-          .upload(path, file);
+          // Проверяем, что файл доступен перед загрузкой
+          try {
+            const slice = file.slice(0, 10);
+            console.log('File slice test successful, file is accessible');
+          } catch (sliceError) {
+            console.error('File slice test failed:', sliceError);
+            throw new Error('File is not accessible');
+          }
 
-        if (uploadError) throw uploadError;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('images')
+            .upload(path, file, {
+              cacheControl: '0', // Отключаем кеширование
+              upsert: true // Перезаписывать при совпадении имени
+            });
 
-        // Получаем публичный URL для фото
-        const { data: { publicUrl } } = supabase.storage
-          .from('images')
-          .getPublicUrl(path);
+          if (uploadError) {
+            console.error(`Upload error for file ${file.name}:`, uploadError);
+            throw uploadError;
+          }
+          
+          console.log('Upload successful, data:', uploadData);
 
-        return publicUrl;
+          // Получаем публичный URL для фото
+          console.log('Getting public URL...');
+          const { data: { publicUrl } } = supabase.storage
+            .from('images')
+            .getPublicUrl(path);
+            
+          console.log('Public URL:', publicUrl);
+          return publicUrl;
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          throw fileError;
+        }
       });
 
+      console.log('Waiting for all uploads to complete...');
       const uploadedUrls = await Promise.all(uploadPromises);
+      console.log('All uploads completed, URLs:', uploadedUrls);
 
       // Добавляем записи в progress_photos таблицу
-      const { error: insertError } = await supabase
+      console.log('Inserting records into progress_photos...');
+      const { data: insertData, error: insertError } = await supabase
         .from('progress_photos')
         .insert(
           uploadedUrls.map(url => ({
@@ -117,21 +176,39 @@ export function PhotoUploadView() {
           }))
         );
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        throw insertError;
+      }
+      
+      console.log('Records inserted successfully:', insertData);
 
       // Очищаем ObjectURL для всех загруженных файлов
+      console.log('Cleaning up object URLs...');
       selectedFiles.forEach(file => {
         if (file.preview.startsWith('blob:')) {
           URL.revokeObjectURL(file.preview);
+          console.log('Revoked object URL for', file.file.name);
         }
       });
 
+      console.log('Upload process completed successfully');
       toast.success('Фото успешно загружены');
       navigate('/client/progress');
 
     } catch (error: any) {
-      console.error('Error uploading photos:', error);
-      toast.error('Ошибка при загрузке фото');
+      console.error('Error uploading photos, details:', error);
+      console.error('Error message:', error.message);
+      if (error.stack) {
+        console.error('Error stack:', error.stack);
+      }
+      
+      // Более информативное сообщение об ошибке
+      if (error.message) {
+        toast.error(`Ошибка при загрузке фото: ${error.message}`);
+      } else {
+        toast.error('Ошибка при загрузке фото');
+      }
     } finally {
       setUploading(false);
     }
