@@ -607,9 +607,21 @@ export function ShareAchievementModal({
         ctx.fillText('ОБЩИЙ ОБЪЕМ', weightBoxCenterX, weightBoxY + 55);
         
         // Шаг 6: Добавляем имя зверя, центрированное по горизонтали
-        ctx.font = 'bold 42px Inter, system-ui, sans-serif';
+        ctx.font = 'bold 32px Inter, system-ui, sans-serif';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
+        
+        // Адаптивный размер шрифта для длинных имен
+        const maxWidth = cardWidth * 0.9; // 90% от ширины карточки
+        let fontSize = 32;
+        let textWidth = ctx.measureText(beastName.toUpperCase()).width;
+        
+        while (textWidth > maxWidth && fontSize > 20) {
+            fontSize -= 2;
+            ctx.font = `bold ${fontSize}px Inter, system-ui, sans-serif`;
+            textWidth = ctx.measureText(beastName.toUpperCase()).width;
+        }
+        
         ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 110);
         
         // Шаг 7: Добавляем прогресс-бар в нижней части карточки

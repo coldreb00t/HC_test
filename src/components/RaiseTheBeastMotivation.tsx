@@ -224,7 +224,7 @@ export function RaiseTheBeastMotivation({ totalVolume, userName, onShare }: Rais
       )}
 
       <div className="relative z-10 mt-auto -mx-3 -mb-3 bg-gradient-to-t from-gray-900/90 to-transparent px-0 pt-12 pb-4 w-[calc(100%+1.5rem)]">
-        <h3 className="text-2xl font-bold text-orange-400 text-center drop-shadow-lg">{currentBeast.name}</h3>
+        <h3 className="text-2xl font-bold text-orange-400 text-center drop-shadow-lg max-w-[90%] mx-auto text-balance" style={{ fontSize: 'clamp(1.25rem, 5vw, 1.5rem)' }}>{currentBeast.name}</h3>
         <p className="text-sm text-white mt-1 text-center px-4 max-w-md mx-auto drop-shadow-md">{currentBeast.weightPhrase}</p>
         <p className="text-xs text-gray-300 mt-1 text-center px-4 max-w-md mx-auto italic">{currentBeast.motivationPhrase}</p>
       </div>
