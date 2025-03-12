@@ -168,11 +168,6 @@ function App() {
             <AchievementsView />
           </ProtectedRoute>
         } />
-        <Route path="/client/nutrition-stats" element={
-          <ProtectedRoute allowedRole="client">
-            <AchievementsView activeTab="nutrition" />
-          </ProtectedRoute>
-        } />
 
         {/* Trainer routes */}
         <Route path="/trainer" element={

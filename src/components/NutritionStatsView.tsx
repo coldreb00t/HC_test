@@ -99,8 +99,7 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
       const { data: workoutData, error: workoutError } = await supabase
         .from('workouts')
         .select('start_time')
-        .eq('client_id', clientId)
-        .eq('completed', true);
+        .eq('client_id', clientId);
 
       if (workoutError) throw workoutError;
 
