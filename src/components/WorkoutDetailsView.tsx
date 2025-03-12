@@ -206,8 +206,20 @@ export function WorkoutDetailsView() {
   const handleToggleWorkoutCompleted = () => {
     if (!workout) return;
     
-    const updatedWorkout = { ...workout, completed: !workout.completed };
-    setWorkout(updatedWorkout);
+    const newStatus = !workout.completed;
+    setWorkout({ ...workout, completed: newStatus });
+    
+    if (newStatus) {
+      toast.success('Тренировка отмечена как выполненная! 💪', {
+        icon: '🏆',
+        duration: 3000,
+      });
+    } else {
+      toast('Тренировка отмечена как не выполненная', {
+        icon: '📝',
+        duration: 2000,
+      });
+    }
   };
 
   const handleSaveProgress = async () => {
@@ -425,20 +437,25 @@ export function WorkoutDetailsView() {
                 workout.completed
                   ? 'bg-green-100 text-green-700 hover:bg-green-200'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              } transition-colors`}
+              } transition-colors transform active:scale-95 duration-200`}
             >
               {workout.completed ? (
                 <>
                   <CheckCircle className="w-5 h-5 mr-2" />
-                  Тренировка выполнена
+                  Тренировка окончена
                 </>
               ) : (
                 <>
                   <XCircle className="w-5 h-5 mr-2" />
-                  Тренировка не выполнена
+                  Тренировка окончена
                 </>
               )}
             </button>
+            {workout.completed && (
+              <p className="text-sm text-green-600 mt-2 text-center">
+                Отлично! Вы завершили эту тренировку.
+              </p>
+            )}
           </div>
 
           {exercises.length > 0 ? (
@@ -531,9 +548,16 @@ export function WorkoutDetailsView() {
           <button
             onClick={handleSaveProgress}
             disabled={saving}
-            className="w-full py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center"
+            className="w-full py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center transform active:scale-95 duration-200"
           >
-            {saving ? 'Сохранение...' : 'Сохранить прогресс'}
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Сохранение...
+              </>
+            ) : (
+              'Сохранить прогресс'
+            )}
           </button>
         </div>
       </div>
