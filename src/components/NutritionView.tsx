@@ -15,7 +15,8 @@ interface PhotoPreview {
 interface NutritionEntry {
   id: string;
   date: string;
-  actual_date?: string; // Добавляем поле для хранения фактической даты
+  actual_date?: string; // Фактическая дата приема пищи
+  meal_number?: number; // Порядковый номер приема пищи за день
   created_at?: string; // Делаем поле необязательным
   entry_time?: string; // Добавляем новое поле для времени записи
   proteins: number | null;
@@ -79,7 +80,7 @@ export function NutritionView() {
       
       // Группируем записи по фактической дате
       entries.forEach(entry => {
-        // Используем actual_date, если оно есть, иначе извлекаем из date
+        // Всегда используем actual_date, если оно есть, иначе извлекаем из date
         const baseDate = entry.actual_date || getBaseDate(entry.date);
         
         if (!groups[baseDate]) {
@@ -92,9 +93,17 @@ export function NutritionView() {
       const groupsArray: DayGroup[] = Object.keys(groups)
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime()) // Сортировка по убыванию даты
         .map(date => {
-          // Сортируем записи внутри дня по created_at (от новых к старым)
+          // Сортируем записи внутри дня
           const entriesForDay = groups[date].sort((a, b) => {
-            // Используем поле created_at из Supabase или id, если created_at недоступно
+            // Сначала используем meal_number, если он есть
+            if (a.meal_number !== undefined && b.meal_number !== undefined) {
+              return b.meal_number - a.meal_number; // От новых к старым
+            }
+            // Затем пробуем date для timestamp записей
+            if (a.date.includes('T') && b.date.includes('T')) {
+              return new Date(b.date).getTime() - new Date(a.date).getTime();
+            }
+            // Наконец, используем created_at или id
             const timeA = a.created_at || a.id;
             const timeB = b.created_at || b.id;
             return String(timeB).localeCompare(String(timeA));
@@ -191,8 +200,8 @@ export function NutritionView() {
 
       const entriesWithPhotos = await Promise.all(
         (entriesData || []).map(async (entry) => {
-          // Извлекаем базовую часть даты для структуры папок
-          const baseDate = getBaseDate(entry.date);
+          // Используем actual_date, если есть, иначе извлекаем базовую часть из date
+          const baseDate = entry.actual_date || getBaseDate(entry.date);
           
           const { data: files } = await supabase.storage
             .from('client-photos')
@@ -331,14 +340,33 @@ export function NutritionView() {
         // Сохраняем фактическую дату, выбранную пользователем
         const actualDate = newEntry.date;
         
-        // Создаем уникальный строковый идентификатор для поля date
-        const timestamp = new Date().getTime();
-        const randomId = Math.random().toString(36).substring(2, 10);
-        const uniqueDate = `${actualDate}_${timestamp}_${randomId}`;
+        // Получаем все записи за этот день для определения максимального номера meal_number
+        const { data: entriesForDay, error: entriesError } = await supabase
+          .from('client_nutrition')
+          .select('*')
+          .eq('client_id', clientData.id)
+          .eq('actual_date', actualDate);
         
-        console.log('Создаем запись: фактическая дата =', actualDate, ', уникальный идентификатор =', uniqueDate);
+        if (entriesError) {
+          console.error('Error fetching entries for day:', entriesError);
+        }
         
-        // Создаем новую запись c actual_date и уникальным значением date
+        // Находим максимальный meal_number для этого дня или начинаем с 0
+        const maxMealNumber = entriesForDay && entriesForDay.length > 0
+          ? Math.max(...entriesForDay.map(e => e.meal_number || 0))
+          : 0;
+        
+        // Новый номер приема пищи
+        const newMealNumber = maxMealNumber + 1;
+        
+        // Создаем текущий timestamp 
+        const now = new Date();
+        // Форматируем в строку ISO с датой и временем YYYY-MM-DDTHH:MM:SS
+        const timestamp = now.toISOString();
+        
+        console.log('Создаем запись: фактическая дата =', actualDate, ', timestamp =', timestamp, ', номер приема пищи =', newMealNumber);
+        
+        // Создаем новую запись с actual_date и timestamp в поле date
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
           .insert({
@@ -348,8 +376,9 @@ export function NutritionView() {
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
             client_id: clientData.id,
-            date: uniqueDate, // Уникальный идентификатор для обхода ограничения
-            actual_date: actualDate // Реальная дата для статистики
+            date: timestamp, // Используем полный timestamp для обеспечения уникальности
+            actual_date: actualDate, // Реальная дата для статистики
+            meal_number: newMealNumber // Номер приема пищи
           })
           .select('id');
 
@@ -552,8 +581,16 @@ export function NutritionView() {
   // Функция для извлечения времени из даты
   const getTimeFromCombinedDate = (dateString: string): string => {
     try {
+      // Если это полный ISO timestamp (формат YYYY-MM-DDTHH:MM:SS.sssZ)
+      if (dateString.includes('T')) {
+        const date = new Date(dateString);
+        return date.toLocaleTimeString('ru-RU', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
       // Обрабатываем формат с пробелом (YYYY-MM-DD HH:MM:SS.ms)
-      if (dateString.includes(' ')) {
+      else if (dateString.includes(' ')) {
         const timePart = dateString.split(' ')[1];
         // Возвращаем часы и минуты (HH:MM)
         return timePart.split(':').slice(0, 2).join(':');
@@ -791,6 +828,8 @@ export function NutritionView() {
                                 <div className="text-sm text-gray-500">
                                   {entry.entry_time ? (
                                     <span>Время: {formatTime(entry.entry_time)}</span>
+                                  ) : entry.date.includes('T') ? (
+                                    <span>Время: {formatTime(entry.date)}</span>
                                   ) : entry.created_at ? (
                                     <span>Время: {formatTime(entry.created_at)}</span>
                                   ) : (
