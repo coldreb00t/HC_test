@@ -76,10 +76,10 @@ export function NutritionView() {
     if (entries.length > 0) {
       const groups: { [date: string]: NutritionEntry[] } = {};
       
-      // Группируем записи по базовой дате (без временной метки)
+      // Группируем записи по базовой дате
       entries.forEach(entry => {
-        // Извлекаем основную часть даты (YYYY-MM-DD) без технической метки
-        const baseDate = entry.date.split('_')[0];
+        // Используем единую функцию извлечения базовой даты
+        const baseDate = getBaseDate(entry.date);
         
         if (!groups[baseDate]) {
           groups[baseDate] = [];
@@ -190,14 +190,17 @@ export function NutritionView() {
 
       const entriesWithPhotos = await Promise.all(
         (entriesData || []).map(async (entry) => {
+          // Извлекаем базовую часть даты для структуры папок
+          const baseDate = getBaseDate(entry.date);
+          
           const { data: files } = await supabase.storage
             .from('client-photos')
-            .list(`nutrition-photos/${clientData.id}/${entry.date}`);
+            .list(`nutrition-photos/${clientData.id}/${baseDate}`);
 
           const photos = (files || []).map(file => {
             const { data: { publicUrl } } = supabase.storage
               .from('client-photos')
-              .getPublicUrl(`nutrition-photos/${clientData.id}/${entry.date}/${file.name}`);
+              .getPublicUrl(`nutrition-photos/${clientData.id}/${baseDate}/${file.name}`);
               
             return publicUrl;
           });
@@ -323,7 +326,20 @@ export function NutritionView() {
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Создаем новую запись с полем entry_time, которое автоматически заполняется текущим временем
+        // Для обхода ограничения уникальности создаем модифицированную дату
+        // Добавляем к базовой дате текущее время в формате HH:MM:SS.ms
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const millis = String(now.getMilliseconds()).padStart(3, '0');
+        
+        // Формат: YYYY-MM-DD HH:MM:SS.ms - например, 2023-05-15 14:25:36.123
+        const uniqueDate = `${newEntry.date} ${hours}:${minutes}:${seconds}.${millis}`;
+        
+        console.log('Создаем запись с уникальной датой:', uniqueDate);
+        
+        // Создаем новую запись с уникальной датой
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
           .insert({
@@ -333,14 +349,13 @@ export function NutritionView() {
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
             client_id: clientData.id,
-            date: newEntry.date, // Простая дата YYYY-MM-DD
-            // Поле entry_time будет установлено автоматически в базе данных благодаря DEFAULT NOW()
+            date: uniqueDate,
           })
           .select('id');
 
         if (insertError) {
           console.error('Insert error:', insertError);
-          toast.error('Ошибка при сохранении записи. Возможно, нужно обновить структуру базы данных.');
+          toast.error('Ошибка при сохранении записи. Пожалуйста, попробуйте еще раз.');
           throw insertError;
         }
         
@@ -508,7 +523,16 @@ export function NutritionView() {
 
   // Функция для форматирования даты, извлекая только базовую часть YYYY-MM-DD
   const getBaseDate = (dateString: string): string => {
-    return dateString.split('_')[0];
+    // Обрабатываем формат с пробелом (YYYY-MM-DD HH:MM:SS.ms)
+    if (dateString.includes(' ')) {
+      return dateString.split(' ')[0];
+    }
+    // Обрабатываем старый формат с подчеркиванием (YYYY-MM-DD_YYYYMMDDHHmmss)
+    else if (dateString.includes('_')) {
+      return dateString.split('_')[0];
+    }
+    // Просто возвращаем дату как есть, если она уже в нужном формате
+    return dateString;
   };
 
   // Форматирование времени из даты
@@ -524,19 +548,29 @@ export function NutritionView() {
     }
   };
 
-  // Функция для извлечения времени из комбинированной даты (YYYY-MM-DD_HHmmss)
+  // Функция для извлечения времени из даты
   const getTimeFromCombinedDate = (dateString: string): string => {
     try {
-      const parts = dateString.split('_');
-      if (parts.length < 2) return 'не указано';
-      
-      const timeStamp = parts[1];
-      // Форматируем YYYYMMDDHHmmss в HH:mm
-      if (timeStamp.length >= 6) {
-        const hours = timeStamp.substring(8, 10);
-        const minutes = timeStamp.substring(10, 12);
-        return `${hours}:${minutes}`;
+      // Обрабатываем формат с пробелом (YYYY-MM-DD HH:MM:SS.ms)
+      if (dateString.includes(' ')) {
+        const timePart = dateString.split(' ')[1];
+        // Возвращаем часы и минуты (HH:MM)
+        return timePart.split(':').slice(0, 2).join(':');
       }
+      // Обрабатываем старый формат с подчеркиванием (YYYY-MM-DD_YYYYMMDDHHmmss)
+      else if (dateString.includes('_')) {
+        const parts = dateString.split('_');
+        if (parts.length < 2) return 'не указано';
+        
+        const timeStamp = parts[1];
+        // Форматируем YYYYMMDDHHmmss в HH:mm
+        if (timeStamp.length >= 6) {
+          const hours = timeStamp.substring(8, 10);
+          const minutes = timeStamp.substring(10, 12);
+          return `${hours}:${minutes}`;
+        }
+      }
+      
       return 'не указано';
     } catch (e) {
       return 'не указано';
@@ -824,9 +858,10 @@ export function NutritionView() {
                       <div className="p-2">
                         <button
                           onClick={() => {
+                            // Передаем только базовую дату без меток времени
                             setNewEntry(prev => ({
                               ...prev,
-                              date: dayGroup.date // Используем оригинальную дату без временной метки
+                              date: dayGroup.date 
                             }));
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
