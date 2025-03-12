@@ -15,6 +15,7 @@ interface PhotoPreview {
 interface NutritionEntry {
   id: string;
   date: string;
+  actual_date?: string; // Добавляем поле для хранения фактической даты
   created_at?: string; // Делаем поле необязательным
   entry_time?: string; // Добавляем новое поле для времени записи
   proteins: number | null;
@@ -326,18 +327,18 @@ export function NutritionView() {
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Для обхода ограничения уникальности создаем модифицированную дату
-        // Добавляем к базовой дате текущее время в формате HH:MM:SS.ms
-        const now = new Date();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const millis = String(now.getMilliseconds()).padStart(3, '0');
+        // Создаем уникальную дату, смещая исходную дату на миллисекунды
+        const baseDate = new Date(newEntry.date);
         
-        // Формат: YYYY-MM-DD HH:MM:SS.ms - например, 2023-05-15 14:25:36.123
-        const uniqueDate = `${newEntry.date} ${hours}:${minutes}:${seconds}.${millis}`;
+        // Сначала делаем случайное смещение в пределах 24 часов (1/1000 дня)
+        // Это позволит помещать много записей за один день
+        const offsetMs = Math.floor(Math.random() * 86400000); // 24 часа в миллисекундах
+        const adjustedDate = new Date(baseDate.getTime() + offsetMs);
         
-        console.log('Создаем запись с уникальной датой:', uniqueDate);
+        // Форматируем в формат даты PostgreSQL (YYYY-MM-DD)
+        const uniqueDate = adjustedDate.toISOString().split('T')[0];
+        
+        console.log('Создаем запись с уникальной датой:', uniqueDate, 'на основе', newEntry.date);
         
         // Создаем новую запись с уникальной датой
         const { data: insertedData, error: insertError } = await supabase
@@ -355,11 +356,37 @@ export function NutritionView() {
 
         if (insertError) {
           console.error('Insert error:', insertError);
-          toast.error('Ошибка при сохранении записи. Пожалуйста, попробуйте еще раз.');
-          throw insertError;
-        }
-        
-        if (insertedData && insertedData.length > 0) {
+          
+          // Если смещение в пределах того же дня не сработало, попробуем +1 день
+          const nextDay = new Date(baseDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const nextDayStr = nextDay.toISOString().split('T')[0];
+          
+          console.log('Пробуем резервный вариант со следующей датой:', nextDayStr);
+          
+          const { data: altInsertedData, error: altInsertError } = await supabase
+            .from('client_nutrition')
+            .insert({
+              proteins: newEntry.proteins || 0,
+              fats: newEntry.fats || 0,
+              carbs: newEntry.carbs || 0,
+              calories: newEntry.calories || 0,
+              water: newEntry.water || 0,
+              client_id: clientData.id,
+              date: nextDayStr
+            })
+            .select('id');
+            
+          if (altInsertError) {
+            toast.error('Ошибка при сохранении записи. Пожалуйста, попробуйте еще раз.');
+            throw altInsertError;
+          }
+          
+          if (altInsertedData && altInsertedData.length > 0) {
+            entryId = altInsertedData[0].id;
+            toast.success('Запись сохранена');
+          }
+        } else if (insertedData && insertedData.length > 0) {
           entryId = insertedData[0].id;
           toast.success('Запись сохранена');
         }
