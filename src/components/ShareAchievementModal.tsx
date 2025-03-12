@@ -607,21 +607,9 @@ export function ShareAchievementModal({
         ctx.fillText('ОБЩИЙ ОБЪЕМ', weightBoxCenterX, weightBoxY + 55);
         
         // Шаг 6: Добавляем имя зверя, центрированное по горизонтали
-        ctx.font = 'bold 32px Inter, system-ui, sans-serif';
+        ctx.font = 'bold 42px Inter, system-ui, sans-serif';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
-        
-        // Адаптивный размер шрифта для длинных имен
-        const maxWidth = cardWidth * 0.9; // 90% от ширины карточки
-        let fontSize = 32;
-        let textWidth = ctx.measureText(beastName.toUpperCase()).width;
-        
-        while (textWidth > maxWidth && fontSize > 20) {
-            fontSize -= 2;
-            ctx.font = `bold ${fontSize}px Inter, system-ui, sans-serif`;
-            textWidth = ctx.measureText(beastName.toUpperCase()).width;
-        }
-        
         ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 110);
         
         // Шаг 7: Добавляем прогресс-бар в нижней части карточки
@@ -797,11 +785,11 @@ export function ShareAchievementModal({
 
       // Проверяем поддержку шаринга файлов
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `HARDCASE.TRAINING: Зверь ${beastName}`,
-          text: `${weightPhrase} - ${totalVolume} кг`,
-          files: [file],
-        });
+      await navigator.share({
+        title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+        text: `${weightPhrase} - ${totalVolume} кг`,
+        files: [file],
+      });
       } else {
         // Если файлы не поддерживаются, пробуем шарить только текст
         await navigator.share({
@@ -824,6 +812,12 @@ export function ShareAchievementModal({
     }
   };
 
+  const handleVkShare = () => {
+    if (!capturedImage) return;
+    
+    // ... existing code ...
+  };
+
   const handleTelegramStories = async () => {
     if (!shareableImage) return;
 
@@ -831,17 +825,25 @@ export function ShareAchievementModal({
       // Формируем текст для Stories
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
       
-      // Используем универсальную ссылку для Telegram
-      const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
-      
-      // Открываем в текущем окне для WKWebView
-      window.location.href = telegramUrl;
+      // Копируем текст в буфер обмена
+      await navigator.clipboard.writeText(text).catch(() => {
+        console.log('Не удалось скопировать текст в буфер обмена');
+      });
       
       // Показываем инструкцию для пользователя
-      toast('Переходим в Telegram...', { type: 'info', duration: 3000 } as CustomToastOptions);
+      toast('Текст скопирован в буфер обмена', { type: 'success', duration: 3000 } as CustomToastOptions);
+      
+      // Открываем Telegram в новой вкладке
+      const telegramUrl = 'https://t.me/';
+      window.open(telegramUrl, '_blank');
+      
+      // Дополнительная инструкция
+      setTimeout(() => {
+        toast('Вставьте текст и добавьте изображение в Stories', { type: 'info', duration: 5000 } as CustomToastOptions);
+      }, 1000);
     } catch (error) {
-      console.error('Ошибка при открытии Telegram:', error);
-      toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
+      console.error('Ошибка при подготовке к шерингу в Telegram:', error);
+      toast('Не удалось подготовить данные для Telegram', { type: 'error' } as CustomToastOptions);
     }
   };
 
@@ -849,10 +851,39 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      // Для WKWebView на iOS просто открываем изображение в полном размере
-      window.location.href = shareableImage;
+      // Создаем временную ссылку для просмотра изображения
+      const viewUrl = shareableImage;
       
+      // Открываем изображение в новой вкладке
+      const newWindow = window.open(viewUrl, '_blank');
+      
+      // Показываем инструкцию
       toast('Удерживайте изображение для сохранения', { type: 'info', duration: 5000 } as CustomToastOptions);
+      
+      // Если окно открылось, добавляем кнопку возврата
+      if (newWindow) {
+        setTimeout(() => {
+          try {
+            // Пытаемся добавить кнопку возврата в новое окно
+            const backButton = newWindow.document.createElement('button');
+            backButton.innerText = 'Вернуться назад';
+            backButton.style.position = 'fixed';
+            backButton.style.top = '10px';
+            backButton.style.left = '10px';
+            backButton.style.padding = '10px 15px';
+            backButton.style.backgroundColor = '#f97316';
+            backButton.style.color = 'white';
+            backButton.style.border = 'none';
+            backButton.style.borderRadius = '5px';
+            backButton.style.zIndex = '9999';
+            backButton.onclick = () => newWindow.close();
+            
+            newWindow.document.body.appendChild(backButton);
+          } catch (e) {
+            console.error('Не удалось добавить кнопку возврата:', e);
+          }
+        }, 500);
+      }
     } catch (error) {
       console.error('Ошибка при открытии изображения:', error);
       toast('Не удалось открыть изображение', { type: 'error' } as CustomToastOptions);
@@ -936,7 +967,7 @@ export function ShareAchievementModal({
                   className="flex items-center justify-center gap-2 p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-base font-semibold"
                 >
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.14.27-.01.06-.01.13-.02.2z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06-.01.13-.02.2z"/>
                   </svg>
                   <span>Telegram</span>
                 </button>
@@ -944,7 +975,7 @@ export function ShareAchievementModal({
               
               {!canNativeShare && (
                 <div className="text-center mt-4">
-                  <p className="text-gray-500">Скачайте изображение и добавьте его в Stories</p>
+                  <p className="text-gray-500">Сделайте скриншот или используйте кнопки выше</p>
                 </div>
               )}
             </div>
