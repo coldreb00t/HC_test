@@ -103,6 +103,8 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
 
       if (workoutError) throw workoutError;
 
+      console.log('Данные о тренировках:', workoutData);
+
       // Получаем данные об измерениях для корреляции
       const { data: measurementData, error: measurementError } = await supabase
         .from('client_measurements')
@@ -132,10 +134,18 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
         });
 
         // Собираем даты тренировок
-        const workoutDays = workoutData?.map(workout => {
+        const workoutDays = (workoutData?.map(workout => {
+          // Убедимся, что start_time определен, прежде чем создавать объект Date
+          if (!workout.start_time) return null;
+          
           const date = new Date(workout.start_time);
-          return date.toISOString().split('T')[0];
-        }) || [];
+          // Форматируем дату как строку YYYY-MM-DD для корректного сравнения
+          const formattedDate = date.toISOString().split('T')[0];
+          console.log('Дата тренировки:', formattedDate, 'из', workout.start_time);
+          return formattedDate;
+        }).filter(Boolean) || []) as string[]; // Отфильтровываем null значения и приводим к string[]
+        
+        console.log('Все даты тренировок:', workoutDays);
 
         // Собираем даты измерений
         const measurementDays = measurementData?.map(measurement => {
@@ -272,21 +282,61 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
   const getWorkoutCorrelation = () => {
     if (!nutritionStats || !nutritionStats.dailyEntries.length) return { withWorkout: 0, withoutWorkout: 0 };
 
-    const entriesOnWorkoutDays = nutritionStats.dailyEntries.filter(entry => 
-      nutritionStats.workoutDays.includes(entry.date)
-    );
+    console.log('Анализ корреляции - даты тренировок:', nutritionStats.workoutDays);
+    console.log('Анализ корреляции - даты питания:', nutritionStats.dailyEntries.map(e => e.date));
     
-    const entriesNotOnWorkoutDays = nutritionStats.dailyEntries.filter(entry => 
-      !nutritionStats.workoutDays.includes(entry.date)
-    );
-
-    const avgCaloriesWithWorkout = entriesOnWorkoutDays.length > 0 
-      ? entriesOnWorkoutDays.reduce((sum, entry) => sum + entry.calories, 0) / entriesOnWorkoutDays.length 
+    // Группируем записи по датам
+    const entriesByDate: Record<string, {
+      proteins: number;
+      fats: number;
+      carbs: number;
+      calories: number;
+    }> = {};
+    
+    nutritionStats.dailyEntries.forEach(entry => {
+      // Стандартизируем формат даты для сравнения
+      const entryDate = entry.date;
+      
+      if (!entriesByDate[entryDate]) {
+        entriesByDate[entryDate] = {
+          proteins: 0,
+          fats: 0,
+          carbs: 0,
+          calories: 0
+        };
+      }
+      
+      entriesByDate[entryDate].proteins += entry.proteins;
+      entriesByDate[entryDate].fats += entry.fats;
+      entriesByDate[entryDate].carbs += entry.carbs;
+      entriesByDate[entryDate].calories += entry.calories;
+    });
+    
+    // Теперь анализируем по дням
+    const daysWithWorkout: number[] = [];
+    const daysWithoutWorkout: number[] = [];
+    
+    Object.entries(entriesByDate).forEach(([date, values]) => {
+      const hasWorkout = nutritionStats.workoutDays.includes(date);
+      console.log(`Дата ${date}: ${hasWorkout ? 'С тренировкой' : 'Без тренировки'}`);
+      
+      if (hasWorkout) {
+        daysWithWorkout.push(values.calories);
+      } else {
+        daysWithoutWorkout.push(values.calories);
+      }
+    });
+    
+    const avgCaloriesWithWorkout = daysWithWorkout.length > 0 
+      ? daysWithWorkout.reduce((sum, calories) => sum + calories, 0) / daysWithWorkout.length 
       : 0;
     
-    const avgCaloriesWithoutWorkout = entriesNotOnWorkoutDays.length > 0 
-      ? entriesNotOnWorkoutDays.reduce((sum, entry) => sum + entry.calories, 0) / entriesNotOnWorkoutDays.length 
+    const avgCaloriesWithoutWorkout = daysWithoutWorkout.length > 0 
+      ? daysWithoutWorkout.reduce((sum, calories) => sum + calories, 0) / daysWithoutWorkout.length 
       : 0;
+    
+    console.log('Среднее калорий в дни с тренировками:', avgCaloriesWithWorkout);
+    console.log('Среднее калорий в дни без тренировок:', avgCaloriesWithoutWorkout);
 
     return {
       withWorkout: Math.round(avgCaloriesWithWorkout),
