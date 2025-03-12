@@ -682,14 +682,11 @@ export function ClientDashboard() {
           : 'Каждый шаг важен на пути к цели!',
       },
       {
-        title: 'Любимая активность',
-        description: 'Твой любимый вид активности',
-        icon: <Activity className="w-6 h-6" />,
-        value: (() => {
+        title: (() => {
           // Находим самый популярный тип активности
           const activityTypes = stats.activities.types;
           if (Object.keys(activityTypes).length === 0) {
-            return 'Нет данных';
+            return 'Любимая активность';
           }
           
           // Найдем активность с максимальным временем
@@ -703,14 +700,35 @@ export function ClientDashboard() {
             }
           });
           
-          // Если есть активность, возвращаем её с временем
-          if (maxActivity) {
-            const hours = Math.round(maxTime / 60);
-            const minText = hours === 1 ? 'час' : hours < 5 ? 'часа' : 'часов';
-            return `${maxActivity} - ${hours} ${minText}`;
+          // Если есть активность, возвращаем её название
+          return maxActivity || 'Любимая активность';
+        })(),
+        description: 'Твой любимый вид активности',
+        icon: <Activity className="w-6 h-6" />,
+        value: (() => {
+          // Находим самый популярный тип активности
+          const activityTypes = stats.activities.types;
+          if (Object.keys(activityTypes).length === 0) {
+            return 'Нет данных';
           }
           
-          return 'Добавь активность';
+          // Найдем активность с максимальным временем
+          let maxTime = 0;
+          
+          Object.values(activityTypes).forEach((minutes) => {
+            if (minutes > maxTime) {
+              maxTime = minutes;
+            }
+          });
+          
+          // Если есть активность, возвращаем время
+          if (maxTime > 0) {
+            const hours = Math.round(maxTime / 60);
+            const minText = hours === 1 ? 'час' : hours < 5 ? 'часа' : 'часов';
+            return `${hours} ${minText}`;
+          }
+          
+          return 'Нет данных';
         })(),
         color: 'bg-green-500',
         bgImage: '/images/achievements/activity.jpg',
