@@ -85,6 +85,7 @@ interface WorkoutStats {
 interface ProgressPhoto {
   url: string;
   date: string;
+  type?: string;
 }
 
 interface ActivityStats {
@@ -577,10 +578,24 @@ export function AchievementsView({ activeTab = 'overview' }: AchievementsViewPro
       );
 
       if (dates.length > 0) {
-        setProgressPhotos(photosByDate[dates[0]]);
-        setProgressPhotos(photosByDate[dates[dates.length - 1]]);
+        // Объединяем первые и последние фотографии, добавляя к ним поле type для различия
+        const firstPhotos = photosByDate[dates[0]].map(photo => ({
+          ...photo,
+          type: 'first'
+        }));
+        
+        const lastPhotos = dates.length > 1 
+          ? photosByDate[dates[dates.length - 1]].map(photo => ({
+              ...photo,
+              type: 'last'
+            }))
+          : [];
+        
+        // Устанавливаем массив, содержащий и первые и последние фотографии
+        setProgressPhotos([...firstPhotos, ...lastPhotos]);
         console.log('First photos:', photosByDate[dates[0]]);
-        console.log('Last photos:', photosByDate[dates[dates.length - 1]]);
+        console.log('Last photos:', dates.length > 1 ? photosByDate[dates[dates.length - 1]] : 'None');
+        console.log('Combined photos:', [...firstPhotos, ...lastPhotos]);
       }
     } catch (error) {
       console.error('Error fetching progress photos:', error);
@@ -864,11 +879,11 @@ export function AchievementsView({ activeTab = 'overview' }: AchievementsViewPro
             
             <div className="space-y-4">
               <div>
-                <p className="text-xs text-gray-500 mb-1">Начало ({progressPhotos[0].date})</p>
+                <p className="text-xs text-gray-500 mb-1">Начало ({progressPhotos.find(p => p.type === 'first')?.date})</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {progressPhotos.map((photo, index) => (
+                  {progressPhotos.filter(photo => photo.type === 'first').map((photo, index) => (
                     <img
-                      key={index}
+                      key={`first-${index}`}
                       src={photo.url}
                       alt={`Фото начала ${index + 1}`}
                       className="w-full h-40 object-cover rounded-lg"
@@ -876,19 +891,21 @@ export function AchievementsView({ activeTab = 'overview' }: AchievementsViewPro
                   ))}
                 </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Сейчас ({progressPhotos[progressPhotos.length - 1].date})</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {progressPhotos.map((photo, index) => (
-                    <img
-                      key={index}
-                      src={photo.url}
-                      alt={`Фото сейчас ${index + 1}`}
-                      className="w-full h-40 object-cover rounded-lg"
-                    />
-                  ))}
+              {progressPhotos.some(p => p.type === 'last') && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Сейчас ({progressPhotos.find(p => p.type === 'last')?.date})</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {progressPhotos.filter(photo => photo.type === 'last').map((photo, index) => (
+                      <img
+                        key={`last-${index}`}
+                        src={photo.url}
+                        alt={`Фото сейчас ${index + 1}`}
+                        className="w-full h-40 object-cover rounded-lg"
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
