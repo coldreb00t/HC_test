@@ -77,10 +77,10 @@ export function NutritionView() {
     if (entries.length > 0) {
       const groups: { [date: string]: NutritionEntry[] } = {};
       
-      // Группируем записи по базовой дате
+      // Группируем записи по фактической дате
       entries.forEach(entry => {
-        // Используем единую функцию извлечения базовой даты
-        const baseDate = getBaseDate(entry.date);
+        // Используем actual_date, если оно есть, иначе извлекаем из date
+        const baseDate = entry.actual_date || getBaseDate(entry.date);
         
         if (!groups[baseDate]) {
           groups[baseDate] = [];
@@ -319,6 +319,7 @@ export function NutritionView() {
             carbs: newEntry.carbs || 0,
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
+            actual_date: newEntry.date // Сохраняем выбранную пользователем дату
           })
           .eq('id', editingEntryId);
 
@@ -327,20 +328,17 @@ export function NutritionView() {
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Создаем уникальную дату, смещая исходную дату на миллисекунды
-        const baseDate = new Date(newEntry.date);
+        // Сохраняем фактическую дату, выбранную пользователем
+        const actualDate = newEntry.date;
         
-        // Сначала делаем случайное смещение в пределах 24 часов (1/1000 дня)
-        // Это позволит помещать много записей за один день
-        const offsetMs = Math.floor(Math.random() * 86400000); // 24 часа в миллисекундах
-        const adjustedDate = new Date(baseDate.getTime() + offsetMs);
+        // Создаем уникальный строковый идентификатор для поля date
+        const timestamp = new Date().getTime();
+        const randomId = Math.random().toString(36).substring(2, 10);
+        const uniqueDate = `${actualDate}_${timestamp}_${randomId}`;
         
-        // Форматируем в формат даты PostgreSQL (YYYY-MM-DD)
-        const uniqueDate = adjustedDate.toISOString().split('T')[0];
+        console.log('Создаем запись: фактическая дата =', actualDate, ', уникальный идентификатор =', uniqueDate);
         
-        console.log('Создаем запись с уникальной датой:', uniqueDate, 'на основе', newEntry.date);
-        
-        // Создаем новую запись с уникальной датой
+        // Создаем новую запись c actual_date и уникальным значением date
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
           .insert({
@@ -350,59 +348,34 @@ export function NutritionView() {
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
             client_id: clientData.id,
-            date: uniqueDate,
+            date: uniqueDate, // Уникальный идентификатор для обхода ограничения
+            actual_date: actualDate // Реальная дата для статистики
           })
           .select('id');
 
         if (insertError) {
           console.error('Insert error:', insertError);
-          
-          // Если смещение в пределах того же дня не сработало, попробуем +1 день
-          const nextDay = new Date(baseDate);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const nextDayStr = nextDay.toISOString().split('T')[0];
-          
-          console.log('Пробуем резервный вариант со следующей датой:', nextDayStr);
-          
-          const { data: altInsertedData, error: altInsertError } = await supabase
-            .from('client_nutrition')
-            .insert({
-              proteins: newEntry.proteins || 0,
-              fats: newEntry.fats || 0,
-              carbs: newEntry.carbs || 0,
-              calories: newEntry.calories || 0,
-              water: newEntry.water || 0,
-              client_id: clientData.id,
-              date: nextDayStr
-            })
-            .select('id');
-            
-          if (altInsertError) {
-            toast.error('Ошибка при сохранении записи. Пожалуйста, попробуйте еще раз.');
-            throw altInsertError;
-          }
-          
-          if (altInsertedData && altInsertedData.length > 0) {
-            entryId = altInsertedData[0].id;
-            toast.success('Запись сохранена');
-          }
-        } else if (insertedData && insertedData.length > 0) {
+          toast.error('Ошибка при сохранении записи. Пожалуйста, попробуйте еще раз.');
+          throw insertError;
+        }
+        
+        if (insertedData && insertedData.length > 0) {
           entryId = insertedData[0].id;
           toast.success('Запись сохранена');
         }
       }
 
-      // Загрузка фотографий с использованием оригинальной даты для структуры папок
+      // Загрузка фотографий с использованием фактической даты для структуры папок
       if (selectedFiles.length > 0 && entryId) {
-        // Получаем базовую дату без временной метки
-        const baseDate = getBaseDate(newEntry.date);
+        // Используем фактическую дату для структуры папок
+        const photoDate = newEntry.date;
         
         await Promise.all(
           selectedFiles.map(async (photo, index) => {
             const fileName = `${Date.now()}_${index}.${photo.file.name.split('.').pop()}`;
             const { error: uploadError } = await supabase.storage
               .from('client-photos')
-              .upload(`nutrition-photos/${clientData.id}/${baseDate}/${fileName}`, photo.file);
+              .upload(`nutrition-photos/${clientData.id}/${photoDate}/${fileName}`, photo.file);
 
             if (uploadError) throw uploadError;
           })
@@ -441,7 +414,8 @@ export function NutritionView() {
   const handleEdit = (entry: NutritionEntry) => {
     setEditingEntryId(entry.id);
     setNewEntry({
-      date: entry.date,
+      // Если есть actual_date, используем его, иначе используем базовую дату
+      date: entry.actual_date || getBaseDate(entry.date),
       proteins: entry.proteins,
       fats: entry.fats,
       carbs: entry.carbs,
@@ -885,10 +859,10 @@ export function NutritionView() {
                       <div className="p-2">
                         <button
                           onClick={() => {
-                            // Передаем только базовую дату без меток времени
+                            // Передаем точную дату без меток времени
                             setNewEntry(prev => ({
                               ...prev,
-                              date: dayGroup.date 
+                              date: dayGroup.date // Дата группы - это уже фактическая дата
                             }));
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
