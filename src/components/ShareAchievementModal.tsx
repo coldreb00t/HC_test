@@ -822,25 +822,52 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      // Формируем текст для Stories
+      // Показываем уведомление о начале процесса
+      toast('Подготовка данных для Telegram...', { type: 'info', duration: 2000 } as CustomToastOptions);
+      
+      // Получаем изображение как Blob
+      const response = await fetch(shareableImage);
+      const blob = await response.blob();
+      
+      // Формируем текст для шаринга
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
       
-      // Копируем текст в буфер обмена
-      await navigator.clipboard.writeText(text).catch(() => {
-        console.log('Не удалось скопировать текст в буфер обмена');
-      });
+      // Создаем FormData для отправки файла
+      const formData = new FormData();
+      formData.append('file', blob, 'achievement.png');
       
-      // Показываем инструкцию для пользователя
-      toast('Текст скопирован в буфер обмена', { type: 'success', duration: 3000 } as CustomToastOptions);
-      
-      // Открываем Telegram в новой вкладке
-      const telegramUrl = 'https://t.me/';
-      window.open(telegramUrl, '_blank');
-      
-      // Дополнительная инструкция
-      setTimeout(() => {
-        toast('Вставьте текст и добавьте изображение в Stories', { type: 'info', duration: 5000 } as CustomToastOptions);
-      }, 1000);
+      try {
+        // Пытаемся загрузить файл на временный сервис
+        const uploadResponse = await fetch('https://tmpfiles.org/api/v1/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Ошибка загрузки файла');
+        }
+        
+        const uploadResult = await uploadResponse.json();
+        // Получаем прямую ссылку на файл
+        const fileUrl = uploadResult.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
+        
+        // Открываем Telegram с изображением и текстом
+        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(fileUrl)}&text=${encodeURIComponent(text)}`;
+        window.open(telegramUrl, '_blank');
+        
+        toast('Открываем Telegram...', { type: 'success', duration: 3000 } as CustomToastOptions);
+      } catch (uploadError) {
+        console.error('Ошибка при загрузке файла:', uploadError);
+        
+        // Запасной вариант - открываем Telegram только с текстом
+        const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
+        window.open(telegramUrl, '_blank');
+        
+        // Открываем изображение в новой вкладке
+        const imageTab = window.open(shareableImage, '_blank');
+        
+        toast('Добавьте изображение из второй вкладки', { type: 'info', duration: 5000 } as CustomToastOptions);
+      }
     } catch (error) {
       console.error('Ошибка при подготовке к шерингу в Telegram:', error);
       toast('Не удалось подготовить данные для Telegram', { type: 'error' } as CustomToastOptions);
