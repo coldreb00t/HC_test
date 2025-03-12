@@ -16,6 +16,7 @@ interface NutritionEntry {
   id: string;
   date: string;
   created_at?: string; // Делаем поле необязательным
+  entry_time?: string; // Добавляем новое поле для времени записи
   proteins: number | null;
   fats: number | null;
   carbs: number | null;
@@ -322,12 +323,7 @@ export function NutritionView() {
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Создаем уникальный идентификатор для этой записи
-        const now = new Date();
-        const timeStamp = now.toISOString().replace(/[:.]/g, '');
-        const customId = `${timeStamp}_${Math.random().toString(36).substring(2, 8)}`;
-        
-        // Создаем новую запись с дополнительным полем custom_id для уникальности
+        // Создаем новую запись с полем entry_time, которое автоматически заполняется текущим временем
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
           .insert({
@@ -337,42 +333,18 @@ export function NutritionView() {
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
             client_id: clientData.id,
-            date: newEntry.date, // Используем обычную дату в формате YYYY-MM-DD
-            custom_id: customId // Добавляем уникальный идентификатор
+            date: newEntry.date, // Простая дата YYYY-MM-DD
+            // Поле entry_time будет установлено автоматически в базе данных благодаря DEFAULT NOW()
           })
           .select('id');
 
         if (insertError) {
           console.error('Insert error:', insertError);
-          // Попробуем второй подход - создать запись с измененной датой (на день вперед)
-          const nextDay = new Date(newEntry.date);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const nextDayStr = nextDay.toISOString().split('T')[0];
-          
-          console.log('Trying alternate approach with modified date:', nextDayStr);
-          
-          const { data: altInsertedData, error: altInsertError } = await supabase
-            .from('client_nutrition')
-            .insert({
-              proteins: newEntry.proteins || 0,
-              fats: newEntry.fats || 0,
-              carbs: newEntry.carbs || 0,
-              calories: newEntry.calories || 0,
-              water: newEntry.water || 0,
-              client_id: clientData.id,
-              date: nextDayStr // Используем следующий день для уникальности
-            })
-            .select('id');
-            
-          if (altInsertError) {
-            throw altInsertError;
-          }
-          
-          if (altInsertedData && altInsertedData.length > 0) {
-            entryId = altInsertedData[0].id;
-            toast.success('Запись сохранена');
-          }
-        } else if (insertedData && insertedData.length > 0) {
+          toast.error('Ошибка при сохранении записи. Возможно, нужно обновить структуру базы данных.');
+          throw insertError;
+        }
+        
+        if (insertedData && insertedData.length > 0) {
           entryId = insertedData[0].id;
           toast.success('Запись сохранена');
         }
@@ -782,7 +754,9 @@ export function NutritionView() {
                             <div className="flex justify-between items-center">
                               <div>
                                 <div className="text-sm text-gray-500">
-                                  {entry.created_at ? (
+                                  {entry.entry_time ? (
+                                    <span>Время: {formatTime(entry.entry_time)}</span>
+                                  ) : entry.created_at ? (
                                     <span>Время: {formatTime(entry.created_at)}</span>
                                   ) : (
                                     <span>Время: {getTimeFromCombinedDate(entry.date)}</span>

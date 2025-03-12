@@ -1,0 +1,1 @@
+ALTER TABLE client_nutrition ADD COLUMN entry_time TIMESTAMPTZ DEFAULT NOW();
