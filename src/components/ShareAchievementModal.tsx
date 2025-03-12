@@ -31,6 +31,7 @@ interface ShareAchievementModalProps {
   nextBeastThreshold: number;
   currentBeastThreshold: number;
   beastImage: string;
+  achievementImage?: string;
   isBeast?: boolean; // Флаг для различения зверей и обычных достижений
   displayValue?: string; // Отформатированное значение для отображения
   unit?: string; // Единица измерения
@@ -47,6 +48,7 @@ export function ShareAchievementModal({
   nextBeastThreshold,
   currentBeastThreshold,
   beastImage,
+  achievementImage,
   isBeast,
   displayValue,
   unit,
@@ -180,8 +182,10 @@ export function ShareAchievementModal({
       ctx.fillRect(0, 0, cardWidth, cardHeight);
       
       // Пытаемся использовать изображение как фон, если оно есть
-      if (beastImage && beastImage.length > 0) {
-        console.log("Пытаемся загрузить фоновое изображение:", beastImage);
+      // Для обычных достижений используем achievementImage, если он указан, иначе beastImage для обратной совместимости
+      const backgroundImageUrl = achievementImage || beastImage;
+      if (backgroundImageUrl && backgroundImageUrl.length > 0) {
+        console.log("Пытаемся загрузить фоновое изображение:", backgroundImageUrl);
         
         const bgImage = new Image();
         bgImage.crossOrigin = 'anonymous';
@@ -206,7 +210,7 @@ export function ShareAchievementModal({
               reject(new Error('Не удалось загрузить фоновое изображение'));
             };
             
-            bgImage.src = beastImage;
+            bgImage.src = backgroundImageUrl;
           });
           
           // Проверяем, что изображение действительно загружено
@@ -1042,7 +1046,7 @@ export function ShareAchievementModal({
     return () => clearTimeout(timeoutId);
   }, [cardWidth, cardHeight, isOpen, loading, memoizedGenerateShareImage]);
 
-  // Загружаем изображение зверя при открытии модального окна
+  // Загружаем изображение при открытии модального окна
   useEffect(() => {
     // Проверяем, изменилось ли состояние isOpen с false на true
     if (isOpen && !prevIsOpenRef.current) {
@@ -1057,7 +1061,11 @@ export function ShareAchievementModal({
       
       setLoading(true);
 
-      if (isBeast && beastImage) {
+      // Определяем, какое изображение использовать
+      const imageToLoad = isBeast ? beastImage : (achievementImage || beastImage);
+      
+      if (imageToLoad) {
+        console.log("Загружаем изображение:", imageToLoad);
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
@@ -1065,14 +1073,13 @@ export function ShareAchievementModal({
           memoizedGenerateShareImage();
         };
         img.onerror = () => {
-          console.error('Ошибка загрузки изображения зверя');
+          console.error('Ошибка загрузки изображения');
           // Все равно пытаемся сгенерировать, но с градиентным фоном
           memoizedGenerateShareImage();
         };
-        img.src = beastImage;
+        img.src = imageToLoad;
       } else {
-        // Для обычных достижений не нужно ждать загрузки изображения
-        // Запускаем генерацию с небольшой задержкой
+        // Если изображение не указано, запускаем генерацию с небольшой задержкой
         setTimeout(() => {
           memoizedGenerateShareImage();
         }, 100);

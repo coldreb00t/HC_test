@@ -17,7 +17,8 @@ import {
   XCircle,
   ArrowUp,
   ChevronDown,
-  Share2
+  Share2,
+  CheckCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -40,7 +41,8 @@ interface Achievement {
   icon: ReactNode;
   value: string;
   color: string;
-  bgImage?: string;
+  bgImage?: string; // Для зверей
+  achievementImage?: string; // Для обычных достижений
   motivationalPhrase: string; // Добавлено поле для мотивационной фразы
   beastComponent?: boolean; // Флаг, указывающий на специальный компонент RaiseTheBeastMotivation
 }
@@ -130,6 +132,7 @@ export function ClientDashboard() {
     nextBeastThreshold: number;
     currentBeastThreshold: number;
     beastImage: string;
+    achievementImage: string;
     isBeast: boolean;
     displayValue: string;
     unit: string;
@@ -634,89 +637,82 @@ export function ClientDashboard() {
   
   // Функция для формирования достижений на основе реальных данных
   const getAchievements = (stats: UserStats = userStats): Achievement[] => {
-    console.log('Формируем достижения на основе данных:', stats);
-    console.log('Количество тренировок:', stats.workouts.totalCount);
-    console.log('Количество завершенных тренировок:', stats.workouts.completedCount);
-    console.log('Объем тренировок:', stats.workouts.totalVolume);
-    
-    // Получаем наиболее популярный тип активности
-    let topActivityType = 'Активность';
-    let topActivityDuration = 0;
-    
-    Object.entries(stats.activities.types).forEach(([type, duration]) => {
-      if (duration > topActivityDuration) {
-        topActivityType = type;
-        topActivityDuration = duration;
-      }
-    });
-    
-    console.log('Самый популярный тип активности:', topActivityType, topActivityDuration);
-    
-    // Просто число завершенных тренировок
-    const completedTrainingsValue = stats.workouts.completedCount.toString();
-    console.log('Значение для отображения в достижении "Завершенные тренировки":', completedTrainingsValue);
-    
-    // Число с единицей измерения для общего объема нагрузки
-    const totalVolumeValue = `${stats.workouts.totalVolume} кг`;
-    console.log('Значение для отображения в достижении "Объем нагрузки":', totalVolumeValue);
-    
-    return [
-      {
-        title: 'Завершенные тренировки',
-        description: 'Регулярность - ключ к результатам',
-        value: completedTrainingsValue,
-        icon: <Calendar className="w-16 h-16 text-white" />,
-        color: 'bg-orange-500',
-        bgImage: '/images/achievements/workouts.jpg',
-        motivationalPhrase: 'Регулярные тренировки сделают невозможное возможным!'
-      },
+    // Базовые достижения
+    const achievements: Achievement[] = [
       {
         title: 'Объем нагрузки',
-        description: 'Общий вес, который ты поднял',
-        value: totalVolumeValue,
-        icon: <Dumbbell className="w-16 h-16 text-white" />,
+        description: 'Общий объем нагрузки',
+        icon: <Dumbbell className="w-6 h-6" />,
+        value: `${stats.workouts.totalVolume.toLocaleString()} кг`,
         color: 'bg-blue-500',
-        bgImage: '/images/achievements/volume.jpg',
-        motivationalPhrase: 'Каждый поднятый килограмм приближает тебя к цели!'
+        achievementImage: '/src/assets/achievements/weight.png', // Новый путь для обычных достижений
+        motivationalPhrase: 'Каждый килограмм приближает тебя к цели!',
+      },
+      {
+        title: 'Завершенные тренировки',
+        description: 'Количество завершенных тренировок',
+        icon: <CheckCircle className="w-6 h-6" />,
+        value: `${stats.workouts.completedCount}`,
+        color: 'bg-green-500',
+        achievementImage: '/src/assets/achievements/workout.png', // Новый путь для обычных достижений
+        motivationalPhrase: 'Регулярность - ключ к успеху!',
+      },
+      {
+        title: 'Активность',
+        description: 'Общее время активности',
+        icon: <Activity className="w-6 h-6" />,
+        value: `${Math.round(stats.activities.totalMinutes / 60)} часов`,
+        color: 'bg-purple-500',
+        achievementImage: '/src/assets/achievements/streak.png', // Новый путь для обычных достижений
+        motivationalPhrase: 'Движение - это жизнь!',
+      },
+      {
+        title: 'Изменение тела',
+        description: stats.measurements.weightChange && stats.measurements.weightChange < 0 
+          ? 'Снижение веса' 
+          : 'Изменение веса',
+        icon: <Scale className="w-6 h-6" />,
+        value: stats.measurements.weightChange 
+          ? `${Math.abs(stats.measurements.weightChange).toFixed(1)} кг` 
+          : 'Нет данных',
+        color: 'bg-orange-500',
+        achievementImage: '/src/assets/achievements/personal_record.png', // Новый путь для обычных достижений
+        motivationalPhrase: stats.measurements.weightChange && stats.measurements.weightChange < 0 
+          ? 'Отличный прогресс! Продолжай в том же духе!' 
+          : 'Каждый шаг важен на пути к цели!',
       },
       {
         title: 'Любимая активность',
-        description: topActivityType,
-        value: topActivityDuration > 0
-          ? `${Math.floor(topActivityDuration / 60)} ч ${topActivityDuration % 60} мин`
-          : 'Нет данных',
+        description: 'Физические упражнения',
         icon: <Activity className="w-16 h-16 text-white" />,
+        value: 'Добавь активность',
         color: 'bg-green-500',
         bgImage: '/images/achievements/activity.jpg',
         motivationalPhrase: 'Найди то, что приносит радость, и это уже не будет казаться тренировкой!'
       },
       {
         title: 'Изменение тела',
-        description: stats.measurements.weightChange && stats.measurements.weightChange < 0 
-          ? 'Снижение веса' 
-          : stats.measurements.weightChange && stats.measurements.weightChange > 0 
-            ? 'Набор массы' 
-            : 'Изменение веса',
-        value: stats.measurements.weightChange 
-          ? `${Math.abs(stats.measurements.weightChange).toFixed(1)} кг` 
-          : 'Нет данных',
+        description: 'Отслеживание прогресса',
+        value: 'Добавь замеры',
         icon: <Scale className="w-16 h-16 text-white" />,
         color: 'bg-purple-500',
         bgImage: '/images/achievements/progress.jpg',
-        motivationalPhrase: 'Каждый шаг в сторону изменения тела - это новая версия тебя!'
+        motivationalPhrase: 'Не сравнивай себя с другими, сравнивай с собой вчерашним!'
       },
-      // Пятое достижение - активность
       {
-        title: 'Активность',
-        description: 'Твоя общая физическая активность',
-        value: stats.activities.totalMinutes > 0 
-          ? `${Math.floor(stats.activities.totalMinutes / 60)} ч ${stats.activities.totalMinutes % 60} мин` 
-          : 'Нет данных',
-        icon: <Activity className="w-16 h-16 text-white" />,
-        color: 'bg-green-500',
-        bgImage: '/images/achievements/general-activity.jpg',
-        motivationalPhrase: 'Движение - это жизнь. Продолжай двигаться!'
-      },
+        title: 'Общая активность',
+        description: 'Суммарное время движения',
+        value: 'Добавь активность',
+        icon: <Award className="w-16 h-16 text-white" />,
+        color: 'bg-yellow-500',
+        bgImage: '/images/achievements/trophies.jpg',
+        motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
+      }
+    ];
+
+    // Добавляем остальные достижения
+    const fullAchievements = [
+      ...achievements,
       {
         title: 'Подними зверя',
         description: 'Объем поднятого веса',
@@ -728,6 +724,8 @@ export function ClientDashboard() {
         beastComponent: true
       }
     ];
+
+    return fullAchievements;
   };
   
   // Функция для открытия модального окна поделиться обычным достижением
@@ -792,7 +790,8 @@ export function ClientDashboard() {
       totalVolume: numericValue,
       nextBeastThreshold: nextThreshold,
       currentBeastThreshold: currentThreshold,
-      beastImage: achievement.bgImage || '',
+      beastImage: achievement.beastComponent ? achievement.bgImage || '' : '',
+      achievementImage: !achievement.beastComponent ? achievement.bgImage || '' : '',
       isBeast: achievement.beastComponent || false,
       displayValue: displayValue,
       unit: unit,
@@ -1039,6 +1038,7 @@ export function ClientDashboard() {
           nextBeastThreshold={shareModalData.nextBeastThreshold}
           currentBeastThreshold={shareModalData.currentBeastThreshold}
           beastImage={shareModalData.beastImage}
+          achievementImage={shareModalData.achievementImage}
           isBeast={shareModalData.isBeast}
           displayValue={shareModalData.displayValue}
           unit={shareModalData.unit}

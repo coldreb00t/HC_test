@@ -136,6 +136,17 @@ interface ProgramExercise {
   exercise_sets: ExerciseSet[];
 }
 
+interface Achievement {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  value: string;
+  bgImage?: string; // Для зверей
+  achievementImage?: string; // Для обычных достижений
+  motivationalPhrase?: string; // Мотивационная фраза
+  achieved?: boolean; // Флаг достижения цели
+}
+
 export function AchievementsView() {
   const navigate = useNavigate();
   const [showFabMenu, setShowFabMenu] = useState(false);
@@ -147,10 +158,10 @@ export function AchievementsView() {
   const [nutritionStats, setNutritionStats] = useState<NutritionStats | null>(null);
   const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto[] | null>(null);
   const [lastPhoto, setLastPhoto] = useState<ProgressPhoto[] | null>(null);
-  const [achievements, setAchievements] = useState<{title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition'>('overview');
   const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedAchievement, setSelectedAchievement] = useState<{title: string, description: string, icon: React.ReactNode, value: string} | null>(null);
+  const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
   const [editRowId, setEditRowId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Measurement | null>(null);
@@ -539,46 +550,61 @@ export function AchievementsView() {
   const generateAchievements = () => {
     const achievementsList = [
       {
-        title: "Первые шаги",
+        title: "Первая тренировка",
         description: "Завершена первая тренировка",
         icon: <Dumbbell className="w-5 h-5 text-orange-500" />,
-        achieved: true,
-        value: "Достигнуто!"
+        value: "Достигнуто!",
+        bgImage: '',
+        achievementImage: '/src/assets/achievements/workout.png',
+        motivationalPhrase: 'Первый шаг к большим достижениям!',
+        achieved: true
       },
       {
         title: "Регулярность",
         description: "10 тренировок посещено",
         icon: <Calendar className="w-5 h-5 text-orange-500" />,
-        achieved: workoutStats ? workoutStats.totalWorkouts >= 10 : false,
-        value: workoutStats ? `${workoutStats.totalWorkouts}/10 тренировок` : "0/10 тренировок"
+        value: workoutStats ? `${workoutStats.totalWorkouts}/10 тренировок` : "0/10 тренировок",
+        bgImage: '',
+        achievementImage: '/src/assets/achievements/streak.png',
+        motivationalPhrase: 'Регулярность - ключ к успеху!',
+        achieved: workoutStats ? workoutStats.totalWorkouts >= 10 : false
       },
       {
         title: "Прогресс",
         description: "Первое измерение тела",
         icon: <Scale className="w-5 h-5 text-orange-500" />,
-        achieved: measurements.length > 0,
-        value: measurements.length > 0 ? "Достигнуто!" : "Не выполнено"
+        value: measurements.length > 0 ? "Достигнуто!" : "Не выполнено",
+        bgImage: '',
+        achievementImage: '/src/assets/achievements/personal_record.png',
+        motivationalPhrase: 'Отслеживай свой прогресс и достигай новых высот!',
+        achieved: measurements.length > 0
       },
       {
         title: "Активность",
         description: "Регулярная ежедневная активность в течение недели",
         icon: <Activity className="w-5 h-5 text-orange-500" />,
-        achieved: activityStats ? activityStats.totalActivities >= 7 : false,
-        value: activityStats ? `${activityStats.totalActivities}/7 дней` : "0/7 дней"
+        value: activityStats ? `${activityStats.totalActivities}/7 дней` : "0/7 дней",
+        bgImage: '',
+        achievementImage: '/src/assets/achievements/streak.png',
+        motivationalPhrase: 'Движение - это жизнь!',
+        achieved: activityStats ? activityStats.totalActivities >= 7 : false
       },
       {
         title: "Питание",
         description: "Ведение дневника питания в течение недели",
         icon: <LineChart className="w-5 h-5 text-orange-500" />,
-        achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false,
-        value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней"
+        value: nutritionStats ? `${nutritionStats.entriesCount}/7 дней` : "0/7 дней",
+        bgImage: '',
+        achievementImage: '/src/assets/achievements/weight.png',
+        motivationalPhrase: 'Правильное питание - основа здорового образа жизни!',
+        achieved: nutritionStats ? nutritionStats.entriesCount >= 7 : false
       }
     ];
 
     setAchievements(achievementsList);
   };
   
-  const handleShareAchievement = (achievement: {title: string, description: string, icon: React.ReactNode, achieved: boolean, value?: string}) => {
+  const handleShareAchievement = (achievement: Achievement) => {
     if (!achievement.achieved) {
       toast.error('Вы еще не достигли этой цели');
       return;
@@ -588,7 +614,10 @@ export function AchievementsView() {
       title: achievement.title,
       description: achievement.description,
       icon: achievement.icon,
-      value: achievement.value || 'Достигнуто!'
+      value: achievement.value,
+      bgImage: achievement.bgImage,
+      achievementImage: achievement.achievementImage,
+      motivationalPhrase: achievement.motivationalPhrase
     });
     setShowShareModal(true);
   };
@@ -1580,10 +1609,12 @@ export function AchievementsView() {
           nextBeastThreshold={0}
           currentBeastThreshold={0}
           beastImage=""
+          achievementImage={selectedAchievement.achievementImage || selectedAchievement.bgImage || ''}
           userName={clientData ? `${clientData.first_name} ${clientData.last_name}` : 'Пользователь HARDCASE'}
           isBeast={false}
           displayValue={selectedAchievement.value}
           unit=""
+          motivationalPhrase={selectedAchievement.motivationalPhrase}
         />
       )}
     </SidebarLayout>
