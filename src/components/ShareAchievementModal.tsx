@@ -847,11 +847,17 @@ export function ShareAchievementModal({
         reader.onloadend = function() {
           const base64data = reader.result?.toString().split(',')[1];
           
-          // Отправляем сообщение в нативный код
+          // Отправляем сообщение в нативный код с дополнительными параметрами
           window.webkit?.messageHandlers?.shareHandler?.postMessage({
             action: 'shareToTelegram',
             image: base64data,
-            text: text
+            text: text,
+            details: {
+              beastName: beastName,
+              weightPhrase: weightPhrase,
+              totalVolume: totalVolume,
+              userName: userName
+            }
           });
           
           toast('Открываем Telegram...', { type: 'success', duration: 3000 } as CustomToastOptions);
