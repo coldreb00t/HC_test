@@ -60,7 +60,7 @@ export function NutritionView() {
   });
   
   const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id' | 'photos'>>({
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split('T')[0], // Используем формат YYYY-MM-DD
     proteins: null,
     fats: null,
     carbs: null,
@@ -414,7 +414,7 @@ export function NutritionView() {
       // Очищаем форму и обновляем данные
       setSelectedFiles([]);
       setNewEntry({
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split('T')[0], // Гарантируем формат YYYY-MM-DD
         proteins: null,
         fats: null,
         carbs: null,
@@ -442,9 +442,22 @@ export function NutritionView() {
 
   const handleEdit = (entry: NutritionEntry) => {
     setEditingEntryId(entry.id);
+    
+    // Извлекаем только дату без времени в формате YYYY-MM-DD
+    let dateValue = '';
+    if (entry.actual_date) {
+      // Если это ISO timestamp, извлекаем только дату
+      if (entry.actual_date.includes('T')) {
+        dateValue = entry.actual_date.split('T')[0];
+      } else {
+        dateValue = getBaseDate(entry.actual_date);
+      }
+    } else {
+      dateValue = getBaseDate(entry.date);
+    }
+    
     setNewEntry({
-      // Если есть actual_date, используем его, иначе используем базовую дату
-      date: entry.actual_date || getBaseDate(entry.date),
+      date: dateValue,
       proteins: entry.proteins,
       fats: entry.fats,
       carbs: entry.carbs,
@@ -553,16 +566,25 @@ export function NutritionView() {
 
   // Функция для форматирования даты, извлекая только базовую часть YYYY-MM-DD
   const getBaseDate = (dateString: string): string => {
-    // Обрабатываем формат с пробелом (YYYY-MM-DD HH:MM:SS.ms)
-    if (dateString.includes(' ')) {
-      return dateString.split(' ')[0];
+    try {
+      // Если это ISO timestamp (YYYY-MM-DDTHH:MM:SS.sssZ)
+      if (dateString.includes('T')) {
+        return dateString.split('T')[0];
+      }
+      // Обрабатываем формат с пробелом (YYYY-MM-DD HH:MM:SS.ms)
+      else if (dateString.includes(' ')) {
+        return dateString.split(' ')[0];
+      }
+      // Обрабатываем старый формат с подчеркиванием (YYYY-MM-DD_YYYYMMDDHHmmss)
+      else if (dateString.includes('_')) {
+        return dateString.split('_')[0];
+      }
+      // Просто возвращаем дату как есть, если она уже в нужном формате
+      return dateString;
+    } catch (e) {
+      // Если возникла ошибка, возвращаем сегодняшнюю дату
+      return new Date().toISOString().split('T')[0];
     }
-    // Обрабатываем старый формат с подчеркиванием (YYYY-MM-DD_YYYYMMDDHHmmss)
-    else if (dateString.includes('_')) {
-      return dateString.split('_')[0];
-    }
-    // Просто возвращаем дату как есть, если она уже в нужном формате
-    return dateString;
   };
 
   // Форматирование времени из даты
@@ -896,10 +918,16 @@ export function NutritionView() {
                       <div className="p-2">
                         <button
                           onClick={() => {
-                            // Передаем точную дату без меток времени
+                            // Обеспечиваем формат YYYY-MM-DD для date input
+                            let dateValue = dayGroup.date;
+                            // Если это ISO timestamp, извлекаем только дату
+                            if (dateValue.includes('T')) {
+                              dateValue = dateValue.split('T')[0];
+                            }
+                            
                             setNewEntry(prev => ({
                               ...prev,
-                              date: dayGroup.date // Дата группы - это уже фактическая дата
+                              date: dateValue // Устанавливаем дату в правильном формате
                             }));
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
