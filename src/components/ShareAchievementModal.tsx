@@ -772,18 +772,38 @@ export function ShareAchievementModal({
   };
 
   const handleCopyImage = async () => {
-    if (!shareableImage) return;
+    if (!shareableImage) return false;
 
     try {
       const response = await fetch(shareableImage);
       const blob = await response.blob();
       const item = new ClipboardItem({ 'image/png': blob });
       await navigator.clipboard.write([item]);
-      toast('Изображение скопировано в буфер обмена', { type: 'success' } as CustomToastOptions);
+      
+      toast('Изображение скопировано в буфер обмена', { 
+        type: 'success',
+        icon: '📋',
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      } as CustomToastOptions);
+      
       return true;
     } catch (error) {
       console.error('Ошибка при копировании изображения:', error);
-      toast('Не удалось скопировать изображение', { type: 'error' } as CustomToastOptions);
+      
+      toast('Не удалось скопировать изображение', { 
+        type: 'error',
+        icon: '❌',
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      } as CustomToastOptions);
+      
       return false;
     }
   };
@@ -792,17 +812,39 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
+      // Показываем уведомление о начале процесса
+      toast('Подготовка к отправке...', { 
+        type: 'info', 
+        duration: 1500,
+        icon: '🔄',
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      } as CustomToastOptions);
+      
       const response = await fetch(shareableImage);
       const blob = await response.blob();
       const file = new File([blob], `hardcase-achievement-${beastName}.png`, { type: 'image/png' });
 
       // Проверяем поддержку шаринга файлов
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: `HARDCASE.TRAINING: ${isBeast ? `Зверь ${beastName}` : 'Достижение'}`,
-        text: `${weightPhrase} - ${totalVolume} кг`,
-        files: [file],
-      });
+        await navigator.share({
+          title: `HARDCASE.TRAINING: ${isBeast ? `Зверь ${beastName}` : 'Достижение'}`,
+          text: `${weightPhrase} - ${totalVolume} кг`,
+          files: [file],
+        });
+        
+        toast('Успешно отправлено', { 
+          type: 'success',
+          icon: '✅',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        } as CustomToastOptions);
       } else {
         // Если файлы не поддерживаются, пробуем шарить только текст
         await navigator.share({
@@ -812,15 +854,31 @@ export function ShareAchievementModal({
         });
         
         // Показываем сообщение о копировании
-        handleCopyImage();
-        toast('Изображение скопировано в буфер обмена', { type: 'info' } as CustomToastOptions);
+        const copied = await handleCopyImage();
+        if (copied) {
+          toast('Изображение скопировано в буфер обмена', { 
+            type: 'info',
+            icon: '📋',
+            style: {
+              borderRadius: '10px',
+              background: '#333',
+              color: '#fff',
+            },
+          } as CustomToastOptions);
+        }
       }
-
-      toast('Успешно отправлено', { type: 'success' } as CustomToastOptions);
     } catch (error) {
       console.error('Ошибка при шаринге:', error);
       if (error instanceof Error && error.name !== 'AbortError') {
-        toast('Не удалось поделиться', { type: 'error' } as CustomToastOptions);
+        toast('Не удалось поделиться', { 
+          type: 'error',
+          icon: '❌',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        } as CustomToastOptions);
       }
     }
   };
@@ -830,7 +888,16 @@ export function ShareAchievementModal({
 
     try {
       // Показываем уведомление о начале процесса
-      toast('Сохранение изображения...', { type: 'info', duration: 2000 } as CustomToastOptions);
+      toast('Сохранение изображения...', { 
+        type: 'info', 
+        duration: 2000,
+        icon: '📥',
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      } as CustomToastOptions);
       
       // Получаем изображение как Blob
       const response = await fetch(shareableImage);
@@ -844,12 +911,27 @@ export function ShareAchievementModal({
         reader.onloadend = function() {
           const base64data = reader.result?.toString().split(',')[1];
           
+          if (!base64data) {
+            toast('Ошибка при подготовке изображения', { 
+              type: 'error',
+              icon: '❌',
+              style: {
+                borderRadius: '10px',
+                background: '#333',
+                color: '#fff',
+              },
+            } as CustomToastOptions);
+            return;
+          }
+          
           // Отправляем сообщение в нативный код
           window.webkit?.messageHandlers?.shareHandler?.postMessage({
             action: 'saveImage',
             image: base64data,
             filename: `hardcase-achievement-${beastName}.png`
           });
+          
+          // Уведомление будет показано нативным кодом
         };
       } else {
         // Для других платформ используем стандартный метод скачивания
@@ -862,11 +944,27 @@ export function ShareAchievementModal({
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        toast('Изображение сохранено', { type: 'success' } as CustomToastOptions);
+        toast('Изображение сохранено', { 
+          type: 'success',
+          icon: '✅',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        } as CustomToastOptions);
       }
     } catch (error) {
       console.error('Ошибка при сохранении изображения:', error);
-      toast('Не удалось сохранить изображение', { type: 'error' } as CustomToastOptions);
+      toast('Не удалось сохранить изображение', { 
+        type: 'error',
+        icon: '❌',
+        style: {
+          borderRadius: '10px',
+          background: '#333',
+          color: '#fff',
+        },
+      } as CustomToastOptions);
     }
   };
 
@@ -896,12 +994,14 @@ export function ShareAchievementModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
-      <div className="bg-gray-900 rounded-xl max-w-md w-full p-5 mx-auto relative border border-gray-800">
+      <div className="bg-gray-900 rounded-xl max-w-md w-full p-5 mx-auto relative border border-gray-800 shadow-2xl">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
+          className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-800"
+          aria-label="Закрыть"
+          title="Закрыть"
         >
-          <X className="w-6 h-6" />
+          <X className="w-5 h-5" />
         </button>
 
         <h2 className="text-xl font-bold text-white mb-5 text-center">
@@ -909,8 +1009,34 @@ export function ShareAchievementModal({
         </h2>
 
         <div className="text-center">
-          <div className="beast-card-container" ref={achievementCardRef} style={inlineStyles.cardContainer}>
+          <div className="beast-card-container relative group" ref={achievementCardRef} style={inlineStyles.cardContainer}>
             <canvas ref={canvasRef} style={inlineStyles.canvas} />
+            {!loading && shareableImage && (
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                <div className="flex gap-3">
+                  {canNativeShare && (
+                    <button
+                      onClick={handleNativeShare}
+                      className="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-all duration-200 transform hover:scale-110 shadow-lg"
+                      aria-label="Поделиться"
+                      title="Поделиться"
+                    >
+                      <Share className="w-6 h-6" />
+                    </button>
+                  )}
+                  <button
+                    onClick={handleDownload}
+                    className="p-3 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 transform hover:scale-110 shadow-lg"
+                    aria-label="Скачать"
+                    title="Скачать"
+                  >
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {loading && (
@@ -921,33 +1047,33 @@ export function ShareAchievementModal({
 
           {!loading && shareableImage && (
             <div className="mt-6 space-y-4">
-              {canNativeShare && (
-                <button
-                  onClick={handleNativeShare}
-                  className="w-full flex items-center justify-center gap-2 p-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-lg font-semibold"
-                >
-                  <Share className="w-6 h-6" />
-                  <span>Поделиться</span>
-                </button>
-              )}
-              
-              <div className="grid grid-cols-1 gap-4">
+              <div className="flex justify-center gap-4">
+                {canNativeShare && (
+                  <button
+                    onClick={handleNativeShare}
+                    className="flex items-center justify-center p-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105 shadow-md"
+                    aria-label="Поделиться"
+                    title="Поделиться"
+                  >
+                    <Share className="w-7 h-7" />
+                  </button>
+                )}
+                
                 <button
                   onClick={handleDownload}
-                  className="flex items-center justify-center gap-2 p-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-lg font-semibold"
+                  className="flex items-center justify-center p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 shadow-md"
+                  aria-label="Скачать"
+                  title="Скачать"
                 >
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                   </svg>
-                  <span>Скачать</span>
                 </button>
               </div>
               
-              {!canNativeShare && (
-                <div className="text-center mt-4">
-                  <p className="text-gray-500">Сделайте скриншот или используйте кнопки выше</p>
-                </div>
-              )}
+              <div className="text-center mt-2">
+                <p className="text-gray-500 text-sm">Нажмите на иконку, чтобы сохранить изображение</p>
+              </div>
             </div>
           )}
         </div>
