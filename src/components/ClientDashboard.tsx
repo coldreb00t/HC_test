@@ -16,7 +16,8 @@ import {
   Utensils, 
   XCircle,
   ArrowUp,
-  ChevronDown
+  ChevronDown,
+  Share2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -64,6 +65,17 @@ interface UserStats {
     total: number;
     completed: number;
   };
+}
+
+interface SidebarLayoutProps {
+  children: ReactNode;
+  menuItems: Array<{
+    icon: ReactNode;
+    label: string;
+    onClick: () => void;
+  }>;
+  variant: "bottom";
+  customHeader?: ReactNode;
 }
 
 export function ClientDashboard() {
@@ -179,13 +191,11 @@ export function ClientDashboard() {
     
     const fetchData = async () => {
       try {
-        setLoading(true);
-        
-        // Получаем данные текущего пользователя
+        console.log('Начинаем загрузку данных');
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          // Получаем данные клиента по user_id
+          console.log('Пользователь авторизован:', user.id);
           const { data: clientData, error: clientError } = await supabase
             .from('clients')
             .select('*')
@@ -198,46 +208,14 @@ export function ClientDashboard() {
             console.log('Получены данные клиента:', clientData.id);
             // Сохраняем данные клиента
             setClientData(clientData);
-            
-            // Используем улучшенный API с кэшированием для загрузки всех данных дашборда
-            try {
-              const dashboardData = await loadDashboardData(clientData.id);
-              
-              // Устанавливаем полученные данные
-              if (dashboardData.nextWorkout) {
-                setNextWorkout(dashboardData.nextWorkout);
-              }
-              
-              setUserStats(prevStats => ({
-                ...prevStats,
-                workouts: {
-                  totalCount: dashboardData.workoutStats?.totalCount || 0,
-                  completedCount: dashboardData.workoutStats?.completedCount || 0,
-                  totalVolume: dashboardData.workoutStats?.totalVolume || 0
-                },
-                activities: {
-                  totalMinutes: dashboardData.activityStats?.totalMinutes || 0,
-                  types: dashboardData.activityStats?.types || {}
-                },
-                measurements: {
-                  currentWeight: dashboardData.measurementStats?.currentWeight,
-                  initialWeight: dashboardData.measurementStats?.initialWeight,
-                  weightChange: dashboardData.measurementStats?.weightChange
-                }
-              }));
-              
-              // Отдельно загружаем статистику достижений, так как она не включена в loadDashboardData
-              const achievementsStats = await fetchAchievementsStats(clientData.id);
-              setUserStats(prevStats => ({
-                ...prevStats,
-                achievements: achievementsStats
-              }));
-              
-              console.log('Все данные загружены успешно');
-            } catch (error) {
-              console.error('Ошибка при загрузке данных дашборда:', error);
-              toast.error('Не удалось загрузить данные дашборда');
-            }
+            await Promise.all([
+              fetchNextWorkout(clientData.id),
+              fetchWorkoutStats(clientData.id),
+              fetchActivityStats(clientData.id),
+              fetchMeasurementStats(clientData.id),
+              fetchAchievementsStats(clientData.id)
+            ]);
+            console.log('Все данные загружены успешно');
           }
         }
       } catch (error) {
@@ -261,42 +239,321 @@ export function ClientDashboard() {
     console.log('Достижения обновлены после изменения userStats');
   }, [userStats]);
   
-  // Обработчик открытия модального окна с измерениями
+  const fetchDashboardData = async () => {
+    // Реализация метода
+  };
+  
+  const fetchNextWorkout = async (clientId: string) => {
+    try {
+      const now = new Date().toISOString();
+      
+      // Получаем следующую тренировку без вложенных запросов
+      const { data: workouts, error } = await supabase
+        .from('workouts')
+        .select('*')
+        .eq('client_id', clientId)
+        .gte('start_time', now)
+        .order('start_time', { ascending: true })
+        .limit(1);
+        
+      if (error) throw error;
+      
+      if (workouts && workouts.length > 0) {
+        const workout = workouts[0];
+        
+        // Если у тренировки есть program_id, получаем информацию о программе отдельным запросом
+        if (workout.training_program_id) {
+          const { data: programData, error: programError } = await supabase
+            .from('training_programs')
+            .select('*')
+            .eq('id', workout.training_program_id)
+            .single();
+            
+          if (!programError && programData) {
+            // Объединяем данные и устанавливаем в состояние
+            setNextWorkout({
+              ...workout,
+              program: programData
+            } as NextWorkout);
+          } else {
+            // Устанавливаем тренировку без программы
+            setNextWorkout(workout as NextWorkout);
+          }
+        } else {
+          // Устанавливаем тренировку без программы
+          setNextWorkout(workout as NextWorkout);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error fetching next workout:', error);
+    }
+  };
+  
   const handleOpenMeasurementsModal = () => {
     setShowMeasurementsModal(true);
   };
   
-  // Получение статистики достижений
-  const fetchAchievementsStats = async (_clientId: string) => {
-    // Используем underscore для неиспользуемого параметра
+  const fetchWorkoutStats = async (clientId: string) => {
     try {
-      console.log('Загрузка статистики достижений...');
+      console.log('Загружаем данные о тренировках для клиента:', clientId);
+      // Получаем все тренировки клиента
+      const { data: workouts, error } = await supabase
+        .from('workouts')
+        .select('*')
+        .eq('client_id', clientId);
+        
+      if (error) throw error;
+      console.log('Количество тренировок:', workouts?.length || 0);
+      console.log('Данные о тренировках:', workouts);
       
-      // Вместо пустых значений по умолчанию, создадим более интересные демонстрационные данные
-      // В реальном приложении здесь будет запрос к таблице достижений
+      // Получаем завершенные тренировки (проверяем два возможных формата данных)
+      // Вариант 1: используем таблицу workout_completions
+      const { data: completions, error: completionsError } = await supabase
+        .from('workout_completions')
+        .select('*')
+        .eq('client_id', clientId);
+        
+      if (completionsError) throw completionsError;
+      console.log('Количество завершенных тренировок из workout_completions:', completions?.length || 0);
       
-      // Пример расчета выполненных достижений на основе текущих данных пользователя
-      const achievedCount = [
-        userStats.workouts.completedCount > 0, // Есть хотя бы одна завершенная тренировка
-        userStats.workouts.totalVolume > 0,   // Есть объем тренировок
-        Object.keys(userStats.activities.types).length > 0, // Есть активности
-        userStats.measurements.weightChange !== null, // Есть измерения веса
-        userStats.activities.totalMinutes > 0 // Есть общее время активности
-      ].filter(Boolean).length;
+      // Вариант 2: используем поле completed в таблице workouts
+      const { data: completedWorkouts, error: completedWorkoutsError } = await supabase
+        .from('workouts')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('completed', true);
+        
+      if (completedWorkoutsError) {
+        console.error('Ошибка при получении завершенных тренировок из workouts:', completedWorkoutsError);
+      } else {
+        console.log('Количество завершенных тренировок из workouts with completed=true:', completedWorkouts?.length || 0);
+      }
       
-      const result = {
-        total: 5, // Фиксированное количество возможных достижений
-        completed: achievedCount
-      };
+      // Определяем фактическое количество завершенных тренировок на основе доступных данных
+      let completedCount = 0;
       
-      console.log('Посчитана статистика достижений:', result);
-      return result;
+      // Если есть данные в workout_completions, используем их
+      if (completions && completions.length > 0) {
+        completedCount = completions.length;
+        console.log('Используем количество из workout_completions:', completedCount);
+      }
+      // Иначе если есть данные о завершенных тренировках в workouts, используем их
+      else if (completedWorkouts && completedWorkouts.length > 0) {
+        completedCount = completedWorkouts.length;
+        console.log('Используем количество из workouts с completed=true:', completedCount);
+      }
+      // Если нет данных ни в одной таблице, устанавливаем 0
+      else {
+        console.log('Нет данных о завершенных тренировках, устанавливаем 0');
+      }
+      
+      let totalVolume = 0;
+      
+      // Получаем все упражнения для всех завершенных тренировок
+      if (completions && completions.length > 0) {
+        // Получаем ID всех завершенных тренировок
+        const completedWorkoutIds = completions.map(c => c.workout_id);
+        console.log('ID всех завершенных тренировок:', completedWorkoutIds);
+        
+        // Получаем детали всех завершенных тренировок
+        const { data: workoutDetails, error: workoutDetailsError } = await supabase
+          .from('workouts')
+          .select('*')
+          .in('id', completedWorkoutIds);
+          
+        if (workoutDetailsError) {
+          console.error('Ошибка при получении деталей тренировок:', workoutDetailsError);
+        } else if (workoutDetails && workoutDetails.length > 0) {
+          console.log('Получены детали завершенных тренировок:', workoutDetails.length);
+          
+          // Собираем ID всех программ тренировок
+          const programIds = workoutDetails
+            .map(w => w.training_program_id)
+            .filter(Boolean);
+          console.log('ID программ тренировок:', programIds);
+          
+          // Получаем упражнения всех программ
+          const { data: programExercises, error: programExercisesError } = await supabase
+            .from('program_exercises')
+            .select(`
+              id,
+              exercise_id,
+              strength_exercises (id, name),
+              exercise_sets (set_number, reps, weight)
+            `)
+            .in('program_id', programIds);
+            
+          if (programExercisesError) {
+            console.error('Ошибка при получении упражнений программ:', programExercisesError);
+          } else if (programExercises && programExercises.length > 0) {
+            console.log('Получены упражнения программ:', programExercises.length);
+            console.log('Детали упражнений программ:', programExercises);
+            
+            // Получаем все завершенные упражнения клиента
+            const { data: exerciseCompletions, error: exerciseError } = await supabase
+              .from('exercise_completions')
+              .select('*')
+              .eq('client_id', clientId)
+              .in('workout_id', completedWorkoutIds);
+              
+            if (exerciseError) {
+              console.error('Ошибка при получении завершенных упражнений:', exerciseError);
+            } else if (exerciseCompletions && exerciseCompletions.length > 0) {
+              console.log('Получены завершенные упражнения:', exerciseCompletions.length);
+              
+              // Рассчитываем общий объем для всех завершенных упражнений
+              exerciseCompletions.forEach(completion => {
+                if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
+                  // Находим соответствующее упражнение в программе
+                  const exercise = programExercises.find(pe => pe.exercise_id === completion.exercise_id);
+                  
+                  if (exercise) {
+                    console.log('Найдено упражнение в программе:', exercise.exercise_id);
+                    console.log('Данные упражнения:', exercise);
+                    
+                    // Проверяем наличие сетов упражнений
+                    if (exercise.exercise_sets && Array.isArray(exercise.exercise_sets) && exercise.exercise_sets.length > 0) {
+                      console.log('Упражнение содержит сеты:', exercise.exercise_sets.length);
+                      
+                      // Считаем объем по данным сетов для всех завершенных подходов
+                      completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
+                        if (isCompleted && index < exercise.exercise_sets.length) {
+                          const set = exercise.exercise_sets[index];
+                          const reps = parseInt(set.reps, 10) || 0;
+                          const weight = parseFloat(set.weight) || 0;
+                          
+                          console.log(`Подход ${index+1}: повторения=${reps}, вес=${weight}`);
+                          
+                          if (reps > 0 && weight > 0) {
+                            totalVolume += reps * weight;
+                            console.log(`Добавлен объем из сета: ${reps * weight} кг, текущий объем: ${totalVolume} кг`);
+                          } else {
+                            console.log(`Пропущен расчет объема из сета, так как reps=${reps}, weight=${weight}`);
+                          }
+                        }
+                      });
+                    } else {
+                      console.log('Упражнение не содержит сетов, объем не может быть рассчитан');
+                    }
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      console.log('Итоговый объем тренировок:', totalVolume);
+      console.log('Количество тренировок для обновления:', workouts?.length || 0);
+      console.log('Количество завершенных тренировок для обновления:', completedCount);
+      
+      // Обновляем статистику тренировок - только реальные данные
+      const totalCount = workouts?.length || 0;
+      
+      setUserStats((prev: UserStats) => {
+        const newStats = {
+          ...prev,
+          workouts: {
+            totalCount,
+            completedCount,
+            totalVolume
+          }
+        };
+        console.log('Обновляем статистику тренировок:', newStats);
+        return newStats;
+      });
     } catch (error) {
+      console.error('Error fetching workout stats:', error);
+    }
+  };
+  
+  const fetchActivityStats = async (clientId: string) => {
+    try {
+      // Получаем все активности клиента
+      const { data: activities, error } = await supabase
+        .from('client_activities')
+        .select('*')
+        .eq('client_id', clientId);
+        
+      if (error) throw error;
+      
+      let totalMinutes = 0;
+      const activityTypes: {[key: string]: number} = {};
+      
+      if (activities) {
+        activities.forEach((activity: any) => {
+          totalMinutes += activity.duration_minutes;
+          
+          // Группируем по типам активности
+          if (activityTypes[activity.activity_type]) {
+            activityTypes[activity.activity_type] += activity.duration_minutes;
+          } else {
+            activityTypes[activity.activity_type] = activity.duration_minutes;
+          }
+        });
+      }
+      
+      // Обновляем статистику активности
+      setUserStats((prev: UserStats) => ({
+        ...prev,
+        activities: {
+          totalMinutes,
+          types: activityTypes
+        }
+      }));
+    } catch (error) {
+      console.error('Error fetching activity stats:', error);
+    }
+  };
+  
+  const fetchMeasurementStats = async (clientId: string) => {
+    try {
+      // Получаем все измерения клиента, отсортированные по дате
+      const { data: measurements, error } = await supabase
+        .from('client_measurements')
+        .select('*')
+        .eq('client_id', clientId)
+        .not('weight', 'is', null)
+        .order('date', { ascending: true });
+        
+      if (error) throw error;
+      
+      let initialWeight = null;
+      let currentWeight = null;
+      let weightChange = null;
+      
+      if (measurements && measurements.length > 0) {
+        initialWeight = measurements[0].weight;
+        currentWeight = measurements[measurements.length - 1].weight;
+        weightChange = currentWeight - initialWeight;
+      }
+      
+      // Обновляем статистику измерений
+      setUserStats((prev: UserStats) => ({
+        ...prev,
+        measurements: {
+          initialWeight,
+          currentWeight,
+          weightChange
+        }
+      }));
+    } catch (error: any) {
+      console.error('Error fetching measurement stats:', error);
+    }
+  };
+  
+  const fetchAchievementsStats = async (clientId: string) => {
+    try {
+      // Поскольку таблица achievements не существует, просто устанавливаем значения по умолчанию
+      setUserStats((prev: UserStats) => ({
+        ...prev,
+        achievements: {
+          total: 5, // Фиксированное количество возможных достижений
+          completed: 0 // Пока нет достижений
+        }
+      }));
+    } catch (error: any) {
       console.error('Error fetching achievements stats:', error);
-      return {
-        total: 5,
-        completed: 0
-      };
     }
   };
   
@@ -383,7 +640,7 @@ export function ClientDashboard() {
     console.log('Объем тренировок:', stats.workouts.totalVolume);
     
     // Получаем наиболее популярный тип активности
-    let topActivityType = 'Физические упражнения';
+    let topActivityType = 'Активность';
     let topActivityDuration = 0;
     
     Object.entries(stats.activities.types).forEach(([type, duration]) => {
@@ -396,15 +653,11 @@ export function ClientDashboard() {
     console.log('Самый популярный тип активности:', topActivityType, topActivityDuration);
     
     // Просто число завершенных тренировок
-    const completedTrainingsValue = stats.workouts.completedCount > 0 
-      ? stats.workouts.completedCount.toString() 
-      : '0';
+    const completedTrainingsValue = stats.workouts.completedCount.toString();
     console.log('Значение для отображения в достижении "Завершенные тренировки":', completedTrainingsValue);
     
     // Число с единицей измерения для общего объема нагрузки
-    const totalVolumeValue = stats.workouts.totalVolume > 0 
-      ? `${stats.workouts.totalVolume} кг` 
-      : '0 кг';
+    const totalVolumeValue = `${stats.workouts.totalVolume} кг`;
     console.log('Значение для отображения в достижении "Объем нагрузки":', totalVolumeValue);
     
     return [
@@ -431,7 +684,7 @@ export function ClientDashboard() {
         description: topActivityType,
         value: topActivityDuration > 0
           ? `${Math.floor(topActivityDuration / 60)} ч ${topActivityDuration % 60} мин`
-          : 'Добавь активность',
+          : 'Нет данных',
         icon: <Activity className="w-16 h-16 text-white" />,
         color: 'bg-green-500',
         bgImage: '/images/achievements/activity.jpg',
@@ -446,30 +699,28 @@ export function ClientDashboard() {
             : 'Изменение веса',
         value: stats.measurements.weightChange 
           ? `${Math.abs(stats.measurements.weightChange).toFixed(1)} кг` 
-          : 'Добавь замеры',
+          : 'Нет данных',
         icon: <Scale className="w-16 h-16 text-white" />,
         color: 'bg-purple-500',
         bgImage: '/images/achievements/progress.jpg',
-        motivationalPhrase: 'Не сравнивай себя с другими, сравнивай с собой вчерашним!'
+        motivationalPhrase: 'Каждый шаг в сторону изменения тела - это новая версия тебя!'
       },
-      // Пятое достижение - общая активность
+      // Пятое достижение - активность
       {
-        title: 'Общая активность',
-        description: 'Суммарное время движения',
+        title: 'Активность',
+        description: 'Твоя общая физическая активность',
         value: stats.activities.totalMinutes > 0 
           ? `${Math.floor(stats.activities.totalMinutes / 60)} ч ${stats.activities.totalMinutes % 60} мин` 
-          : 'Добавь активность',
-        icon: <Award className="w-16 h-16 text-white" />,
-        color: 'bg-yellow-500',
-        bgImage: '/images/achievements/trophies.jpg',
-        motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
+          : 'Нет данных',
+        icon: <Activity className="w-16 h-16 text-white" />,
+        color: 'bg-green-500',
+        bgImage: '/images/achievements/general-activity.jpg',
+        motivationalPhrase: 'Движение - это жизнь. Продолжай двигаться!'
       },
       {
         title: 'Подними зверя',
         description: 'Объем поднятого веса',
-        value: stats.workouts.totalVolume > 0 
-          ? `${stats.workouts.totalVolume} кг` 
-          : '0 кг',
+        value: `${stats.workouts.totalVolume} кг`,
         icon: <Scale className="w-16 h-16 text-white" />,
         color: 'bg-pink-500',
         bgImage: '/images/achievements/beast.jpg',

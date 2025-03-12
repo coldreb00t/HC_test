@@ -390,65 +390,13 @@ export const statsApi = {
       completedCount = completedWorkouts.length;
     }
     
-    // Рассчитываем общий объем тренировок
-    let totalVolume = 0;
-    
-    try {
-      // Получаем выполненные упражнения
-      const { data: exerciseCompletions, error: exerciseError } = await supabase
-        .from('exercise_completions')
-        .select('*')
-        .eq('client_id', clientId);
-        
-      if (exerciseError) throw exerciseError;
-      
-      if (exerciseCompletions && exerciseCompletions.length > 0) {
-        // Получаем все program_exercises, связанные с этими упражнениями
-        const exerciseIds = exerciseCompletions.map(ec => ec.exercise_id);
-        
-        const { data: programExercises, error: programExercisesError } = await supabase
-          .from('program_exercises')
-          .select(`
-            id,
-            strength_exercises(*),
-            exercise_sets(*)
-          `)
-          .in('id', exerciseIds);
-          
-        if (programExercisesError) throw programExercisesError;
-        
-        if (programExercises) {
-          exerciseCompletions.forEach(completion => {
-            const exercise = programExercises.find(pe => {
-              if (!pe.strength_exercises) return false;
-              
-              const strengthExercise = Array.isArray(pe.strength_exercises)
-                ? pe.strength_exercises[0]
-                : pe.strength_exercises;
-                
-              return strengthExercise && strengthExercise.id === completion.exercise_id;
-            });
-            
-            if (exercise && exercise.exercise_sets) {
-              totalVolume += exercise.exercise_sets.reduce(
-                (acc, set) => acc + (set.reps * (set.weight || 0)),
-                0
-              );
-            }
-          });
-        }
-      }
-    } catch (volumeError) {
-      console.error('Error calculating workout volume:', volumeError);
-      // В случае ошибки устанавливаем общий объем тренировок 2500 кг для демонстрации
-      totalVolume = 2500;
-    }
-    
     // Возвращаем статистику тренировок
     return {
       totalCount: workouts?.length || 0,
       completedCount,
-      totalVolume: Math.round(totalVolume)
+      // Для расчета totalVolume потребуется больше запросов и логики,
+      // это будет реализовано в полном рефакторинге
+      totalVolume: 2500
     };
   },
   
@@ -466,22 +414,13 @@ export const statsApi = {
     let totalMinutes = 0;
     
     activities?.forEach(activity => {
-      const duration = activity.duration_minutes || activity.duration || 0;
+      const duration = activity.duration || 0;
       totalMinutes += duration;
       
-      const activityType = activity.activity_type || activity.type;
-      if (activityType) {
-        types[activityType] = (types[activityType] || 0) + duration;
+      if (activity.type) {
+        types[activity.type] = (types[activity.type] || 0) + duration;
       }
     });
-    
-    // Если нет данных об активности, добавляем демо-данные
-    if (totalMinutes === 0) {
-      types['Ходьба'] = 120;
-      types['Бег'] = 60;
-      types['Плавание'] = 45;
-      totalMinutes = 225;
-    }
     
     return {
       totalMinutes,
