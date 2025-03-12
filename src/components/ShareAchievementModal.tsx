@@ -812,65 +812,24 @@ export function ShareAchievementModal({
     }
   };
 
-  const handleVkShare = () => {
-    if (!capturedImage) return;
-    
-    // ... existing code ...
-  };
-
   const handleTelegramStories = async () => {
     if (!shareableImage) return;
 
     try {
-      // Показываем уведомление о начале процесса
-      toast('Подготовка данных для Telegram...', { type: 'info', duration: 2000 } as CustomToastOptions);
-      
-      // Получаем изображение как Blob
-      const response = await fetch(shareableImage);
-      const blob = await response.blob();
-      
       // Формируем текст для шаринга
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
       
-      // Создаем FormData для отправки файла
-      const formData = new FormData();
-      formData.append('file', blob, 'achievement.png');
+      // Открываем Telegram с текстом (без изображения)
+      const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
       
-      try {
-        // Пытаемся загрузить файл на временный сервис
-        const uploadResponse = await fetch('https://tmpfiles.org/api/v1/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (!uploadResponse.ok) {
-          throw new Error('Ошибка загрузки файла');
-        }
-        
-        const uploadResult = await uploadResponse.json();
-        // Получаем прямую ссылку на файл
-        const fileUrl = uploadResult.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
-        
-        // Открываем Telegram с изображением и текстом
-        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(fileUrl)}&text=${encodeURIComponent(text)}`;
-        window.open(telegramUrl, '_blank');
-        
-        toast('Открываем Telegram...', { type: 'success', duration: 3000 } as CustomToastOptions);
-      } catch (uploadError) {
-        console.error('Ошибка при загрузке файла:', uploadError);
-        
-        // Запасной вариант - открываем Telegram только с текстом
-        const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
-        window.open(telegramUrl, '_blank');
-        
-        // Открываем изображение в новой вкладке
-        const imageTab = window.open(shareableImage, '_blank');
-        
-        toast('Добавьте изображение из второй вкладки', { type: 'info', duration: 5000 } as CustomToastOptions);
-      }
+      // Показываем уведомление
+      toast('Открываем Telegram...', { type: 'info', duration: 3000 } as CustomToastOptions);
+      
+      // Используем window.location.href вместо window.open для лучшей совместимости с WKWebView
+      window.location.href = telegramUrl;
     } catch (error) {
       console.error('Ошибка при подготовке к шерингу в Telegram:', error);
-      toast('Не удалось подготовить данные для Telegram', { type: 'error' } as CustomToastOptions);
+      toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
     }
   };
 
@@ -878,39 +837,11 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      // Создаем временную ссылку для просмотра изображения
-      const viewUrl = shareableImage;
+      // Показываем уведомление
+      toast('Открываем изображение...', { type: 'info', duration: 3000 } as CustomToastOptions);
       
-      // Открываем изображение в новой вкладке
-      const newWindow = window.open(viewUrl, '_blank');
-      
-      // Показываем инструкцию
-      toast('Удерживайте изображение для сохранения', { type: 'info', duration: 5000 } as CustomToastOptions);
-      
-      // Если окно открылось, добавляем кнопку возврата
-      if (newWindow) {
-        setTimeout(() => {
-          try {
-            // Пытаемся добавить кнопку возврата в новое окно
-            const backButton = newWindow.document.createElement('button');
-            backButton.innerText = 'Вернуться назад';
-            backButton.style.position = 'fixed';
-            backButton.style.top = '10px';
-            backButton.style.left = '10px';
-            backButton.style.padding = '10px 15px';
-            backButton.style.backgroundColor = '#f97316';
-            backButton.style.color = 'white';
-            backButton.style.border = 'none';
-            backButton.style.borderRadius = '5px';
-            backButton.style.zIndex = '9999';
-            backButton.onclick = () => newWindow.close();
-            
-            newWindow.document.body.appendChild(backButton);
-          } catch (e) {
-            console.error('Не удалось добавить кнопку возврата:', e);
-          }
-        }, 500);
-      }
+      // Просто открываем изображение в текущем окне
+      window.location.href = shareableImage;
     } catch (error) {
       console.error('Ошибка при открытии изображения:', error);
       toast('Не удалось открыть изображение', { type: 'error' } as CustomToastOptions);
