@@ -3,6 +3,19 @@ import { X, Share } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import toast, { Toast } from 'react-hot-toast';
 
+// Расширяем глобальные типы для поддержки webkit
+declare global {
+  interface Window {
+    webkit?: {
+      messageHandlers?: {
+        shareHandler?: {
+          postMessage: (message: any) => void;
+        };
+      };
+    };
+  }
+}
+
 // Расширяем тип опций toast, добавляя поддержку 'type'
 interface CustomToastOptions extends Partial<Pick<Toast, 'id' | 'icon' | 'duration' | 'ariaProps' | 'className' | 'style' | 'position' | 'iconTheme' | 'removeDelay'>> {
   type?: 'success' | 'error' | 'warning' | 'info';
@@ -819,14 +832,40 @@ export function ShareAchievementModal({
       // Формируем текст для шаринга
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
       
-      // Открываем Telegram с текстом (без изображения)
-      const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
-      
-      // Показываем уведомление
-      toast('Открываем Telegram...', { type: 'info', duration: 3000 } as CustomToastOptions);
-      
-      // Используем window.location.href вместо window.open для лучшей совместимости с WKWebView
-      window.location.href = telegramUrl;
+      // Проверяем, доступен ли нативный мост для iOS
+      if (window.webkit?.messageHandlers?.shareHandler) {
+        // Показываем уведомление
+        toast('Подготовка данных для Telegram...', { type: 'info', duration: 2000 } as CustomToastOptions);
+        
+        // Получаем изображение как Blob
+        const response = await fetch(shareableImage);
+        const blob = await response.blob();
+        
+        // Конвертируем Blob в Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = function() {
+          const base64data = reader.result?.toString().split(',')[1];
+          
+          // Отправляем сообщение в нативный код
+          window.webkit?.messageHandlers?.shareHandler?.postMessage({
+            action: 'shareToTelegram',
+            image: base64data,
+            text: text
+          });
+          
+          toast('Открываем Telegram...', { type: 'success', duration: 3000 } as CustomToastOptions);
+        };
+      } else {
+        // Запасной вариант - открываем Telegram с текстом (без изображения)
+        const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
+        
+        // Показываем уведомление
+        toast('Открываем Telegram (только с текстом)...', { type: 'info', duration: 3000 } as CustomToastOptions);
+        
+        // Используем window.location.href вместо window.open для лучшей совместимости с WKWebView
+        window.location.href = telegramUrl;
+      }
     } catch (error) {
       console.error('Ошибка при подготовке к шерингу в Telegram:', error);
       toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
@@ -837,11 +876,35 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      // Показываем уведомление
-      toast('Открываем изображение...', { type: 'info', duration: 3000 } as CustomToastOptions);
-      
-      // Просто открываем изображение в текущем окне
-      window.location.href = shareableImage;
+      // Проверяем, доступен ли нативный мост для iOS
+      if (window.webkit?.messageHandlers?.shareHandler) {
+        // Показываем уведомление
+        toast('Сохранение изображения...', { type: 'info', duration: 2000 } as CustomToastOptions);
+        
+        // Получаем изображение как Blob
+        const response = await fetch(shareableImage);
+        const blob = await response.blob();
+        
+        // Конвертируем Blob в Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = function() {
+          const base64data = reader.result?.toString().split(',')[1];
+          
+          // Отправляем сообщение в нативный код
+          window.webkit?.messageHandlers?.shareHandler?.postMessage({
+            action: 'saveImage',
+            image: base64data,
+            filename: `hardcase-beast-${beastName}.png`
+          });
+          
+          toast('Изображение сохранено', { type: 'success', duration: 3000 } as CustomToastOptions);
+        };
+      } else {
+        // Запасной вариант - просто открываем изображение в текущем окне
+        toast('Открываем изображение...', { type: 'info', duration: 3000 } as CustomToastOptions);
+        window.location.href = shareableImage;
+      }
     } catch (error) {
       console.error('Ошибка при открытии изображения:', error);
       toast('Не удалось открыть изображение', { type: 'error' } as CustomToastOptions);
