@@ -797,11 +797,11 @@ export function ShareAchievementModal({
 
       // Проверяем поддержку шаринга файлов
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: `HARDCASE.TRAINING: Зверь ${beastName}`,
-        text: `${weightPhrase} - ${totalVolume} кг`,
-        files: [file],
-      });
+        await navigator.share({
+          title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+          text: `${weightPhrase} - ${totalVolume} кг`,
+          files: [file],
+        });
       } else {
         // Если файлы не поддерживаются, пробуем шарить только текст
         await navigator.share({
@@ -824,10 +824,34 @@ export function ShareAchievementModal({
     }
   };
 
-  const handleVkShare = () => {
-    if (!capturedImage) return;
-    
-    // ... existing code ...
+  const handleTelegramStories = async () => {
+    if (!shareableImage) return;
+
+    try {
+      // Получаем изображение как Blob
+      const response = await fetch(shareableImage);
+      const blob = await response.blob();
+      
+      // Создаем временный URL для изображения
+      const imageUrl = URL.createObjectURL(blob);
+      
+      // Формируем URL для Telegram Stories
+      const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
+      const telegramUrl = `tg://story?media=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(text)}`;
+      
+      // Открываем URL
+      window.location.href = telegramUrl;
+      
+      // Очищаем временный URL после небольшой задержки
+      setTimeout(() => {
+        URL.revokeObjectURL(imageUrl);
+      }, 1000);
+
+      toast('Открываем Telegram Stories...', { type: 'info' } as CustomToastOptions);
+    } catch (error) {
+      console.error('Ошибка при открытии Telegram Stories:', error);
+      toast('Не удалось открыть Telegram Stories', { type: 'error' } as CustomToastOptions);
+    }
   };
 
   // Эти функции не используются в текущем коде, но могут пригодиться в будущем
@@ -877,7 +901,7 @@ export function ShareAchievementModal({
           className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
         >
           <X className="w-6 h-6" />
-          </button>
+        </button>
 
         <h2 className="text-xl font-bold text-white mb-5 text-center">
           {isBeast ? `Зверь ${beastName}` : 'Достижение'}
@@ -885,7 +909,6 @@ export function ShareAchievementModal({
 
         <div className="text-center">
           <div className="beast-card-container" ref={achievementCardRef} style={inlineStyles.cardContainer}>
-            {/* Скрытый canvas для генерации изображения */}
             <canvas ref={canvasRef} style={inlineStyles.canvas} />
           </div>
 
@@ -896,22 +919,34 @@ export function ShareAchievementModal({
           )}
 
           {!loading && shareableImage && (
-            <>
-              {canNativeShare ? (
+            <div className="mt-6 space-y-4">
+              {canNativeShare && (
                 <button
                   onClick={handleNativeShare}
-                  className="w-full mt-6 flex items-center justify-center gap-2 p-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-lg font-semibold"
+                  className="w-full flex items-center justify-center gap-2 p-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-lg font-semibold"
                 >
                   <Share className="w-6 h-6" />
                   <span>Поделиться</span>
                 </button>
-              ) : (
-                <div className="mt-6 text-center">
+              )}
+              
+              <button
+                onClick={handleTelegramStories}
+                className="w-full flex items-center justify-center gap-2 p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-semibold"
+              >
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06-.01.13-.02.2z"/>
+                </svg>
+                <span>Открыть в Telegram Stories</span>
+              </button>
+              
+              {!canNativeShare && (
+                <div className="text-center">
                   <p className="text-gray-500">Ваше устройство не поддерживает прямой шеринг.</p>
                   <p className="text-gray-500 mt-2">Сделайте скриншот, чтобы сохранить изображение.</p>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>
