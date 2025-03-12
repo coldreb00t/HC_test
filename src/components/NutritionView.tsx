@@ -75,12 +75,15 @@ export function NutritionView() {
     if (entries.length > 0) {
       const groups: { [date: string]: NutritionEntry[] } = {};
       
-      // Группируем записи по датам
+      // Группируем записи по базовой дате (без временной метки)
       entries.forEach(entry => {
-        if (!groups[entry.date]) {
-          groups[entry.date] = [];
+        // Извлекаем основную часть даты (YYYY-MM-DD) без технической метки
+        const baseDate = entry.date.split('_')[0];
+        
+        if (!groups[baseDate]) {
+          groups[baseDate] = [];
         }
-        groups[entry.date].push(entry);
+        groups[baseDate].push(entry);
       });
       
       // Преобразуем объект групп в массив с подсчетом итогов
@@ -299,24 +302,19 @@ export function NutritionView() {
 
       if (clientError) throw clientError;
 
-      // Преобразуем null в 0 только при отправке данных
-      const dataToSave = {
-        proteins: newEntry.proteins || 0,
-        fats: newEntry.fats || 0,
-        carbs: newEntry.carbs || 0,
-        calories: newEntry.calories || 0,
-        water: newEntry.water || 0,
-        client_id: clientData.id,
-        date: newEntry.date,
-      };
-
-      let entryId;
+      let entryId: string | undefined;
 
       if (editingEntryId) {
         // Обновление существующей записи
         const { error: updateError } = await supabase
           .from('client_nutrition')
-          .update(dataToSave)
+          .update({
+            proteins: newEntry.proteins || 0,
+            fats: newEntry.fats || 0,
+            carbs: newEntry.carbs || 0,
+            calories: newEntry.calories || 0,
+            water: newEntry.water || 0,
+          })
           .eq('id', editingEntryId);
 
         if (updateError) throw updateError;
@@ -324,10 +322,24 @@ export function NutritionView() {
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Всегда создаем новую запись
+        // Для новой записи создаем уникальную метку даты с добавлением времени
+        // Формат: YYYY-MM-DD_HHmmss - например, 2023-05-15_142536
+        const now = new Date();
+        const timeStamp = now.toISOString().replace(/[-:\.T]/g, '').slice(0, 14); // YYYYMMDDHHmmss
+        const uniqueDate = `${newEntry.date}_${timeStamp}`;
+        
+        // Всегда создаем новую запись с уникальной датой
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
-          .insert(dataToSave)
+          .insert({
+            proteins: newEntry.proteins || 0,
+            fats: newEntry.fats || 0,
+            carbs: newEntry.carbs || 0,
+            calories: newEntry.calories || 0,
+            water: newEntry.water || 0,
+            client_id: clientData.id,
+            date: uniqueDate,  // Используем уникальную дату
+          })
           .select('id');
 
         if (insertError) throw insertError;
@@ -337,14 +349,17 @@ export function NutritionView() {
         }
       }
 
-      // Загрузка фотографий
+      // Загрузка фотографий с использованием оригинальной даты для структуры папок
       if (selectedFiles.length > 0 && entryId) {
+        // Получаем базовую дату без временной метки
+        const baseDate = getBaseDate(newEntry.date);
+        
         await Promise.all(
           selectedFiles.map(async (photo, index) => {
             const fileName = `${Date.now()}_${index}.${photo.file.name.split('.').pop()}`;
             const { error: uploadError } = await supabase.storage
               .from('client-photos')
-              .upload(`nutrition-photos/${clientData.id}/${newEntry.date}/${fileName}`, photo.file);
+              .upload(`nutrition-photos/${clientData.id}/${baseDate}/${fileName}`, photo.file);
 
             if (uploadError) throw uploadError;
           })
@@ -490,6 +505,12 @@ export function NutritionView() {
     setConfirmDeleteDialog({ show: false, entryId: '' });
   };
 
+  // Функция для форматирования даты, извлекая только базовую часть YYYY-MM-DD
+  const getBaseDate = (dateString: string): string => {
+    return dateString.split('_')[0];
+  };
+
+  // Форматирование времени из даты
   const formatTime = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -499,6 +520,25 @@ export function NutritionView() {
       });
     } catch (e) {
       return '';
+    }
+  };
+
+  // Функция для извлечения времени из комбинированной даты (YYYY-MM-DD_HHmmss)
+  const getTimeFromCombinedDate = (dateString: string): string => {
+    try {
+      const parts = dateString.split('_');
+      if (parts.length < 2) return 'не указано';
+      
+      const timeStamp = parts[1];
+      // Форматируем YYYYMMDDHHmmss в HH:mm
+      if (timeStamp.length >= 6) {
+        const hours = timeStamp.substring(8, 10);
+        const minutes = timeStamp.substring(10, 12);
+        return `${hours}:${minutes}`;
+      }
+      return 'не указано';
+    } catch (e) {
+      return 'не указано';
     }
   };
 
@@ -716,7 +756,7 @@ export function NutritionView() {
                                   {entry.created_at ? (
                                     <span>Время: {formatTime(entry.created_at)}</span>
                                   ) : (
-                                    <span>Время: не указано</span>
+                                    <span>Время: {getTimeFromCombinedDate(entry.date)}</span>
                                   )}
                                 </div>
                                 <div className="mt-1 text-sm flex flex-wrap gap-2">
@@ -766,7 +806,7 @@ export function NutritionView() {
                                   >
                                     <img
                                       src={photo}
-                                      alt={`Фото еды ${new Date(entry.date).toLocaleDateString('ru-RU')} #${index + 1}`}
+                                      alt={`Фото еды ${getBaseDate(entry.date)} #${index + 1}`}
                                       className="w-full h-full object-contain"
                                     />
                                   </a>
@@ -783,7 +823,7 @@ export function NutritionView() {
                           onClick={() => {
                             setNewEntry(prev => ({
                               ...prev,
-                              date: dayGroup.date
+                              date: dayGroup.date // Используем оригинальную дату без временной метки
                             }));
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
