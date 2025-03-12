@@ -212,7 +212,7 @@ export function ShareAchievementModal({
             ctx.fillRect(0, 0, cardWidth, cardHeight);
             ctx.globalAlpha = 1.0;
           } else {
-            // Изображение еще не загружено, используем градиент
+            // Изображение еще не загружено, используем градиентный фон
             throw new Error('Изображение не готово');
           }
         } catch (error) {
@@ -299,7 +299,9 @@ export function ShareAchievementModal({
       let valueFontSize = 60;
       
       // Уменьшаем размер шрифта для длинных значений
-      if (achievementValue.length > 8) {
+      if (achievementValue.length > 10) {
+        valueFontSize = 40;
+      } else if (achievementValue.length > 8) {
         valueFontSize = 45;
       } else if (achievementValue.length > 5) {
         valueFontSize = 50;
@@ -309,11 +311,34 @@ export function ShareAchievementModal({
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      
+      // Проверяем, помещается ли значение в доступную ширину
+      const valueWidth = ctx.measureText(achievementValue).width;
+      const maxValueWidth = cardWidth * 0.85;
+      
+      if (valueWidth > maxValueWidth) {
+        // Если значение все еще не помещается, уменьшаем шрифт еще больше
+        const scaleFactor = maxValueWidth / valueWidth;
+        const newFontSize = Math.max(30, Math.floor(valueFontSize * scaleFactor));
+        ctx.font = `bold ${newFontSize}px Inter, system-ui, sans-serif`;
+      }
+      
       ctx.fillText(achievementValue, contentCenterX, valueY);
       
       // Заголовок достижения - добавляем поддержку длинных заголовков
       const titleY = valueY + 50;
-      ctx.font = 'bold 28px Inter, system-ui, sans-serif';
+      
+      // Адаптивный размер шрифта в зависимости от длины заголовка
+      let titleFontSize = 28; // Базовый размер шрифта
+      
+      // Уменьшаем размер шрифта для длинных заголовков
+      if (beastName.length > 20) {
+        titleFontSize = 22;
+      } else if (beastName.length > 15) {
+        titleFontSize = 24;
+      }
+      
+      ctx.font = `bold ${titleFontSize}px Inter, system-ui, sans-serif`;
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -327,41 +352,49 @@ export function ShareAchievementModal({
         const titleWords = beastName.split(' ');
         let firstLine = '';
         let secondLine = '';
-        let middleIndex = Math.ceil(titleWords.length / 2);
         
-        // Первая попытка - разделить строго пополам по словам
-        for (let i = 0; i < titleWords.length; i++) {
-          if (i < middleIndex) {
-            firstLine += titleWords[i] + ' ';
-          } else {
-            secondLine += titleWords[i] + ' ';
-          }
-        }
-        
-        // Если первая строка все равно слишком длинная, пробуем балансировать лучше
-        const firstLineMetrics = ctx.measureText(firstLine);
-        const secondLineMetrics = ctx.measureText(secondLine);
-        
-        if (firstLineMetrics.width > titleMaxWidth || secondLineMetrics.width > titleMaxWidth) {
-          // Пробуем найти лучшее разделение
-          firstLine = '';
-          secondLine = '';
-          let currentWidth = 0;
+        if (titleWords.length === 1) {
+          // Если это одно длинное слово, просто уменьшаем шрифт еще больше
+          ctx.font = `bold ${Math.max(18, titleFontSize - 6)}px Inter, system-ui, sans-serif`;
+          ctx.fillText(beastName, contentCenterX, titleY);
+        } else {
+          let middleIndex = Math.ceil(titleWords.length / 2);
           
+          // Первая попытка - разделить строго пополам по словам
           for (let i = 0; i < titleWords.length; i++) {
-            const wordWidth = ctx.measureText(titleWords[i] + ' ').width;
-            if (currentWidth + wordWidth <= titleMaxWidth * 0.9) {
+            if (i < middleIndex) {
               firstLine += titleWords[i] + ' ';
-              currentWidth += wordWidth;
             } else {
               secondLine += titleWords[i] + ' ';
             }
           }
+          
+          // Если первая строка все равно слишком длинная, пробуем балансировать лучше
+          const firstLineMetrics = ctx.measureText(firstLine);
+          const secondLineMetrics = ctx.measureText(secondLine);
+          
+          if (firstLineMetrics.width > titleMaxWidth || secondLineMetrics.width > titleMaxWidth) {
+            // Пробуем найти лучшее разделение
+            firstLine = '';
+            secondLine = '';
+            let currentWidth = 0;
+            
+            for (let i = 0; i < titleWords.length; i++) {
+              const wordWidth = ctx.measureText(titleWords[i] + ' ').width;
+              if (currentWidth + wordWidth <= titleMaxWidth * 0.9) {
+                firstLine += titleWords[i] + ' ';
+                currentWidth += wordWidth;
+              } else {
+                secondLine += titleWords[i] + ' ';
+              }
+            }
+          }
+          
+          // Отрисовываем заголовок в две строки
+          const lineSpacing = titleFontSize * 1.1;
+          ctx.fillText(firstLine.trim(), contentCenterX, titleY - lineSpacing/2);
+          ctx.fillText(secondLine.trim(), contentCenterX, titleY + lineSpacing/2);
         }
-        
-        // Отрисовываем заголовок в две строки
-        ctx.fillText(firstLine.trim(), contentCenterX, titleY - 14);
-        ctx.fillText(secondLine.trim(), contentCenterX, titleY + 14);
       } else {
         // Обычный рендеринг однострочного заголовка
         ctx.fillText(beastName, contentCenterX, titleY);
@@ -419,9 +452,9 @@ export function ShareAchievementModal({
       // Используем motivationalPhrase если он есть, иначе weightPhrase
       const phraseToShow = motivationalPhrase || weightPhrase;
       if (phraseToShow) {
-        // Увеличиваем блок для мотивационной фразы и адаптируем его положение
+        // Адаптивные размеры блока в зависимости от размера карточки
         const motivationBlockY = cardHeight * 0.68; // Немного выше, чем было
-        const motivationBlockHeight = 100; // Увеличиваем высоту блока
+        const motivationBlockHeight = Math.min(100, cardHeight * 0.18); // Адаптивная высота блока
         const motivationBlockWidth = cardWidth * 0.85; // Увеличиваем ширину блока
         const motivationBlockX = (cardWidth - motivationBlockWidth) / 2;
         
@@ -446,8 +479,16 @@ export function ShareAchievementModal({
         ctx.fill();
         ctx.restore();
         
+        // Адаптивный размер шрифта для мотивационной фразы
+        let motivationFontSize = 16;
+        if (phraseToShow.length > 100) {
+          motivationFontSize = 12;
+        } else if (phraseToShow.length > 50) {
+          motivationFontSize = 14;
+        }
+        
         // Рисуем мотивационную фразу внутри блока
-        ctx.font = 'italic 16px Inter, system-ui, sans-serif';
+        ctx.font = `italic ${motivationFontSize}px Inter, system-ui, sans-serif`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -458,11 +499,11 @@ export function ShareAchievementModal({
         // Разбиваем текст мотивации на строки
         const motivationWords = motivationalText.split(' ');
         let motivationLine = '';
-        let motivationY = motivationBlockY + 24;
-        const motivationLineHeight = 22;
+        let motivationY = motivationBlockY + motivationBlockHeight * 0.25;
+        const motivationLineHeight = motivationFontSize * 1.4;
         const motivationMaxWidth = motivationBlockWidth - 40; // Больше отступы для текста
         let motivationLineCount = 0;
-        const maxMotivationLines = 4; // Максимальное количество строк для мотивационной фразы
+        const maxMotivationLines = Math.floor(motivationBlockHeight / motivationLineHeight) - 1; // Адаптивное количество строк
         
         for (let i = 0; i < motivationWords.length; i++) {
           const testLine = motivationLine + motivationWords[i] + ' ';
@@ -512,6 +553,26 @@ export function ShareAchievementModal({
       ctx.textBaseline = 'middle';
       ctx.fillText('↗', contentCenterX, shareButtonY);
       ctx.restore();
+      
+      // Добавляем имя пользователя внизу карточки
+      ctx.font = '500 14px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Проверяем длину имени пользователя и адаптируем размер шрифта при необходимости
+      const userNameText = `@${userName}`;
+      const userNameWidth = ctx.measureText(userNameText).width;
+      const maxUserNameWidth = cardWidth * 0.8;
+      
+      if (userNameWidth > maxUserNameWidth) {
+        // Если имя слишком длинное, уменьшаем размер шрифта
+        const scaleFactor = maxUserNameWidth / userNameWidth;
+        const newFontSize = Math.max(10, Math.floor(14 * scaleFactor));
+        ctx.font = `500 ${newFontSize}px Inter, system-ui, sans-serif`;
+      }
+      
+      ctx.fillText(userNameText, contentCenterX, cardHeight - 20);
       
       console.log("Отрисовка обычного достижения в стиле слайдера завершена успешно");
       return true;
@@ -628,15 +689,38 @@ export function ShareAchievementModal({
         ctx.fillRect(weightBoxX, weightBoxY, weightBoxWidth, weightBoxHeight);
         ctx.restore();
         
-        ctx.font = 'bold 28px Inter, system-ui, sans-serif';
+        // Адаптивный размер шрифта для значения веса
+        let weightFontSize = 28;
+        const weightValue = totalVolume.toString();
+        
+        // Уменьшаем размер шрифта для длинных значений
+        if (weightValue.length > 6) {
+          weightFontSize = 22;
+        } else if (weightValue.length > 4) {
+          weightFontSize = 24;
+        }
+        
+        ctx.font = `bold ${weightFontSize}px Inter, system-ui, sans-serif`;
         ctx.fillStyle = '#f97316';
         ctx.textAlign = 'center';
         const weightBoxCenterX = weightBoxX + weightBoxWidth / 2;
         const weightTextY = weightBoxY + 35;
-        ctx.fillText(totalVolume.toString(), weightBoxCenterX, weightTextY);
+        
+        // Проверяем, помещается ли значение в доступную ширину
+        const weightTextWidth = ctx.measureText(weightValue).width;
+        const maxWeightWidth = weightBoxWidth * 0.7; // Оставляем место для "кг"
+        
+        if (weightTextWidth > maxWeightWidth) {
+          // Если значение все еще не помещается, уменьшаем шрифт еще больше
+          const scaleFactor = maxWeightWidth / weightTextWidth;
+          const newFontSize = Math.max(16, Math.floor(weightFontSize * scaleFactor));
+          ctx.font = `bold ${newFontSize}px Inter, system-ui, sans-serif`;
+        }
+        
+        ctx.fillText(weightValue, weightBoxCenterX, weightTextY);
         
         // Отступ для "кг" с учетом размера числа, чтобы не наезжал
-        const weightWidth = ctx.measureText(totalVolume.toString()).width;
+        const weightWidth = ctx.measureText(weightValue).width;
         ctx.font = '500 14px Inter, system-ui, sans-serif';
         ctx.fillStyle = '#f97316';
         ctx.textAlign = 'left';
@@ -648,10 +732,51 @@ export function ShareAchievementModal({
         ctx.fillText('ОБЩИЙ ОБЪЕМ', weightBoxCenterX, weightBoxY + 55);
         
         // Шаг 6: Добавляем имя зверя, центрированное по горизонтали
-        ctx.font = 'bold 42px Inter, system-ui, sans-serif';
+        // Адаптивный размер шрифта в зависимости от длины имени
+        const beastNameUpperCase = beastName.toUpperCase();
+        let beastNameFontSize = 42; // Базовый размер шрифта
+        
+        // Уменьшаем размер шрифта для длинных имен
+        if (beastNameUpperCase.length > 15) {
+          beastNameFontSize = 32;
+        } else if (beastNameUpperCase.length > 10) {
+          beastNameFontSize = 36;
+        }
+        
+        ctx.font = `bold ${beastNameFontSize}px Inter, system-ui, sans-serif`;
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
-        ctx.fillText(beastName.toUpperCase(), cardWidth / 2, 110);
+        
+        // Проверяем, помещается ли текст в доступную ширину
+        const beastNameWidth = ctx.measureText(beastNameUpperCase).width;
+        const maxBeastNameWidth = cardWidth * 0.9; // Максимальная ширина для имени зверя
+        
+        if (beastNameWidth > maxBeastNameWidth) {
+          // Если текст все еще не помещается, разбиваем его на две строки
+          const words = beastNameUpperCase.split(' ');
+          let firstLine = '';
+          let secondLine = '';
+          
+          if (words.length > 1) {
+            // Находим середину по количеству слов
+            const middleIndex = Math.ceil(words.length / 2);
+            
+            // Формируем две строки
+            firstLine = words.slice(0, middleIndex).join(' ');
+            secondLine = words.slice(middleIndex).join(' ');
+            
+            // Отрисовываем в две строки
+            ctx.fillText(firstLine, cardWidth / 2, 95);
+            ctx.fillText(secondLine, cardWidth / 2, 95 + beastNameFontSize + 5);
+          } else {
+            // Если это одно длинное слово, просто уменьшаем шрифт еще больше
+            ctx.font = `bold ${Math.max(24, beastNameFontSize - 10)}px Inter, system-ui, sans-serif`;
+            ctx.fillText(beastNameUpperCase, cardWidth / 2, 110);
+          }
+        } else {
+          // Если текст помещается, отрисовываем его как обычно
+          ctx.fillText(beastNameUpperCase, cardWidth / 2, 110);
+        }
         
         // Шаг 7: Добавляем прогресс-бар в нижней части карточки
         // Фон прогресс-бара
@@ -678,13 +803,27 @@ export function ShareAchievementModal({
         const baseText = "До следующего уровня осталось ";
         const fullText = baseText + volumeToNext + " кг!";
         
-        // Измеряем ширину базового текста и полного текста
-        ctx.font = '500 14px Inter, system-ui, sans-serif';
-        const baseTextWidth = ctx.measureText(baseText).width;
+        // Адаптивный размер шрифта для текста прогресса
+        let progressTextFontSize = 14;
+        
+        // Измеряем ширину полного текста
+        ctx.font = `500 ${progressTextFontSize}px Inter, system-ui, sans-serif`;
         const fullTextWidth = ctx.measureText(fullText).width;
+        const maxProgressTextWidth = cardWidth * 0.9;
+        
+        // Если текст не помещается, уменьшаем размер шрифта
+        if (fullTextWidth > maxProgressTextWidth) {
+          const scaleFactor = maxProgressTextWidth / fullTextWidth;
+          progressTextFontSize = Math.max(10, Math.floor(progressTextFontSize * scaleFactor));
+          ctx.font = `500 ${progressTextFontSize}px Inter, system-ui, sans-serif`;
+        }
+        
+        // Измеряем ширину базового текста и полного текста с новым размером шрифта
+        const baseTextWidth = ctx.measureText(baseText).width;
+        const updatedFullTextWidth = ctx.measureText(fullText).width;
         
         // Позиционируем текст по центру
-        const textStartX = cardWidth / 2 - fullTextWidth / 2;
+        const textStartX = cardWidth / 2 - updatedFullTextWidth / 2;
         
         // Рисуем базовый текст
         ctx.fillStyle = 'white';
@@ -692,23 +831,45 @@ export function ShareAchievementModal({
         ctx.fillText(baseText, textStartX, progressBarY + 35);
         
         // Рисуем выделенную часть (количество кг)
-        ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+        ctx.font = `bold ${progressTextFontSize + 2}px Inter, system-ui, sans-serif`;
         ctx.fillStyle = '#f97316';
         ctx.fillText(volumeToNext + " кг!", textStartX + baseTextWidth, progressBarY + 35);
         
         // Шаг 9: Добавляем мотивационную фразу
         if (weightPhrase) {
-          ctx.font = '500 18px Inter, system-ui, sans-serif';
+          // Адаптивный размер шрифта для мотивационной фразы
+          let motivationFontSize = 18;
+          
+          // Уменьшаем размер шрифта для длинных фраз
+          if (weightPhrase.length > 100) {
+            motivationFontSize = 14;
+          } else if (weightPhrase.length > 50) {
+            motivationFontSize = 16;
+          }
+          
+          ctx.font = `500 ${motivationFontSize}px Inter, system-ui, sans-serif`;
           ctx.fillStyle = 'white';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+          
+          // Проверяем, помещается ли фраза в доступную ширину
+          const maxWidth = cardWidth - 40;
+          const phraseWidth = ctx.measureText(weightPhrase).width;
+          
+          if (phraseWidth > maxWidth && motivationFontSize > 14) {
+            // Если фраза не помещается, уменьшаем шрифт еще больше
+            const scaleFactor = maxWidth / phraseWidth;
+            motivationFontSize = Math.max(12, Math.floor(motivationFontSize * scaleFactor));
+            ctx.font = `500 ${motivationFontSize}px Inter, system-ui, sans-serif`;
+          }
           
           // Разбиваем текст на несколько строк, если он слишком длинный
           const words = weightPhrase.split(' ');
           let line = '';
           let yPos = cardHeight - 80;
-          const lineHeight = 24;
-          const maxWidth = cardWidth - 40;
+          const lineHeight = motivationFontSize * 1.3;
+          const maxLines = Math.floor((cardHeight - yPos - 30) / lineHeight); // Адаптивное количество строк
+          let lineCount = 0;
           
           for (let i = 0; i < words.length; i++) {
             const testLine = line + words[i] + ' ';
@@ -718,18 +879,46 @@ export function ShareAchievementModal({
               ctx.fillText(line, cardWidth / 2, yPos);
               line = words[i] + ' ';
               yPos += lineHeight;
+              lineCount++;
+              
+              // Если достигли максимального количества строк, и еще есть слова, добавляем многоточие
+              if (lineCount >= maxLines - 1 && i < words.length - 1) {
+                // Убедимся, что текст с многоточием не превышает максимальную ширину
+                let lastLine = line;
+                while (ctx.measureText(lastLine + '...').width > maxWidth && lastLine.length > 3) {
+                  lastLine = lastLine.slice(0, -4) + ' ';
+                }
+                ctx.fillText(lastLine + '...', cardWidth / 2, yPos);
+                break;
+              }
             } else {
               line = testLine;
             }
           }
           
-          ctx.fillText(line, cardWidth / 2, yPos);
+          // Вывод последней строки, если она не была выведена в цикле и не превышен лимит строк
+          if (line.length > 0 && lineCount < maxLines) {
+            ctx.fillText(line, cardWidth / 2, yPos);
+          }
         }
         
         // Шаг 10: Добавляем имя пользователя
         ctx.font = '500 14px Inter, system-ui, sans-serif';
         ctx.fillStyle = '#d1d5db';
         ctx.textAlign = 'center';
+        
+        // Проверяем длину имени пользователя и адаптируем размер шрифта при необходимости
+        const userNameText = `@${userName}`;
+        const userNameWidth = ctx.measureText(userNameText).width;
+        const maxUserNameWidth = cardWidth * 0.8;
+        
+        if (userNameWidth > maxUserNameWidth) {
+          // Если имя слишком длинное, уменьшаем размер шрифта
+          const scaleFactor = maxUserNameWidth / userNameWidth;
+          const newFontSize = Math.max(10, Math.floor(14 * scaleFactor));
+          ctx.font = `500 ${newFontSize}px Inter, system-ui, sans-serif`;
+        }
+        
         ctx.fillText(`@${userName}`, cardWidth / 2, cardHeight - 25);
         
         return true;
