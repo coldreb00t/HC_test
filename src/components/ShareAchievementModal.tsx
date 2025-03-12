@@ -835,39 +835,49 @@ export function ShareAchievementModal({
       // Создаем временный URL для изображения
       const imageUrl = URL.createObjectURL(blob);
       
-      // Формируем URL для Telegram Stories
+      // Формируем текст для Stories
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
-      const telegramUrl = `tg://story?media=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(text)}`;
       
-      // Открываем URL
-      window.location.href = telegramUrl;
+      // Используем универсальную ссылку на Telegram
+      const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(text)}`;
+      
+      // Открываем в новом окне/вкладке
+      window.open(telegramUrl, '_blank');
       
       // Очищаем временный URL после небольшой задержки
       setTimeout(() => {
         URL.revokeObjectURL(imageUrl);
       }, 1000);
 
-      toast('Открываем Telegram Stories...', { type: 'info' } as CustomToastOptions);
+      // Добавляем инструкцию для пользователя
+      toast('Сохраните изображение и добавьте его в Stories', { type: 'info', duration: 5000 } as CustomToastOptions);
     } catch (error) {
-      console.error('Ошибка при открытии Telegram Stories:', error);
-      toast('Не удалось открыть Telegram Stories', { type: 'error' } as CustomToastOptions);
+      console.error('Ошибка при открытии Telegram:', error);
+      toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
     }
   };
 
-  // Эти функции не используются в текущем коде, но могут пригодиться в будущем
-  /* 
-  const handleDownload = async () => { 
-    // TODO: Реализовать функционал скачивания в будущем релизе
+  const handleDownload = async () => {
+    if (!shareableImage) return;
+
+    try {
+      const response = await fetch(shareableImage);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `hardcase-beast-${beastName}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast('Изображение сохранено', { type: 'success' } as CustomToastOptions);
+    } catch (error) {
+      console.error('Ошибка при скачивании:', error);
+      toast('Не удалось скачать изображение', { type: 'error' } as CustomToastOptions);
+    }
   };
-  
-  const handleInstagramShare = () => {
-    // TODO: Добавить возможность делиться в Instagram в будущих версиях
-  };
-  
-  const handleTelegramShare = () => {
-    // TODO: Интеграция с Telegram запланирована в следующих релизах
-  };
-  */
 
   // Стили для карточки
   const inlineStyles = {
@@ -930,20 +940,31 @@ export function ShareAchievementModal({
                 </button>
               )}
               
-              <button
-                onClick={handleTelegramStories}
-                className="w-full flex items-center justify-center gap-2 p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-semibold"
-              >
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06-.01.13-.02.2z"/>
-                </svg>
-                <span>Открыть в Telegram Stories</span>
-              </button>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center justify-center gap-2 p-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-base font-semibold"
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                  </svg>
+                  <span>Скачать</span>
+                </button>
+                
+                <button
+                  onClick={handleTelegramStories}
+                  className="flex items-center justify-center gap-2 p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-base font-semibold"
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06-.01.13-.02.2z"/>
+                  </svg>
+                  <span>Telegram</span>
+                </button>
+              </div>
               
               {!canNativeShare && (
-                <div className="text-center">
-                  <p className="text-gray-500">Ваше устройство не поддерживает прямой шеринг.</p>
-                  <p className="text-gray-500 mt-2">Сделайте скриншот, чтобы сохранить изображение.</p>
+                <div className="text-center mt-4">
+                  <p className="text-gray-500">Скачайте изображение и добавьте его в Stories</p>
                 </div>
               )}
             </div>
