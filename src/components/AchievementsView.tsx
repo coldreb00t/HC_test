@@ -171,6 +171,16 @@ export function AchievementsView() {
     fetchClientData();
   }, []);
 
+  // Добавляем новый useEffect для генерации достижений
+  useEffect(() => {
+    if (!loading) {
+      console.log('Running useEffect for achievements generation');
+      console.log('Measurements in useEffect:', measurements);
+      console.log('Body measurements in useEffect:', bodyMeasurements);
+      generateAchievements();
+    }
+  }, [measurements, bodyMeasurements, loading]);
+
   const fetchClientData = async () => {
     try {
       setLoading(true);
@@ -196,7 +206,8 @@ export function AchievementsView() {
         fetchBodyMeasurements(clientData.id),
       ]);
   
-      generateAchievements();
+      // Удаляем вызов generateAchievements из fetchClientData
+      // generateAchievements() будет вызван из useEffect
     } catch (error: any) {
       console.error('Error fetching client data:', error);
       toast.error('Ошибка при загрузке данных');
@@ -215,10 +226,21 @@ export function AchievementsView() {
         .order('measurement_date', { ascending: true });
 
       if (error) throw error;
-      console.log('Получены данные о составе тела:', data);
-      setBodyMeasurements(data || []);
+      
+      // Улучшенное логирование результата
+      console.log('Получены данные о составе тела (количество):', data ? data.length : 0);
+      if (data && data.length > 0) {
+        console.log('Пример первой записи:', data[0]);
+      } else {
+        console.log('Данные о составе тела не найдены для клиента', clientId);
+      }
+      
+      // Устанавливаем данные в state, конвертируя null в пустой массив
+      setBodyMeasurements(data && data.length > 0 ? data : []);
     } catch (error) {
       console.error('Ошибка при загрузке данных о составе тела:', error);
+      // В случае ошибки устанавливаем пустой массив вместо null
+      setBodyMeasurements([]);
     }
   };
 
@@ -548,6 +570,13 @@ export function AchievementsView() {
   };
 
   const generateAchievements = () => {
+    // Добавляю отладочное логирование
+    console.log('Generating achievements. Measurements:', measurements);
+    console.log('Body measurements:', bodyMeasurements);
+    console.log('Check condition:', measurements.length > 0 || (bodyMeasurements != null && bodyMeasurements.length > 0));
+    console.log('Measurements length:', measurements.length);
+    console.log('Body measurements length:', bodyMeasurements ? bodyMeasurements.length : 'null');
+    
     const achievementsList = [
       {
         title: "Первая тренировка",
@@ -577,7 +606,7 @@ export function AchievementsView() {
         bgImage: '',
         achievementImage: '/src/assets/achievements/personal_record.png',
         motivationalPhrase: 'Отслеживай свой прогресс и достигай новых высот!',
-        achieved: measurements.length > 0 || (bodyMeasurements != null && bodyMeasurements.length > 0)
+        achieved: ((measurements && measurements.length > 0) || (bodyMeasurements && Array.isArray(bodyMeasurements) && bodyMeasurements.length > 0)) ? true : false
       },
       {
         title: "Активность",
@@ -602,6 +631,12 @@ export function AchievementsView() {
     ];
 
     setAchievements(achievementsList);
+
+    // Добавляю дополнительное логирование после установки достижений
+    console.log('Достижения после генерации:', achievementsList);
+    achievementsList.forEach(achievement => {
+      console.log(`Достижение "${achievement.title}": ${achievement.achieved ? 'Достигнуто' : 'В процессе'}`);
+    });
   };
   
   const handleShareAchievement = (achievement: Achievement) => {
@@ -1481,6 +1516,18 @@ export function AchievementsView() {
             <TrendingUp className="w-6 h-6 text-orange-500 mr-2" />
             <h2 className="text-xl font-semibold">Достижения и прогресс</h2>
           </div>
+          {/* Добавляем кнопку для отладки */}
+          <button 
+            onClick={() => {
+              console.log('Принудительное обновление достижений');
+              console.log('Текущие measurements:', measurements);
+              console.log('Текущие bodyMeasurements:', bodyMeasurements);
+              generateAchievements();
+            }}
+            className="px-3 py-1 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+          >
+            Обновить достижения
+          </button>
         </div>
 
         {loading ? (
