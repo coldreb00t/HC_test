@@ -673,10 +673,23 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
                     tickLine={false}
                   />
                   <YAxis 
+                    yAxisId="left"
                     stroke="#9e9e9e"
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
+                    domain={['auto', 'auto']}
+                    label={{ value: 'г', angle: -90, position: 'insideLeft', offset: -5, style: { textAnchor: 'middle' }, fill: '#9e9e9e', fontSize: 10 }}
+                  />
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right"
+                    stroke="#9C27B0"
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={['auto', 'auto']}
+                    label={{ value: 'ккал', angle: 90, position: 'insideRight', offset: 5, style: { textAnchor: 'middle' }, fill: '#9C27B0', fontSize: 10 }}
                   />
                   <Tooltip 
                     contentStyle={{ 
@@ -695,6 +708,7 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
                     wrapperStyle={{ paddingBottom: "10px" }}
                   />
                   <Area
+                    yAxisId="left"
                     type="monotone"
                     dataKey="proteins"
                     name="Белки (г)"
@@ -705,6 +719,7 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
                     strokeWidth={2}
                   />
                   <Area
+                    yAxisId="left"
                     type="monotone"
                     dataKey="fats"
                     name="Жиры (г)"
@@ -715,6 +730,7 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
                     strokeWidth={2}
                   />
                   <Area
+                    yAxisId="left"
                     type="monotone"
                     dataKey="carbs"
                     name="Углеводы (г)"
@@ -725,6 +741,7 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
                     strokeWidth={2}
                   />
                   <Area
+                    yAxisId="right"
                     type="monotone"
                     dataKey="calories"
                     name="Калории (ккал)"
