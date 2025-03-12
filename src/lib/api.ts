@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { UserFormData, UserRole } from '../types/user';
 import { Workout, Program } from '../types/workout';
+import { withCache } from './cache';
 
 // Аутентификация
 export const authApi = {
@@ -257,5 +258,219 @@ export const programsApi = {
       .from('training_programs')
       .delete()
       .eq('id', programId);
+  }
+};
+
+// Работа с измерениями
+export const measurementsApi = {
+  // Получение всех измерений клиента
+  getAllMeasurements: async (clientId: string) => {
+    return await supabase
+      .from('client_measurements')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('date', { ascending: false });
+  },
+  
+  // Добавление нового измерения
+  addMeasurement: async (measurement: any) => {
+    return await supabase
+      .from('client_measurements')
+      .insert(measurement);
+  },
+  
+  // Обновление измерения
+  updateMeasurement: async (measurementId: string, data: any) => {
+    return await supabase
+      .from('client_measurements')
+      .update(data)
+      .eq('id', measurementId);
+  },
+  
+  // Удаление измерения
+  deleteMeasurement: async (measurementId: string) => {
+    return await supabase
+      .from('client_measurements')
+      .delete()
+      .eq('id', measurementId);
+  }
+};
+
+// Работа с активностями
+export const activitiesApi = {
+  // Получение всех активностей клиента
+  getAllActivities: async (clientId: string) => {
+    return await supabase
+      .from('client_activities')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('date', { ascending: false });
+  },
+  
+  // Добавление новой активности
+  addActivity: async (activity: any) => {
+    return await supabase
+      .from('client_activities')
+      .insert(activity);
+  },
+  
+  // Обновление активности
+  updateActivity: async (activityId: string, data: any) => {
+    return await supabase
+      .from('client_activities')
+      .update(data)
+      .eq('id', activityId);
+  },
+  
+  // Удаление активности
+  deleteActivity: async (activityId: string) => {
+    return await supabase
+      .from('client_activities')
+      .delete()
+      .eq('id', activityId);
+  }
+};
+
+// Работа с достижениями
+export const achievementsApi = {
+  // В данный момент достижения генерируются на клиенте,
+  // но здесь можно добавить методы для работы с ними, если появится серверная логика
+};
+
+// Работа со статистикой
+export const statsApi = {
+  // Получение статистики тренировок
+  getWorkoutStats: async (clientId: string) => {
+    // Получаем все тренировки клиента
+    const { data: workouts, error } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('client_id', clientId);
+      
+    if (error) throw error;
+    
+    // Получаем завершенные тренировки из workout_completions
+    const { data: completions, error: completionsError } = await supabase
+      .from('workout_completions')
+      .select('*')
+      .eq('client_id', clientId);
+      
+    if (completionsError) throw completionsError;
+    
+    // Получаем завершенные тренировки по полю completed
+    const { data: completedWorkouts, error: completedWorkoutsError } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('completed', true);
+      
+    let completedCount = 0;
+    
+    // Определяем количество завершенных тренировок
+    if (completions && completions.length > 0) {
+      completedCount = completions.length;
+    } else if (completedWorkouts && completedWorkouts.length > 0) {
+      completedCount = completedWorkouts.length;
+    }
+    
+    // Возвращаем статистику тренировок
+    return {
+      totalCount: workouts?.length || 0,
+      completedCount,
+      // Для расчета totalVolume потребуется больше запросов и логики,
+      // это будет реализовано в полном рефакторинге
+      totalVolume: 0
+    };
+  },
+  
+  // Получение статистики активностей
+  getActivityStats: async (clientId: string) => {
+    const { data: activities, error } = await supabase
+      .from('client_activities')
+      .select('*')
+      .eq('client_id', clientId);
+      
+    if (error) throw error;
+    
+    // Группируем активности по типу
+    const types: {[key: string]: number} = {};
+    let totalMinutes = 0;
+    
+    activities?.forEach(activity => {
+      const duration = activity.duration || 0;
+      totalMinutes += duration;
+      
+      if (activity.type) {
+        types[activity.type] = (types[activity.type] || 0) + duration;
+      }
+    });
+    
+    return {
+      totalMinutes,
+      types
+    };
+  },
+  
+  // Получение статистики измерений
+  getMeasurementStats: async (clientId: string) => {
+    // Получаем все измерения, отсортированные по дате
+    const { data: measurements, error } = await supabase
+      .from('client_measurements')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('date', { ascending: false });
+      
+    if (error) throw error;
+    
+    // Определяем текущий и начальный вес
+    const currentWeight = measurements && measurements.length > 0 ? measurements[0].weight : null;
+    const initialWeight = measurements && measurements.length > 0 ? measurements[measurements.length - 1].weight : null;
+    const weightChange = currentWeight && initialWeight ? currentWeight - initialWeight : null;
+    
+    return {
+      currentWeight,
+      initialWeight,
+      weightChange
+    };
+  },
+  
+  // Получение следующей тренировки
+  getNextWorkout: async (clientId: string) => {
+    const now = new Date().toISOString();
+    
+    // Получаем следующую тренировку
+    const { data: workouts, error } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('client_id', clientId)
+      .gte('start_time', now)
+      .order('start_time', { ascending: true })
+      .limit(1);
+      
+    if (error) throw error;
+    
+    if (workouts && workouts.length > 0) {
+      const workout = workouts[0];
+      
+      // Если у тренировки есть training_program_id, получаем связанную программу
+      if (workout.training_program_id) {
+        const { data: programData, error: programError } = await supabase
+          .from('training_programs')
+          .select('*')
+          .eq('id', workout.training_program_id)
+          .single();
+          
+        if (!programError && programData) {
+          return {
+            ...workout,
+            program: programData
+          };
+        }
+      }
+      
+      return workout;
+    }
+    
+    return null;
   }
 }; 

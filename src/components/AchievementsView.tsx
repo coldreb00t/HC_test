@@ -36,19 +36,6 @@ import {
 import BodyCompositionTab from './BodyCompositionTab';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
 
-// Локально определяем интерфейс ShareAchievementModalProps
-interface ShareAchievementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  achievement: {
-    title: string;
-    description: string;
-    icon: React.ReactNode;
-    value: string;
-  };
-  userName: string;
-}
-
 interface ClientData {
   id: string;
   user_id: string;

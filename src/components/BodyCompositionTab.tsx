@@ -62,7 +62,6 @@ interface BodyCompositionTabProps {
 }
 
 export default function BodyCompositionTab({ clientId, measurements, bodyMeasurements }: BodyCompositionTabProps) {
-  const navigate = useNavigate();
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormExpanded, setIsFormExpanded] = useState(false);
@@ -81,6 +80,7 @@ export default function BodyCompositionTab({ clientId, measurements, bodyMeasure
     notes: '',
   });
   const [editingId, setEditingId] = useState<number | null>(null); // Для отслеживания редактируемой записи
+  const [selectedTab, setSelectedTab] = useState<'weight' | 'measurements'>('weight');
 
   useEffect(() => {
     fetchBodyCompositionData();

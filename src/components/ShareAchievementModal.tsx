@@ -1,5 +1,6 @@
-import { useRef, useState, useEffect } from 'react';
-import { X, Share2, Download, Copy, Instagram, Send } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Share } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import toast, { Toast } from 'react-hot-toast';
 
 // Расширяем тип опций toast, добавляя поддержку 'type'
@@ -42,24 +43,23 @@ export function ShareAchievementModal({
   const [loading, setLoading] = useState(false);
   const [imageUrlId, setImageUrlId] = useState<string | null>(null);
   const [canNativeShare, setCanNativeShare] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [activeShareOption, setActiveShareOption] = useState<'vk' | 'telegram' | null>(null);
+  const [captureComplete, setCaptureComplete] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   
   const achievementCardRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Расчет прогресса до следующего зверя
-  const progressPercentage = Math.min(
-    100,
-    Math.round(((totalVolume - currentBeastThreshold) / (nextBeastThreshold - currentBeastThreshold)) * 100)
-  );
+  const progress = totalVolume > 0 && nextBeastThreshold > 0 
+    ? Math.min(100, (totalVolume / nextBeastThreshold) * 100) 
+    : 0;
 
   // Фиксируем размеры карточки
   const cardWidth = 320;
   const cardHeight = 570;
-
-  // Сохраняем текущий фон для дальнейшего использования
-  const fallbackGradient = 'linear-gradient(135deg, #4338ca, #7e22ce)';
-  const [imageData, setImageData] = useState<string | null>(null);
 
   // Проверяем поддержку нативного шаринга
   useEffect(() => {
@@ -83,29 +83,22 @@ export function ShareAchievementModal({
       });
       
       setLoading(true);
-      setImageLoaded(false);
 
       if (isBeast && beastImage) {
       const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
-          setImageData(beastImage);
-          setImageLoaded(true);
           // Генерируем изображение сразу после загрузки фона
           generateShareImage();
         };
         img.onerror = () => {
           console.error('Ошибка загрузки изображения зверя');
-          setImageData(null);
-          setImageLoaded(true);
           // Все равно пытаемся сгенерировать, но с градиентным фоном
           generateShareImage();
         };
         img.src = beastImage;
       } else {
         // Для обычных достижений не нужно ждать загрузки изображения
-        setImageData(null);
-        setImageLoaded(true);
         // Запускаем генерацию с небольшой задержкой
         setTimeout(() => {
           generateShareImage();
@@ -629,12 +622,12 @@ export function ShareAchievementModal({
         // Градиент от оранжевого к красному
         const progressGradient = ctx.createLinearGradient(
           cardWidth * 0.05, 0, 
-          cardWidth * 0.05 + cardWidth * 0.9 * progressPercentage / 100, 0
+          cardWidth * 0.05 + cardWidth * 0.9 * progress / 100, 0
         );
         progressGradient.addColorStop(0, '#f97316');
         progressGradient.addColorStop(1, '#ef4444');
         ctx.fillStyle = progressGradient;
-        ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9 * progressPercentage / 100, 10);
+        ctx.fillRect(cardWidth * 0.05, progressBarY, cardWidth * 0.9 * progress / 100, 10);
         
         // Шаг 8: Добавляем индикатор прогресса с процентами и кг до следующего уровня
         // Рассчитываем сколько кг осталось до следующего уровня
@@ -765,24 +758,6 @@ export function ShareAchievementModal({
     }
   };
 
-  const handleDownload = () => {
-    if (!shareableImage) return;
-
-    try {
-    const link = document.createElement('a');
-      link.href = shareableImage;
-      link.download = `hardcase-beast-${beastName}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-      toast('Изображение скачано', { type: 'success' } as CustomToastOptions);
-    } catch (error) {
-      console.error('Ошибка при скачивании изображения:', error);
-      toast('Не удалось скачать изображение', { type: 'error' } as CustomToastOptions);
-    }
-  };
-
   const handleCopyImage = async () => {
     if (!shareableImage) return;
 
@@ -837,21 +812,26 @@ export function ShareAchievementModal({
     }
   };
 
-  const handleInstagramShare = () => {
-    if (!shareableImage) return;
-    handleCopyImage().then(() => {
-      window.location.href = 'instagram://story';
-      toast('Изображение скопировано! Вставьте его в Instagram Stories', { type: 'info' } as CustomToastOptions);
-    });
+  const handleVkShare = () => {
+    if (!capturedImage) return;
+    
+    // ... existing code ...
   };
 
-  const handleTelegramShare = () => {
-    if (!shareableImage) return;
-    handleCopyImage().then(() => {
-      window.location.href = 'https://t.me/share/url?url=hardcase.training&text=Мое%20достижение%20в%20HARDCASE.TRAINING';
-      toast('Изображение скопировано! Вставьте его в сообщение Telegram', { type: 'info' } as CustomToastOptions);
-    });
+  // Эти функции не используются в текущем коде, но могут пригодиться в будущем
+  /* 
+  const handleDownload = async () => { 
+    // TODO: Реализовать функционал скачивания в будущем релизе
   };
+  
+  const handleInstagramShare = () => {
+    // TODO: Добавить возможность делиться в Instagram в будущих версиях
+  };
+  
+  const handleTelegramShare = () => {
+    // TODO: Интеграция с Telegram запланирована в следующих релизах
+  };
+  */
 
   // Стили для карточки
   const inlineStyles = {
@@ -910,7 +890,7 @@ export function ShareAchievementModal({
                   onClick={handleNativeShare}
                   className="w-full mt-6 flex items-center justify-center gap-2 p-4 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-lg font-semibold"
                 >
-                  <Share2 className="w-6 h-6" />
+                  <Share className="w-6 h-6" />
                   <span>Поделиться</span>
                 </button>
               ) : (

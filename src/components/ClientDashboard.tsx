@@ -1,24 +1,22 @@
 import React, { useState, useEffect, TouchEvent, ReactNode } from 'react';
 import { 
+  User, 
+  Calendar, 
+  BarChart2, 
+  Activity, 
   Dumbbell, 
-  Activity,
-  Plus,
-  //Camera,
-  //X,
-  //Apple,
-  Scale,
-  //Heart,
-  ChevronRight,
-  ChevronLeft,
-  Trophy,
-  Calendar,
-  //Moon,
-  //Droplets,
-  //Home,
-  User,
-  LogOut,
-  TrendingUp,
-  Share2
+  Award, 
+  ChevronRight, 
+  LogOut, 
+  ArrowLeft, 
+  ArrowRight, 
+  Menu, 
+  Scale, 
+  Camera, 
+  Utensils, 
+  XCircle,
+  ArrowUp,
+  ChevronDown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -26,9 +24,10 @@ import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
 import { useClientNavigation } from '../lib/navigation';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
-import { Exercise, Program, Workout } from '../types/workout';
+import { Workout } from '../types/workout';
 import { RaiseTheBeastMotivation } from './RaiseTheBeastMotivation';
 import { ShareAchievementModal } from './ShareAchievementModal';
+import { loadDashboardData, statsApiWithCache } from '../lib/enhanced-api';
 
 // Переименовываем интерфейс, чтобы избежать конфликта с импортированным типом
 interface NextWorkout extends Workout {}
@@ -65,17 +64,6 @@ interface UserStats {
     total: number;
     completed: number;
   };
-}
-
-interface SidebarLayoutProps {
-  children: ReactNode;
-  menuItems: Array<{
-    icon: ReactNode;
-    label: string;
-    onClick: () => void;
-  }>;
-  variant: "bottom";
-  customHeader?: ReactNode;
 }
 
 export function ClientDashboard() {
@@ -180,7 +168,7 @@ export function ClientDashboard() {
         title: 'Общая активность',
         description: 'Суммарное время движения',
         value: 'Добавь активность',
-        icon: <Trophy className="w-16 h-16 text-white" />,
+        icon: <Award className="w-16 h-16 text-white" />,
         color: 'bg-yellow-500',
         bgImage: '/images/achievements/trophies.jpg',
         motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
@@ -191,11 +179,13 @@ export function ClientDashboard() {
     
     const fetchData = async () => {
       try {
-        console.log('Начинаем загрузку данных');
+        setLoading(true);
+        
+        // Получаем данные текущего пользователя
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-          console.log('Пользователь авторизован:', user.id);
+          // Получаем данные клиента по user_id
           const { data: clientData, error: clientError } = await supabase
             .from('clients')
             .select('*')
@@ -208,14 +198,46 @@ export function ClientDashboard() {
             console.log('Получены данные клиента:', clientData.id);
             // Сохраняем данные клиента
             setClientData(clientData);
-            await Promise.all([
-              fetchNextWorkout(clientData.id),
-              fetchWorkoutStats(clientData.id),
-              fetchActivityStats(clientData.id),
-              fetchMeasurementStats(clientData.id),
-              fetchAchievementsStats(clientData.id)
-            ]);
-            console.log('Все данные загружены успешно');
+            
+            // Используем улучшенный API с кэшированием для загрузки всех данных дашборда
+            try {
+              const dashboardData = await loadDashboardData(clientData.id);
+              
+              // Устанавливаем полученные данные
+              if (dashboardData.nextWorkout) {
+                setNextWorkout(dashboardData.nextWorkout);
+              }
+              
+              setUserStats(prevStats => ({
+                ...prevStats,
+                workouts: {
+                  totalCount: dashboardData.workoutStats?.totalCount || 0,
+                  completedCount: dashboardData.workoutStats?.completedCount || 0,
+                  totalVolume: dashboardData.workoutStats?.totalVolume || 0
+                },
+                activities: {
+                  totalMinutes: dashboardData.activityStats?.totalMinutes || 0,
+                  types: dashboardData.activityStats?.types || {}
+                },
+                measurements: {
+                  currentWeight: dashboardData.measurementStats?.currentWeight,
+                  initialWeight: dashboardData.measurementStats?.initialWeight,
+                  weightChange: dashboardData.measurementStats?.weightChange
+                }
+              }));
+              
+              // Отдельно загружаем статистику достижений, так как она не включена в loadDashboardData
+              const achievementsStats = await fetchAchievementsStats(clientData.id);
+              setUserStats(prevStats => ({
+                ...prevStats,
+                achievements: achievementsStats
+              }));
+              
+              console.log('Все данные загружены успешно');
+            } catch (error) {
+              console.error('Ошибка при загрузке данных дашборда:', error);
+              toast.error('Не удалось загрузить данные дашборда');
+            }
           }
         }
       } catch (error) {
@@ -239,321 +261,26 @@ export function ClientDashboard() {
     console.log('Достижения обновлены после изменения userStats');
   }, [userStats]);
   
-  const fetchDashboardData = async () => {
-    // Реализация метода
-  };
-  
-  const fetchNextWorkout = async (clientId: string) => {
-    try {
-      const now = new Date().toISOString();
-      
-      // Получаем следующую тренировку без вложенных запросов
-      const { data: workouts, error } = await supabase
-        .from('workouts')
-        .select('*')
-        .eq('client_id', clientId)
-        .gte('start_time', now)
-        .order('start_time', { ascending: true })
-        .limit(1);
-        
-      if (error) throw error;
-      
-      if (workouts && workouts.length > 0) {
-        const workout = workouts[0];
-        
-        // Если у тренировки есть program_id, получаем информацию о программе отдельным запросом
-        if (workout.training_program_id) {
-          const { data: programData, error: programError } = await supabase
-            .from('training_programs')
-            .select('*')
-            .eq('id', workout.training_program_id)
-            .single();
-            
-          if (!programError && programData) {
-            // Объединяем данные и устанавливаем в состояние
-            setNextWorkout({
-              ...workout,
-              program: programData
-            } as NextWorkout);
-          } else {
-            // Устанавливаем тренировку без программы
-            setNextWorkout(workout as NextWorkout);
-          }
-        } else {
-          // Устанавливаем тренировку без программы
-          setNextWorkout(workout as NextWorkout);
-        }
-      }
-    } catch (error: any) {
-      console.error('Error fetching next workout:', error);
-    }
-  };
-  
+  // Обработчик открытия модального окна с измерениями
   const handleOpenMeasurementsModal = () => {
     setShowMeasurementsModal(true);
   };
   
-  const fetchWorkoutStats = async (clientId: string) => {
-    try {
-      console.log('Загружаем данные о тренировках для клиента:', clientId);
-      // Получаем все тренировки клиента
-      const { data: workouts, error } = await supabase
-        .from('workouts')
-        .select('*')
-        .eq('client_id', clientId);
-        
-      if (error) throw error;
-      console.log('Количество тренировок:', workouts?.length || 0);
-      console.log('Данные о тренировках:', workouts);
-      
-      // Получаем завершенные тренировки (проверяем два возможных формата данных)
-      // Вариант 1: используем таблицу workout_completions
-      const { data: completions, error: completionsError } = await supabase
-        .from('workout_completions')
-        .select('*')
-        .eq('client_id', clientId);
-        
-      if (completionsError) throw completionsError;
-      console.log('Количество завершенных тренировок из workout_completions:', completions?.length || 0);
-      
-      // Вариант 2: используем поле completed в таблице workouts
-      const { data: completedWorkouts, error: completedWorkoutsError } = await supabase
-        .from('workouts')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('completed', true);
-        
-      if (completedWorkoutsError) {
-        console.error('Ошибка при получении завершенных тренировок из workouts:', completedWorkoutsError);
-      } else {
-        console.log('Количество завершенных тренировок из workouts with completed=true:', completedWorkouts?.length || 0);
-      }
-      
-      // Определяем фактическое количество завершенных тренировок на основе доступных данных
-      let completedCount = 0;
-      
-      // Если есть данные в workout_completions, используем их
-      if (completions && completions.length > 0) {
-        completedCount = completions.length;
-        console.log('Используем количество из workout_completions:', completedCount);
-      }
-      // Иначе если есть данные о завершенных тренировках в workouts, используем их
-      else if (completedWorkouts && completedWorkouts.length > 0) {
-        completedCount = completedWorkouts.length;
-        console.log('Используем количество из workouts с completed=true:', completedCount);
-      }
-      // Если нет данных ни в одной таблице, устанавливаем 0
-      else {
-        console.log('Нет данных о завершенных тренировках, устанавливаем 0');
-      }
-      
-      let totalVolume = 0;
-      
-      // Получаем все упражнения для всех завершенных тренировок
-      if (completions && completions.length > 0) {
-        // Получаем ID всех завершенных тренировок
-        const completedWorkoutIds = completions.map(c => c.workout_id);
-        console.log('ID всех завершенных тренировок:', completedWorkoutIds);
-        
-        // Получаем детали всех завершенных тренировок
-        const { data: workoutDetails, error: workoutDetailsError } = await supabase
-          .from('workouts')
-          .select('*')
-          .in('id', completedWorkoutIds);
-          
-        if (workoutDetailsError) {
-          console.error('Ошибка при получении деталей тренировок:', workoutDetailsError);
-        } else if (workoutDetails && workoutDetails.length > 0) {
-          console.log('Получены детали завершенных тренировок:', workoutDetails.length);
-          
-          // Собираем ID всех программ тренировок
-          const programIds = workoutDetails
-            .map(w => w.training_program_id)
-            .filter(Boolean);
-          console.log('ID программ тренировок:', programIds);
-          
-          // Получаем упражнения всех программ
-          const { data: programExercises, error: programExercisesError } = await supabase
-            .from('program_exercises')
-            .select(`
-              id,
-              exercise_id,
-              strength_exercises (id, name),
-              exercise_sets (set_number, reps, weight)
-            `)
-            .in('program_id', programIds);
-            
-          if (programExercisesError) {
-            console.error('Ошибка при получении упражнений программ:', programExercisesError);
-          } else if (programExercises && programExercises.length > 0) {
-            console.log('Получены упражнения программ:', programExercises.length);
-            console.log('Детали упражнений программ:', programExercises);
-            
-            // Получаем все завершенные упражнения клиента
-            const { data: exerciseCompletions, error: exerciseError } = await supabase
-              .from('exercise_completions')
-              .select('*')
-              .eq('client_id', clientId)
-              .in('workout_id', completedWorkoutIds);
-              
-            if (exerciseError) {
-              console.error('Ошибка при получении завершенных упражнений:', exerciseError);
-            } else if (exerciseCompletions && exerciseCompletions.length > 0) {
-              console.log('Получены завершенные упражнения:', exerciseCompletions.length);
-              
-              // Рассчитываем общий объем для всех завершенных упражнений
-              exerciseCompletions.forEach(completion => {
-                if (completion.completed_sets && Array.isArray(completion.completed_sets)) {
-                  // Находим соответствующее упражнение в программе
-                  const exercise = programExercises.find(pe => pe.exercise_id === completion.exercise_id);
-                  
-                  if (exercise) {
-                    console.log('Найдено упражнение в программе:', exercise.exercise_id);
-                    console.log('Данные упражнения:', exercise);
-                    
-                    // Проверяем наличие сетов упражнений
-                    if (exercise.exercise_sets && Array.isArray(exercise.exercise_sets) && exercise.exercise_sets.length > 0) {
-                      console.log('Упражнение содержит сеты:', exercise.exercise_sets.length);
-                      
-                      // Считаем объем по данным сетов для всех завершенных подходов
-                      completion.completed_sets.forEach((isCompleted: boolean, index: number) => {
-                        if (isCompleted && index < exercise.exercise_sets.length) {
-                          const set = exercise.exercise_sets[index];
-                          const reps = parseInt(set.reps, 10) || 0;
-                          const weight = parseFloat(set.weight) || 0;
-                          
-                          console.log(`Подход ${index+1}: повторения=${reps}, вес=${weight}`);
-                          
-                          if (reps > 0 && weight > 0) {
-                            totalVolume += reps * weight;
-                            console.log(`Добавлен объем из сета: ${reps * weight} кг, текущий объем: ${totalVolume} кг`);
-                          } else {
-                            console.log(`Пропущен расчет объема из сета, так как reps=${reps}, weight=${weight}`);
-                          }
-                        }
-                      });
-                    } else {
-                      console.log('Упражнение не содержит сетов, объем не может быть рассчитан');
-                    }
-                  }
-                }
-              });
-            }
-          }
-        }
-      }
-      
-      console.log('Итоговый объем тренировок:', totalVolume);
-      console.log('Количество тренировок для обновления:', workouts?.length || 0);
-      console.log('Количество завершенных тренировок для обновления:', completedCount);
-      
-      // Обновляем статистику тренировок - только реальные данные
-      const totalCount = workouts?.length || 0;
-      
-      setUserStats((prev: UserStats) => {
-        const newStats = {
-          ...prev,
-          workouts: {
-            totalCount,
-            completedCount,
-            totalVolume
-          }
-        };
-        console.log('Обновляем статистику тренировок:', newStats);
-        return newStats;
-      });
-    } catch (error) {
-      console.error('Error fetching workout stats:', error);
-    }
-  };
-  
-  const fetchActivityStats = async (clientId: string) => {
-    try {
-      // Получаем все активности клиента
-      const { data: activities, error } = await supabase
-        .from('client_activities')
-        .select('*')
-        .eq('client_id', clientId);
-        
-      if (error) throw error;
-      
-      let totalMinutes = 0;
-      const activityTypes: {[key: string]: number} = {};
-      
-      if (activities) {
-        activities.forEach((activity: any) => {
-          totalMinutes += activity.duration_minutes;
-          
-          // Группируем по типам активности
-          if (activityTypes[activity.activity_type]) {
-            activityTypes[activity.activity_type] += activity.duration_minutes;
-          } else {
-            activityTypes[activity.activity_type] = activity.duration_minutes;
-          }
-        });
-      }
-      
-      // Обновляем статистику активности
-      setUserStats((prev: UserStats) => ({
-        ...prev,
-        activities: {
-          totalMinutes,
-          types: activityTypes
-        }
-      }));
-    } catch (error) {
-      console.error('Error fetching activity stats:', error);
-    }
-  };
-  
-  const fetchMeasurementStats = async (clientId: string) => {
-    try {
-      // Получаем все измерения клиента, отсортированные по дате
-      const { data: measurements, error } = await supabase
-        .from('client_measurements')
-        .select('*')
-        .eq('client_id', clientId)
-        .not('weight', 'is', null)
-        .order('date', { ascending: true });
-        
-      if (error) throw error;
-      
-      let initialWeight = null;
-      let currentWeight = null;
-      let weightChange = null;
-      
-      if (measurements && measurements.length > 0) {
-        initialWeight = measurements[0].weight;
-        currentWeight = measurements[measurements.length - 1].weight;
-        weightChange = currentWeight - initialWeight;
-      }
-      
-      // Обновляем статистику измерений
-      setUserStats((prev: UserStats) => ({
-        ...prev,
-        measurements: {
-          initialWeight,
-          currentWeight,
-          weightChange
-        }
-      }));
-    } catch (error: any) {
-      console.error('Error fetching measurement stats:', error);
-    }
-  };
-  
-  const fetchAchievementsStats = async (clientId: string) => {
+  // Получение статистики достижений
+  const fetchAchievementsStats = async (_clientId: string) => {
+    // Используем underscore для неиспользуемого параметра
     try {
       // Поскольку таблица achievements не существует, просто устанавливаем значения по умолчанию
-      setUserStats((prev: UserStats) => ({
-        ...prev,
-        achievements: {
-          total: 5, // Фиксированное количество возможных достижений
-          completed: 0 // Пока нет достижений
-        }
-      }));
-    } catch (error: any) {
+      return {
+        total: 5, // Фиксированное количество возможных достижений
+        completed: 0 // Пока нет достижений
+      };
+    } catch (error) {
       console.error('Error fetching achievements stats:', error);
+      return {
+        total: 5,
+        completed: 0
+      };
     }
   };
   
@@ -824,7 +551,7 @@ export function ClientDashboard() {
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center"
               >
-                <TrendingUp className="w-4 h-4 mr-2" />
+                <BarChart2 className="w-4 h-4 mr-2" />
                 Достижения и прогресс
               </button>
               <button
@@ -919,7 +646,7 @@ export function ClientDashboard() {
                             className="p-3 bg-white/30 rounded-full hover:bg-white/50 transition-colors touch-manipulation backdrop-blur-sm"
                             aria-label="Поделиться достижением"
                           >
-                            <Share2 className="w-6 h-6 text-white drop-shadow-md" />
+                            <BarChart2 className="w-6 h-6 text-white drop-shadow-md" />
                           </button>
                         </div>
                       </div>
@@ -935,14 +662,14 @@ export function ClientDashboard() {
             onClick={prevSlide}
             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-[#606060]/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-[#606060]/30 transition-colors"
           >
-            <ChevronLeft className="w-6 h-6 md:w-8 md:h-8 text-white" />
+            <ArrowLeft className="w-6 h-6 md:w-8 md:h-8 text-white" />
           </button>
           
           <button
             onClick={nextSlide}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-[#606060]/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-[#606060]/30 transition-colors"
           >
-            <ChevronRight className="w-6 h-6 md:w-8 md:h-8 text-white" />
+            <ArrowRight className="w-6 h-6 md:w-8 md:h-8 text-white" />
           </button>
 
           {/* Dots Navigation */}
@@ -1010,7 +737,7 @@ export function ClientDashboard() {
                 )}
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-[#606060]" />
+            <ArrowRight className="w-5 h-5 text-[#606060]" />
           </button>
         )}
       </div>
