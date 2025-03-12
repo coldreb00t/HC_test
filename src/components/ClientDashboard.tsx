@@ -645,7 +645,7 @@ export function ClientDashboard() {
         icon: <Dumbbell className="w-6 h-6" />,
         value: `${stats.workouts.totalVolume.toLocaleString()} кг`,
         color: 'bg-blue-500',
-        achievementImage: '/src/assets/achievements/weight.png', // Новый путь для обычных достижений
+        bgImage: '/images/achievements/volume.jpg',
         motivationalPhrase: 'Каждый килограмм приближает тебя к цели!',
       },
       {
@@ -654,7 +654,7 @@ export function ClientDashboard() {
         icon: <CheckCircle className="w-6 h-6" />,
         value: `${stats.workouts.completedCount}`,
         color: 'bg-green-500',
-        achievementImage: '/src/assets/achievements/workout.png', // Новый путь для обычных достижений
+        bgImage: '/images/achievements/workouts.jpg',
         motivationalPhrase: 'Регулярность - ключ к успеху!',
       },
       {
@@ -663,7 +663,7 @@ export function ClientDashboard() {
         icon: <Activity className="w-6 h-6" />,
         value: `${Math.round(stats.activities.totalMinutes / 60)} часов`,
         color: 'bg-purple-500',
-        achievementImage: '/src/assets/achievements/streak.png', // Новый путь для обычных достижений
+        bgImage: '/images/achievements/activity.jpg',
         motivationalPhrase: 'Движение - это жизнь!',
       },
       {
@@ -676,7 +676,7 @@ export function ClientDashboard() {
           ? `${Math.abs(stats.measurements.weightChange).toFixed(1)} кг` 
           : 'Нет данных',
         color: 'bg-orange-500',
-        achievementImage: '/src/assets/achievements/personal_record.png', // Новый путь для обычных достижений
+        bgImage: '/images/achievements/progress.jpg',
         motivationalPhrase: stats.measurements.weightChange && stats.measurements.weightChange < 0 
           ? 'Отличный прогресс! Продолжай в том же духе!' 
           : 'Каждый шаг важен на пути к цели!',
@@ -702,8 +702,8 @@ export function ClientDashboard() {
       {
         title: 'Общая активность',
         description: 'Суммарное время движения',
-        value: 'Добавь активность',
         icon: <Award className="w-16 h-16 text-white" />,
+        value: 'Добавь активность',
         color: 'bg-yellow-500',
         bgImage: '/images/achievements/trophies.jpg',
         motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
