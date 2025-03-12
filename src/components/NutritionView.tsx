@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Apple, Plus, Trash2, Upload, X, Edit, Check, AlertTriangle } from 'lucide-react';
+import { Apple, Plus, Trash2, Upload, X, Edit, Check, AlertTriangle, ChevronDown, ChevronUp, Camera } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
@@ -15,16 +15,33 @@ interface PhotoPreview {
 interface NutritionEntry {
   id: string;
   date: string;
+  created_at: string; // Добавляем поле для сортировки записей за день
   proteins: number | null;
   fats: number | null;
   carbs: number | null;
-  calories: number | null; // Добавлено поле для калорий
+  calories: number | null;
   water: number | null;
   photos: string[];
 }
 
+// Интерфейс для группировки записей по дням
+interface DayGroup {
+  date: string;
+  entries: NutritionEntry[];
+  isOpen: boolean;
+  totals: {
+    proteins: number;
+    fats: number;
+    carbs: number;
+    calories: number;
+    water: number;
+    photoCount: number;
+  };
+}
+
 export function NutritionView() {
   const [entries, setEntries] = useState<NutritionEntry[]>([]);
+  const [groupedEntries, setGroupedEntries] = useState<DayGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<PhotoPreview[]>([]);
@@ -39,20 +56,67 @@ export function NutritionView() {
     entryId: '',
   });
   
-  const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id'>>({
+  const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id' | 'created_at' | 'photos'>>({
     date: new Date().toISOString().split('T')[0],
     proteins: null,
     fats: null,
     carbs: null,
     calories: null,
     water: null,
-    photos: []
   });
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchNutritionData();
   }, []);
+
+  // Группировка записей по датам при изменении entries
+  useEffect(() => {
+    if (entries.length > 0) {
+      const groups: { [date: string]: NutritionEntry[] } = {};
+      
+      // Группируем записи по датам
+      entries.forEach(entry => {
+        if (!groups[entry.date]) {
+          groups[entry.date] = [];
+        }
+        groups[entry.date].push(entry);
+      });
+      
+      // Преобразуем объект групп в массив с подсчетом итогов
+      const groupsArray: DayGroup[] = Object.keys(groups)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime()) // Сортировка по убыванию даты
+        .map(date => {
+          // Сортируем записи внутри дня по created_at (от новых к старым)
+          const entriesForDay = groups[date].sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          
+          // Вычисляем суммарные показатели за день
+          const totals = entriesForDay.reduce((acc, entry) => {
+            return {
+              proteins: acc.proteins + (entry.proteins || 0),
+              fats: acc.fats + (entry.fats || 0),
+              carbs: acc.carbs + (entry.carbs || 0),
+              calories: acc.calories + (entry.calories || 0),
+              water: acc.water + (entry.water || 0),
+              photoCount: acc.photoCount + (entry.photos?.length || 0),
+            };
+          }, { proteins: 0, fats: 0, carbs: 0, calories: 0, water: 0, photoCount: 0 });
+          
+          return {
+            date,
+            entries: entriesForDay,
+            isOpen: false, // По умолчанию все группы закрыты
+            totals,
+          };
+        });
+      
+      setGroupedEntries(groupsArray);
+    } else {
+      setGroupedEntries([]);
+    }
+  }, [entries]);
 
   // Эффект для лучшей обработки файлового инпута в iOS WKWebView
   useEffect(() => {
@@ -147,6 +211,15 @@ export function NutritionView() {
     }
   };
 
+  // Функция для переключения состояния группы (открыта/закрыта)
+  const toggleGroupOpen = (dateIndex: number) => {
+    setGroupedEntries(prevGroups => {
+      const newGroups = [...prevGroups];
+      newGroups[dateIndex].isOpen = !newGroups[dateIndex].isOpen;
+      return newGroups;
+    });
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       console.log('NutritionView: Files selected:', e.target.files.length);
@@ -229,8 +302,13 @@ export function NutritionView() {
         fats: newEntry.fats || 0,
         carbs: newEntry.carbs || 0,
         calories: newEntry.calories || 0,
-        water: newEntry.water || 0
+        water: newEntry.water || 0,
+        client_id: clientData.id,
+        date: newEntry.date,
+        created_at: new Date().toISOString(), // Добавляем текущую дату и время при создании
       };
+
+      let entryId;
 
       if (editingEntryId) {
         // Обновление существующей записи
@@ -240,92 +318,86 @@ export function NutritionView() {
           .eq('id', editingEntryId);
 
         if (updateError) throw updateError;
+        entryId = editingEntryId;
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Проверка на существующую запись по дате
-        const existingEntry = entries.find(entry => entry.date === newEntry.date);
+        // Всегда создаем новую запись
+        const { data: insertedData, error: insertError } = await supabase
+          .from('client_nutrition')
+          .insert(dataToSave)
+          .select('id');
 
-        if (existingEntry) {
-          const { error: updateError } = await supabase
-            .from('client_nutrition')
-            .update(dataToSave)
-            .eq('id', existingEntry.id);
-
-          if (updateError) throw updateError;
-          toast.success('Данные обновлены');
-        } else {
-          const { error: insertError } = await supabase
-            .from('client_nutrition')
-            .insert({
-              client_id: clientData.id,
-              date: newEntry.date,
-              ...dataToSave
-            });
-
-          if (insertError) throw insertError;
-          toast.success('Данные сохранены');
+        if (insertError) throw insertError;
+        if (insertedData && insertedData.length > 0) {
+          entryId = insertedData[0].id;
+          toast.success('Запись сохранена');
         }
       }
 
-      if (selectedFiles.length > 0) {
-        const uploadPromises = selectedFiles.map(async ({ file }, index) => {
-          const fileExt = file.name.split('.').pop();
-          const uniqueId = crypto.randomUUID();
-          const fileName = `${Date.now()}-${index}-${uniqueId}.${fileExt}`;
-          const filePath = `nutrition-photos/${clientData.id}/${newEntry.date}/${fileName}`;
+      // Загрузка фотографий
+      if (selectedFiles.length > 0 && entryId) {
+        await Promise.all(
+          selectedFiles.map(async (photo, index) => {
+            const fileName = `${Date.now()}_${index}.${photo.file.name.split('.').pop()}`;
+            const { error: uploadError } = await supabase.storage
+              .from('client-photos')
+              .upload(`nutrition-photos/${clientData.id}/${newEntry.date}/${fileName}`, photo.file);
 
-          const { error: uploadError } = await supabase.storage
-            .from('client-photos')
-            .upload(filePath, file, {
-              cacheControl: '3600',
-              upsert: false
-            });
-
-          if (uploadError) throw uploadError;
-        });
-
-        await Promise.all(uploadPromises);
+            if (uploadError) throw uploadError;
+          })
+        );
       }
 
+      // Очищаем форму и обновляем данные
+      setSelectedFiles([]);
+      setNewEntry({
+        date: new Date().toISOString().split('T')[0],
+        proteins: null,
+        fats: null,
+        carbs: null,
+        calories: null,
+        water: null
+      });
       fetchNutritionData();
-      
-      resetForm();
+
     } catch (error: any) {
-      console.error('Error saving nutrition data:', error);
-      toast.error('Ошибка при сохранении данных');
+      console.error('Error saving nutrition entry:', error);
+      toast.error('Ошибка при сохранении. Пожалуйста, попробуйте еще раз.');
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (entryId: string) => {
-    if (!window.confirm('Вы уверены, что хотите удалить эту запись?')) {
-      return;
-    }
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const parsedValue = name === 'date' ? value : (value === '' ? null : Number(value));
+    setNewEntry(prev => ({
+      ...prev,
+      [name]: parsedValue
+    }));
+  };
 
-    try {
-      const { error } = await supabase
-        .from('client_nutrition')
-        .delete()
-        .eq('id', entryId);
-
-      if (error) throw error;
-
-      toast.success('Запись удалена');
-      fetchNutritionData();
-    } catch (error: any) {
-      console.error('Error deleting entry:', error);
-      toast.error('Ошибка при удалении записи');
-    }
+  const handleEdit = (entry: NutritionEntry) => {
+    setEditingEntryId(entry.id);
+    setNewEntry({
+      date: entry.date,
+      proteins: entry.proteins,
+      fats: entry.fats,
+      carbs: entry.carbs,
+      calories: entry.calories,
+      water: entry.water
+    });
+    
+    // Очищаем предыдущий выбор фотографий
+    setSelectedFiles([]);
+    
+    // Перемещаем взгляд к форме для удобства редактирования
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleRemovePhoto = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleOpenMeasurementsModal = () => {
-    setShowMeasurementsModal(true);
   };
 
   const handleMenuItemClick = (action: string) => {
@@ -338,107 +410,94 @@ export function NutritionView() {
         navigate('/client/progress-photo/new');
         break;
       case 'measurements':
-        navigate('/client/measurements/new');
-        break;
-      case 'nutrition':
-        navigate('/client/nutrition/new');
+        setShowMeasurementsModal(true);
         break;
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    
-    let parsedValue: number | null = null;
-    if (value !== '') {
-      parsedValue = parseFloat(value);
-      if (isNaN(parsedValue)) {
-        parsedValue = null;
-      }
-    }
-    
-    setNewEntry({
-      ...newEntry,
-      [name]: parsedValue
-    });
-  };
+  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick);
 
-  const menuItems = useClientNavigation(showFabMenu, setShowFabMenu, handleMenuItemClick, handleOpenMeasurementsModal);
-
-  const resetForm = () => {
-    setNewEntry({
-      date: new Date().toISOString().split('T')[0],
-      proteins: null,
-      fats: null,
-      carbs: null,
-      calories: null,
-      water: null,
-      photos: []
-    });
-    setSelectedFiles([]);
-    setEditingEntryId(null);
-  };
-
-  const handleEdit = (entry: NutritionEntry) => {
-    setEditingEntryId(entry.id);
-    setNewEntry({
-      date: entry.date,
-      proteins: entry.proteins,
-      fats: entry.fats,
-      carbs: entry.carbs,
-      calories: entry.calories,
-      water: entry.water,
-      photos: entry.photos
-    });
-    // Прокрутка к форме
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleCancelEdit = () => {
-    resetForm();
-    setEditingEntryId(null);
-  };
-
-  // Обновлённая функция инициации удаления записи
   const initiateDelete = (entryId: string) => {
-    console.log('Инициирован процесс удаления записи:', entryId);
-    setConfirmDeleteDialog({
-      show: true,
-      entryId: entryId,
-    });
+    setConfirmDeleteDialog({ show: true, entryId });
   };
 
-  // Функция для подтверждения удаления
   const confirmDelete = async () => {
-    const entryId = confirmDeleteDialog.entryId;
-    console.log('Подтверждено удаление записи:', entryId);
-    
     try {
-      const { error } = await supabase
+      const entryId = confirmDeleteDialog.entryId;
+      const entryToDelete = entries.find(entry => entry.id === entryId);
+      
+      if (!entryToDelete) {
+        toast.error('Запись не найдена');
+        setConfirmDeleteDialog({ show: false, entryId: '' });
+        return;
+      }
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (clientError) throw clientError;
+      
+      // Удаляем запись из базы данных
+      const { error: deleteError } = await supabase
         .from('client_nutrition')
         .delete()
         .eq('id', entryId);
 
-      if (error) {
-        console.error('Ошибка при удалении:', error);
-        throw error;
+      if (deleteError) throw deleteError;
+      
+      // Если у записи были фотографии, удаляем их из хранилища
+      if (entryToDelete.photos && entryToDelete.photos.length > 0) {
+        const { data: files } = await supabase.storage
+          .from('client-photos')
+          .list(`nutrition-photos/${clientData.id}/${entryToDelete.date}`);
+          
+        if (files && files.length > 0) {
+          const filesToDelete = files.map(file => 
+            `nutrition-photos/${clientData.id}/${entryToDelete.date}/${file.name}`
+          );
+          
+          const { error: storageError } = await supabase.storage
+            .from('client-photos')
+            .remove(filesToDelete);
+            
+          if (storageError) {
+            console.error('Error deleting photos:', storageError);
+          }
+        }
       }
-
+      
+      // Обновляем UI, удаляя запись из локального состояния
+      setEntries(prev => prev.filter(entry => entry.id !== entryId));
+      
       toast.success('Запись удалена');
-      fetchNutritionData();
+      setConfirmDeleteDialog({ show: false, entryId: '' });
     } catch (error: any) {
       console.error('Error deleting entry:', error);
       toast.error('Ошибка при удалении записи');
-    } finally {
-      // Закрываем диалог подтверждения
-      setConfirmDeleteDialog({ show: false, entryId: '' });
     }
   };
 
-  // Функция для отмены удаления
   const cancelDelete = () => {
     console.log('Отмена удаления записи');
     setConfirmDeleteDialog({ show: false, entryId: '' });
+  };
+
+  const formatTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return '';
+    }
   };
 
   return (
@@ -596,56 +655,140 @@ export function NutritionView() {
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
             </div>
-          ) : entries.length > 0 ? (
-            <div className="space-y-6">
-              {entries.map((entry) => (
-                <div key={entry.id} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 p-4 flex justify-between items-center">
-                    <div>
-                      <h3 className="font-medium">{new Date(entry.date).toLocaleDateString('ru-RU')}</h3>
-                      <div className="mt-1 text-sm text-gray-500 space-x-4">
-                        <span>Б: {entry.proteins}г</span>
-                        <span>Ж: {entry.fats}г</span>
-                        <span>У: {entry.carbs}г</span>
-                        <span>Ккал: {entry.calories}ккал</span>
-                        <span>Вода: {entry.water}мл</span>
+          ) : groupedEntries.length > 0 ? (
+            <div className="space-y-4">
+              {groupedEntries.map((dayGroup, dayIndex) => (
+                <div key={dayGroup.date} className="border rounded-lg overflow-hidden">
+                  {/* Заголовок дня (всегда виден) */}
+                  <div 
+                    className="bg-gray-50 p-4 flex justify-between items-center cursor-pointer"
+                    onClick={() => toggleGroupOpen(dayIndex)}
+                  >
+                    <div className="flex-grow">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium">
+                          {new Date(dayGroup.date).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </h3>
+                        <div className="flex items-center space-x-2 text-gray-500 text-sm">
+                          {dayGroup.totals.photoCount > 0 && (
+                            <span className="flex items-center" title="Фотографии">
+                              <Camera className="w-4 h-4 mr-1" />
+                              {dayGroup.totals.photoCount}
+                            </span>
+                          )}
+                          <span className="ml-2">
+                            {dayGroup.isOpen ? (
+                              <ChevronUp className="w-5 h-5" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5" />
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Суммарные показатели */}
+                      <div className="mt-1 text-sm text-gray-500 flex flex-wrap gap-3">
+                        <span>Записей: {dayGroup.entries.length}</span>
+                        {(dayGroup.totals.proteins > 0 || dayGroup.totals.fats > 0 || dayGroup.totals.carbs > 0 || dayGroup.totals.calories > 0 || dayGroup.totals.water > 0) && (
+                          <>
+                            <span>Б: {dayGroup.totals.proteins}г</span>
+                            <span>Ж: {dayGroup.totals.fats}г</span>
+                            <span>У: {dayGroup.totals.carbs}г</span>
+                            <span>Ккал: {dayGroup.totals.calories}ккал</span>
+                            <span>Вода: {dayGroup.totals.water}мл</span>
+                          </>
+                        )}
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(entry)}
-                        className="text-blue-500 hover:text-blue-600 transition-colors"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => initiateDelete(entry.id)}
-                        className="p-2 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
-                        title="Удалить запись"
-                        aria-label="Удалить запись"
-                        type="button"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
                   </div>
-                  {entry.photos && entry.photos.length > 0 && (
-                    <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {entry.photos.map((photo, index) => (
-                        <a
-                          key={index}
-                          href={photo}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block aspect-square rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
-                        >
-                          <img
-                            src={photo}
-                            alt={`Фото еды ${new Date(entry.date).toLocaleDateString('ru-RU')} #${index + 1}`}
-                            className="w-full h-full object-contain"
-                          />
-                        </a>
+                  
+                  {/* Содержимое дня (показывается только когда раскрыто) */}
+                  {dayGroup.isOpen && (
+                    <div className="p-2 divide-y">
+                      {dayGroup.entries.map((entry) => (
+                        <div key={entry.id} className="p-2">
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="text-sm text-gray-500">
+                                  {entry.created_at && (
+                                    <span>Время: {formatTime(entry.created_at)}</span>
+                                  )}
+                                </div>
+                                <div className="mt-1 text-sm flex flex-wrap gap-2">
+                                  {(entry.proteins || entry.fats || entry.carbs || entry.calories || entry.water) && (
+                                    <>
+                                      {entry.proteins && entry.proteins > 0 && <span>Б: {entry.proteins}г</span>}
+                                      {entry.fats && entry.fats > 0 && <span>Ж: {entry.fats}г</span>}
+                                      {entry.carbs && entry.carbs > 0 && <span>У: {entry.carbs}г</span>}
+                                      {entry.calories && entry.calories > 0 && <span>Ккал: {entry.calories}ккал</span>}
+                                      {entry.water && entry.water > 0 && <span>Вода: {entry.water}мл</span>}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEdit(entry)}
+                                  className="p-2 text-blue-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                                  title="Редактировать запись"
+                                  aria-label="Редактировать запись"
+                                  type="button"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => initiateDelete(entry.id)}
+                                  className="p-2 text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                                  title="Удалить запись"
+                                  aria-label="Удалить запись"
+                                  type="button"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {/* Фотографии еды */}
+                            {entry.photos && entry.photos.length > 0 && (
+                              <div className="mt-2 grid grid-cols-2 gap-2">
+                                {entry.photos.map((photo, index) => (
+                                  <a
+                                    key={index}
+                                    href={photo}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block aspect-square rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
+                                  >
+                                    <img
+                                      src={photo}
+                                      alt={`Фото еды ${new Date(entry.date).toLocaleDateString('ru-RU')} #${index + 1}`}
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       ))}
+                      
+                      {/* Кнопка для добавления еще записи на этот день */}
+                      <div className="p-2">
+                        <button
+                          onClick={() => {
+                            setNewEntry(prev => ({
+                              ...prev,
+                              date: dayGroup.date
+                            }));
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="w-full p-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Добавить еще за этот день
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
