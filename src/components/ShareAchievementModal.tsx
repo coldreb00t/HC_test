@@ -151,7 +151,7 @@ export function ShareAchievementModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return false;
     
-    console.log("Начинаем отрисовку карточки ОБЫЧНОГО достижения в стиле слайдера");
+    console.log("Начинаем отрисовку карточки ОБЫЧНОГО достижения");
     
     // Устанавливаем размеры canvas с учетом масштабирования для высокого DPI
     const scale = 2; // Масштаб для высокого DPI
@@ -160,9 +160,6 @@ export function ShareAchievementModal({
     ctx.scale(scale, scale);
     
     try {
-      // Сначала рисуем фоновое изображение или используем градиент
-      let bgImageObj: HTMLImageElement | null = null;
-      
       // Определяем цвет оверлея на основе текущего достижения
       let color = '#4338ca'; // Синий цвет по умолчанию
       if (beastName.toLowerCase().includes('тренировк')) {
@@ -175,19 +172,48 @@ export function ShareAchievementModal({
         color = '#a855f7'; // Фиолетовый для тела
       }
       
+      // Сначала рисуем градиентный фон (на случай, если изображение не загрузится)
+      const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
+      gradient.addColorStop(0, color); // Основной цвет
+      gradient.addColorStop(1, '#6366f1'); // Светло-синий
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, cardWidth, cardHeight);
+      
       // Пытаемся использовать изображение как фон, если оно есть
       if (beastImage && beastImage.length > 0) {
+        console.log("Пытаемся загрузить фоновое изображение:", beastImage);
+        
+        const bgImage = new Image();
+        bgImage.crossOrigin = 'anonymous';
+        
         try {
-          // Создаем временное изображение и ждем его загрузки
-          bgImageObj = new Image();
-          bgImageObj.crossOrigin = 'anonymous';
-          bgImageObj.src = beastImage;
+          // Ждем загрузки изображения
+          await new Promise<void>((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              console.warn("Таймаут загрузки изображения");
+              reject(new Error('Таймаут загрузки изображения'));
+            }, 5000); // 5 секунд таймаут
+            
+            bgImage.onload = () => {
+              clearTimeout(timeoutId);
+              console.log("Фоновое изображение успешно загружено");
+              resolve();
+            };
+            
+            bgImage.onerror = () => {
+              clearTimeout(timeoutId);
+              console.warn("Ошибка загрузки фонового изображения");
+              reject(new Error('Не удалось загрузить фоновое изображение'));
+            };
+            
+            bgImage.src = beastImage;
+          });
           
-          // Если изображение уже загружено, рисуем его
-          if (bgImageObj.complete) {
-            console.log("Рисуем фоновое изображение:", bgImageObj.src);
-            // Покрываем весь canvas фоновым изображением, сохраняя пропорции
-            const imgAspect = bgImageObj.width / bgImageObj.height;
+          // Проверяем, что изображение действительно загружено
+          if (bgImage.complete && bgImage.naturalWidth > 0) {
+            // Рисуем изображение на canvas
+            console.log("Рисуем фоновое изображение, размеры:", bgImage.width, "x", bgImage.height);
+            const imgAspect = bgImage.width / bgImage.height;
             const canvasAspect = cardWidth / cardHeight;
             
             let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
@@ -204,7 +230,9 @@ export function ShareAchievementModal({
               offsetY = (cardHeight - drawHeight) / 2;
             }
             
-            ctx.drawImage(bgImageObj, offsetX, offsetY, drawWidth, drawHeight);
+            // Очищаем canvas перед рисованием изображения
+            ctx.clearRect(0, 0, cardWidth, cardHeight);
+            ctx.drawImage(bgImage, offsetX, offsetY, drawWidth, drawHeight);
             
             // Накладываем цветной оверлей
             ctx.fillStyle = color;
@@ -212,25 +240,14 @@ export function ShareAchievementModal({
             ctx.fillRect(0, 0, cardWidth, cardHeight);
             ctx.globalAlpha = 1.0;
           } else {
-            // Изображение еще не загружено, используем градиентный фон
-            throw new Error('Изображение не готово');
+            console.warn("Изображение загружено, но имеет нулевые размеры");
           }
         } catch (error) {
-          console.warn('Не удалось использовать изображение как фон:', error);
-          // Используем градиентный фон
-          const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
-          gradient.addColorStop(0, color); // Основной цвет
-          gradient.addColorStop(1, '#6366f1'); // Светло-синий
-          ctx.fillStyle = gradient;
-          ctx.fillRect(0, 0, cardWidth, cardHeight);
+          console.error("Ошибка при работе с фоновым изображением:", error);
+          // В случае ошибки уже нарисован градиентный фон
         }
       } else {
-        // Если изображения нет, используем градиентный фон
-        const gradient = ctx.createLinearGradient(0, 0, cardWidth, cardHeight);
-        gradient.addColorStop(0, color); // Основной цвет
-        gradient.addColorStop(1, '#6366f1'); // Светло-синий
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, cardWidth, cardHeight);
+        console.log("Фоновое изображение не указано, используем градиентный фон");
       }
       
       // Добавляем логотип HARDCASE.TRAINING в правый верхний угол
@@ -348,60 +365,18 @@ export function ShareAchievementModal({
       const metrics = ctx.measureText(beastName);
       
       if (metrics.width > titleMaxWidth) {
-        // Разбиваем заголовок на слова и пытаемся их сгруппировать
-        const titleWords = beastName.split(' ');
-        let firstLine = '';
-        let secondLine = '';
-        
-        if (titleWords.length === 1) {
-          // Если это одно длинное слово, просто уменьшаем шрифт еще больше
-          ctx.font = `bold ${Math.max(18, titleFontSize - 6)}px Inter, system-ui, sans-serif`;
-          ctx.fillText(beastName, contentCenterX, titleY);
-        } else {
-          let middleIndex = Math.ceil(titleWords.length / 2);
-          
-          // Первая попытка - разделить строго пополам по словам
-          for (let i = 0; i < titleWords.length; i++) {
-            if (i < middleIndex) {
-              firstLine += titleWords[i] + ' ';
-            } else {
-              secondLine += titleWords[i] + ' ';
-            }
-          }
-          
-          // Если первая строка все равно слишком длинная, пробуем балансировать лучше
-          const firstLineMetrics = ctx.measureText(firstLine);
-          const secondLineMetrics = ctx.measureText(secondLine);
-          
-          if (firstLineMetrics.width > titleMaxWidth || secondLineMetrics.width > titleMaxWidth) {
-            // Пробуем найти лучшее разделение
-            firstLine = '';
-            secondLine = '';
-            let currentWidth = 0;
-            
-            for (let i = 0; i < titleWords.length; i++) {
-              const wordWidth = ctx.measureText(titleWords[i] + ' ').width;
-              if (currentWidth + wordWidth <= titleMaxWidth * 0.9) {
-                firstLine += titleWords[i] + ' ';
-                currentWidth += wordWidth;
-              } else {
-                secondLine += titleWords[i] + ' ';
-              }
-            }
-          }
-          
-          // Отрисовываем заголовок в две строки
-          const lineSpacing = titleFontSize * 1.1;
-          ctx.fillText(firstLine.trim(), contentCenterX, titleY - lineSpacing/2);
-          ctx.fillText(secondLine.trim(), contentCenterX, titleY + lineSpacing/2);
-        }
+        // Если заголовок не помещается, уменьшаем шрифт
+        const scaleFactor = titleMaxWidth / metrics.width;
+        const newFontSize = Math.max(18, Math.floor(titleFontSize * scaleFactor));
+        ctx.font = `bold ${newFontSize}px Inter, system-ui, sans-serif`;
+        ctx.fillText(beastName, contentCenterX, titleY);
       } else {
         // Обычный рендеринг однострочного заголовка
         ctx.fillText(beastName, contentCenterX, titleY);
       }
       
-      // Описание достижения - начинаем с правильной позиции Y в зависимости от количества строк в заголовке
-      const descY = metrics.width > titleMaxWidth ? titleY + 45 : titleY + 30;
+      // Описание достижения
+      const descY = titleY + 30;
       ctx.font = '18px Inter, system-ui, sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.textAlign = 'center';
@@ -574,7 +549,7 @@ export function ShareAchievementModal({
       
       ctx.fillText(userNameText, contentCenterX, cardHeight - 20);
       
-      console.log("Отрисовка обычного достижения в стиле слайдера завершена успешно");
+      console.log("Отрисовка обычного достижения завершена успешно");
       return true;
     } catch (error) {
       console.error('Ошибка при рисовании обычного достижения:', error);
@@ -763,8 +738,8 @@ export function ShareAchievementModal({
             // Если имя состоит из нескольких слов
             if (words.length > 1) {
               // Находим оптимальное разделение на две строки
-              let firstLine = '';
-              let secondLine = '';
+              let firstLineText = '';
+              let secondLineText = '';
               let currentWidth = 0;
               
               // Устанавливаем шрифт обратно на исходный размер для разделения на строки
@@ -773,32 +748,32 @@ export function ShareAchievementModal({
               for (let i = 0; i < words.length; i++) {
                 const wordWidth = ctx.measureText(words[i] + ' ').width;
                 if (currentWidth + wordWidth <= maxBeastNameWidth * 0.9) {
-                  firstLine += words[i] + ' ';
+                  firstLineText += words[i] + ' ';
                   currentWidth += wordWidth;
                 } else {
-                  secondLine += words[i] + ' ';
+                  secondLineText += words[i] + ' ';
                 }
               }
               
               // Если вторая строка пустая (все слова поместились в первую)
-              if (secondLine === '') {
+              if (secondLineText === '') {
                 // Делим слова поровну между строками
-                firstLine = '';
-                secondLine = '';
+                firstLineText = '';
+                secondLineText = '';
                 const middleIndex = Math.ceil(words.length / 2);
                 
                 for (let i = 0; i < words.length; i++) {
                   if (i < middleIndex) {
-                    firstLine += words[i] + ' ';
+                    firstLineText += words[i] + ' ';
                   } else {
-                    secondLine += words[i] + ' ';
+                    secondLineText += words[i] + ' ';
                   }
                 }
               }
-              
+            
               // Проверяем, помещаются ли строки по отдельности
-              const firstLineWidth = ctx.measureText(firstLine.trim()).width;
-              const secondLineWidth = ctx.measureText(secondLine.trim()).width;
+              const firstLineWidth = ctx.measureText(firstLineText.trim()).width;
+              const secondLineWidth = ctx.measureText(secondLineText.trim()).width;
               
               // Если какая-то из строк все еще не помещается, уменьшаем шрифт
               if (firstLineWidth > maxBeastNameWidth || secondLineWidth > maxBeastNameWidth) {
@@ -810,8 +785,8 @@ export function ShareAchievementModal({
               
               // Отрисовываем заголовок в две строки
               const lineSpacing = parseInt(ctx.font) * 1.2;
-              ctx.fillText(firstLine.trim(), cardWidth / 2, 95);
-              ctx.fillText(secondLine.trim(), cardWidth / 2, 95 + lineSpacing);
+              ctx.fillText(firstLineText.trim(), cardWidth / 2, 95);
+              ctx.fillText(secondLineText.trim(), cardWidth / 2, 95 + lineSpacing);
             } else {
               // Если это одно длинное слово, просто уменьшаем шрифт
               ctx.font = `bold ${newFontSize}px Inter, system-ui, sans-serif`;
