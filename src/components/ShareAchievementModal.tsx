@@ -236,7 +236,7 @@ export function ShareAchievementModal({
             
             // Накладываем цветной оверлей
             ctx.fillStyle = color;
-            ctx.globalAlpha = 0.9; // Прозрачность как в слайдере
+            ctx.globalAlpha = 0.75; // Прозрачность уменьшена на 15% (с 0.9 до 0.75)
             ctx.fillRect(0, 0, cardWidth, cardHeight);
             ctx.globalAlpha = 1.0;
           } else {
