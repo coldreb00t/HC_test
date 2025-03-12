@@ -99,9 +99,9 @@ export function NutritionView() {
             if (a.meal_number !== undefined && b.meal_number !== undefined) {
               return b.meal_number - a.meal_number; // От новых к старым
             }
-            // Затем пробуем date для timestamp записей
-            if (a.date.includes('T') && b.date.includes('T')) {
-              return new Date(b.date).getTime() - new Date(a.date).getTime();
+            // Затем пробуем entry_time
+            if (a.entry_time && b.entry_time) {
+              return new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime();
             }
             // Наконец, используем created_at или id
             const timeA = a.created_at || a.id;
@@ -359,14 +359,13 @@ export function NutritionView() {
         // Новый номер приема пищи
         const newMealNumber = maxMealNumber + 1;
         
-        // Создаем текущий timestamp 
+        // Создаем текущий timestamp для entry_time
         const now = new Date();
-        // Форматируем в строку ISO с датой и временем YYYY-MM-DDTHH:MM:SS
         const timestamp = now.toISOString();
         
-        console.log('Создаем запись: фактическая дата =', actualDate, ', timestamp =', timestamp, ', номер приема пищи =', newMealNumber);
+        console.log('Создаем запись: фактическая дата =', actualDate, ', entry_time =', timestamp, ', номер приема пищи =', newMealNumber);
         
-        // Создаем новую запись с actual_date и timestamp в поле date
+        // Создаем новую запись с actual_date и entry_time
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
           .insert({
@@ -376,7 +375,8 @@ export function NutritionView() {
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
             client_id: clientData.id,
-            date: timestamp, // Используем полный timestamp для обеспечения уникальности
+            date: actualDate, // Используем обычную дату как было раньше
+            entry_time: timestamp, // Используем поле entry_time для timestamp
             actual_date: actualDate, // Реальная дата для статистики
             meal_number: newMealNumber // Номер приема пищи
           })
@@ -828,8 +828,6 @@ export function NutritionView() {
                                 <div className="text-sm text-gray-500">
                                   {entry.entry_time ? (
                                     <span>Время: {formatTime(entry.entry_time)}</span>
-                                  ) : entry.date.includes('T') ? (
-                                    <span>Время: {formatTime(entry.date)}</span>
                                   ) : entry.created_at ? (
                                     <span>Время: {formatTime(entry.created_at)}</span>
                                   ) : (
