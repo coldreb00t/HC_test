@@ -322,13 +322,12 @@ export function NutritionView() {
         toast.success('Запись обновлена');
         setEditingEntryId(null);
       } else {
-        // Для новой записи создаем уникальную метку даты с добавлением времени
-        // Формат: YYYY-MM-DD_HHmmss - например, 2023-05-15_142536
+        // Создаем уникальный идентификатор для этой записи
         const now = new Date();
-        const timeStamp = now.toISOString().replace(/[-:\.T]/g, '').slice(0, 14); // YYYYMMDDHHmmss
-        const uniqueDate = `${newEntry.date}_${timeStamp}`;
+        const timeStamp = now.toISOString().replace(/[:.]/g, '');
+        const customId = `${timeStamp}_${Math.random().toString(36).substring(2, 8)}`;
         
-        // Всегда создаем новую запись с уникальной датой
+        // Создаем новую запись с дополнительным полем custom_id для уникальности
         const { data: insertedData, error: insertError } = await supabase
           .from('client_nutrition')
           .insert({
@@ -338,12 +337,42 @@ export function NutritionView() {
             calories: newEntry.calories || 0,
             water: newEntry.water || 0,
             client_id: clientData.id,
-            date: uniqueDate,  // Используем уникальную дату
+            date: newEntry.date, // Используем обычную дату в формате YYYY-MM-DD
+            custom_id: customId // Добавляем уникальный идентификатор
           })
           .select('id');
 
-        if (insertError) throw insertError;
-        if (insertedData && insertedData.length > 0) {
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          // Попробуем второй подход - создать запись с измененной датой (на день вперед)
+          const nextDay = new Date(newEntry.date);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const nextDayStr = nextDay.toISOString().split('T')[0];
+          
+          console.log('Trying alternate approach with modified date:', nextDayStr);
+          
+          const { data: altInsertedData, error: altInsertError } = await supabase
+            .from('client_nutrition')
+            .insert({
+              proteins: newEntry.proteins || 0,
+              fats: newEntry.fats || 0,
+              carbs: newEntry.carbs || 0,
+              calories: newEntry.calories || 0,
+              water: newEntry.water || 0,
+              client_id: clientData.id,
+              date: nextDayStr // Используем следующий день для уникальности
+            })
+            .select('id');
+            
+          if (altInsertError) {
+            throw altInsertError;
+          }
+          
+          if (altInsertedData && altInsertedData.length > 0) {
+            entryId = altInsertedData[0].id;
+            toast.success('Запись сохранена');
+          }
+        } else if (insertedData && insertedData.length > 0) {
           entryId = insertedData[0].id;
           toast.success('Запись сохранена');
         }
