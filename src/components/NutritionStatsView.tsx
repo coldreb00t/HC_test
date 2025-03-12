@@ -580,78 +580,161 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
             <p className="text-sm text-gray-600 mb-4">
               Этот график показывает, как менялись основные показатели питания за выбранный период.
             </p>
-            <div className="relative w-full h-64 bg-gray-100 rounded-lg p-4 flex flex-col justify-between">
+            <div className="relative w-full h-64 bg-white rounded-lg p-4 flex flex-col justify-between shadow-sm">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <AreaChart
                   data={prepareNutritionDataForChart()}
                   margin={{
-                    top: 5,
+                    top: 10,
                     right: 30,
-                    left: 20,
+                    left: 10,
                     bottom: 5,
                   }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="formattedDate" />
-                  <YAxis yAxisId="left" orientation="left" stroke="#FF0000" />
-                  <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
+                  <defs>
+                    <linearGradient id="colorProteins" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F44336" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#F44336" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="colorFats" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FF9800" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#FF9800" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="colorCarbs" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4CAF50" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#4CAF50" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="colorCalories" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#9C27B0" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#9C27B0" stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="formattedDate" 
+                    stroke="#9e9e9e"
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                  />
+                  <YAxis 
+                    stroke="#9e9e9e"
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                      border: "none"
+                    }}
+                    labelStyle={{ fontWeight: "bold", marginBottom: "5px" }}
+                  />
+                  <Legend 
+                    verticalAlign="top" 
+                    height={36} 
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ paddingBottom: "10px" }}
+                  />
+                  <Area
                     type="monotone"
                     dataKey="proteins"
                     name="Белки (г)"
-                    stroke="#FF0000"
-                    activeDot={{ r: 8 }}
+                    stroke="#F44336"
+                    fillOpacity={1}
+                    fill="url(#colorProteins)"
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    strokeWidth={2}
                   />
-                  <Line
-                    yAxisId="left"
+                  <Area
                     type="monotone"
                     dataKey="fats"
                     name="Жиры (г)"
-                    stroke="#FFB200"
-                    activeDot={{ r: 8 }}
+                    stroke="#FF9800"
+                    fillOpacity={1}
+                    fill="url(#colorFats)"
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    strokeWidth={2}
                   />
-                  <Line
-                    yAxisId="left"
+                  <Area
                     type="monotone"
                     dataKey="carbs"
                     name="Углеводы (г)"
-                    stroke="#00C853"
-                    activeDot={{ r: 8 }}
+                    stroke="#4CAF50"
+                    fillOpacity={1}
+                    fill="url(#colorCarbs)"
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    strokeWidth={2}
                   />
-                  <Line
-                    yAxisId="right"
+                  <Area
                     type="monotone"
                     dataKey="calories"
                     name="Калории (ккал)"
                     stroke="#9C27B0"
-                    activeDot={{ r: 8 }}
+                    fillOpacity={1}
+                    fill="url(#colorCalories)"
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    strokeWidth={2}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
             
             <div className="mt-6">
               <h4 className="text-sm font-medium text-gray-700 mb-3">Калории по дням</h4>
-              <div className="relative w-full h-48 bg-gray-100 rounded-lg p-4">
+              <div className="relative w-full h-48 bg-white rounded-lg p-4 shadow-sm">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={prepareNutritionDataForChart()}
                     margin={{
                       top: 5,
                       right: 30,
-                      left: 20,
+                      left: 10,
                       bottom: 5,
                     }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="formattedDate" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="calories" name="Калории (ккал)" fill="#9C27B0" />
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#9C27B0" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#E1BEE7" stopOpacity={0.8}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis 
+                      dataKey="formattedDate" 
+                      stroke="#9e9e9e"
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      stroke="#9e9e9e"
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{ 
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                        border: "none"
+                      }}
+                      labelStyle={{ fontWeight: "bold", marginBottom: "5px" }}
+                    />
+                    <Legend 
+                      verticalAlign="top" 
+                      height={36}
+                      iconSize={8}
+                      wrapperStyle={{ paddingBottom: "5px" }}
+                    />
+                    <Bar 
+                      dataKey="calories" 
+                      name="Калории (ккал)" 
+                      radius={[4, 4, 0, 0]}
+                      fill="url(#barGradient)"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
