@@ -15,7 +15,7 @@ interface PhotoPreview {
 interface NutritionEntry {
   id: string;
   date: string;
-  created_at: string; // Добавляем поле для сортировки записей за день
+  created_at?: string; // Делаем поле необязательным
   proteins: number | null;
   fats: number | null;
   carbs: number | null;
@@ -56,7 +56,7 @@ export function NutritionView() {
     entryId: '',
   });
   
-  const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id' | 'created_at' | 'photos'>>({
+  const [newEntry, setNewEntry] = useState<Omit<NutritionEntry, 'id' | 'photos'>>({
     date: new Date().toISOString().split('T')[0],
     proteins: null,
     fats: null,
@@ -88,9 +88,12 @@ export function NutritionView() {
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime()) // Сортировка по убыванию даты
         .map(date => {
           // Сортируем записи внутри дня по created_at (от новых к старым)
-          const entriesForDay = groups[date].sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
+          const entriesForDay = groups[date].sort((a, b) => {
+            // Используем поле created_at из Supabase или id, если created_at недоступно
+            const timeA = a.created_at || a.id;
+            const timeB = b.created_at || b.id;
+            return String(timeB).localeCompare(String(timeA));
+          });
           
           // Вычисляем суммарные показатели за день
           const totals = entriesForDay.reduce((acc, entry) => {
@@ -305,7 +308,6 @@ export function NutritionView() {
         water: newEntry.water || 0,
         client_id: clientData.id,
         date: newEntry.date,
-        created_at: new Date().toISOString(), // Добавляем текущую дату и время при создании
       };
 
       let entryId;
@@ -711,8 +713,10 @@ export function NutritionView() {
                             <div className="flex justify-between items-center">
                               <div>
                                 <div className="text-sm text-gray-500">
-                                  {entry.created_at && (
+                                  {entry.created_at ? (
                                     <span>Время: {formatTime(entry.created_at)}</span>
+                                  ) : (
+                                    <span>Время: не указано</span>
                                   )}
                                 </div>
                                 <div className="mt-1 text-sm flex flex-wrap gap-2">
