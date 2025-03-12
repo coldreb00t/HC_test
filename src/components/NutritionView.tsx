@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Apple, Plus, Trash2, Upload, X, Edit, Check, AlertTriangle, ChevronDown, ChevronUp, Camera } from 'lucide-react';
+import { Apple, Plus, Trash2, Upload, X, Edit, Check, AlertTriangle, ChevronDown, ChevronUp, Camera, BarChart2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { SidebarLayout } from './SidebarLayout';
@@ -646,7 +646,16 @@ export function NutritionView() {
       <div className="p-4">
         <div className="bg-white rounded-xl shadow-sm p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Дневник питания</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Дневник питания</h2>
+              <a 
+                href="/client/nutrition-stats" 
+                className="text-sm text-orange-500 hover:text-orange-600 inline-flex items-center"
+              >
+                <BarChart2 className="w-4 h-4 mr-1" />
+                Статистика
+              </a>
+            </div>
             <Apple className="w-5 h-5 text-gray-400" />
           </div>
 

@@ -15,7 +15,13 @@ import {
   Share2,
   Edit,
   Check,
-  X
+  X,
+  BarChart2,
+  CameraOff,
+  Plus,
+  Edit2,
+  Trash2,
+  SlidersHorizontal
 } from 'lucide-react';
 import { ShareAchievementModal } from './ShareAchievementModal'; // Убрали импорт ShareAchievementModalProps
 import { SidebarLayout } from './SidebarLayout';
@@ -35,6 +41,7 @@ import {
 } from 'recharts';
 import BodyCompositionTab from './BodyCompositionTab';
 import { MeasurementsInputModal } from './MeasurementsInputModal';
+import { NutritionStatsView } from './NutritionStatsView';
 
 interface ClientData {
   id: string;
@@ -147,29 +154,40 @@ interface Achievement {
   achieved?: boolean; // Флаг достижения цели
 }
 
-export function AchievementsView() {
+// Определяем тип для вкладок
+type AchievementsTab = 'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition';
+
+// Добавляем пропсы
+interface AchievementsViewProps {
+  activeTab?: AchievementsTab;
+}
+
+export function AchievementsView({ activeTab = 'overview' }: AchievementsViewProps) {
   const navigate = useNavigate();
-  const [showFabMenu, setShowFabMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [clientData, setClientData] = useState<ClientData | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>([]);
   const [workoutStats, setWorkoutStats] = useState<WorkoutStats | null>(null);
   const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
   const [nutritionStats, setNutritionStats] = useState<NutritionStats | null>(null);
-  const [firstPhoto, setFirstPhoto] = useState<ProgressPhoto[] | null>(null);
-  const [lastPhoto, setLastPhoto] = useState<ProgressPhoto[] | null>(null);
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'workouts' | 'measurements' | 'activity' | 'nutrition' | 'bodyComposition'>('overview');
+  const [selectedAchievement, setSelectedAchievement] = useState<Omit<Achievement, 'achieved'> | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
-  const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[] | null>(null);
-  const [editRowId, setEditRowId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Measurement | null>(null);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
+  const [showFabMenu, setShowFabMenu] = useState(false);
+  const [currentTab, setCurrentTab] = useState<AchievementsTab>(activeTab);
 
   useEffect(() => {
     fetchClientData();
   }, []);
+
+  // Обновляем useEffect, чтобы обрабатывать изменения props.activeTab
+  useEffect(() => {
+    setCurrentTab(activeTab);
+  }, [activeTab]);
 
   // Добавляем новый useEffect для генерации достижений
   useEffect(() => {
@@ -559,8 +577,8 @@ export function AchievementsView() {
       );
 
       if (dates.length > 0) {
-        setFirstPhoto(photosByDate[dates[0]]);
-        setLastPhoto(photosByDate[dates[dates.length - 1]]);
+        setProgressPhotos(photosByDate[dates[0]]);
+        setProgressPhotos(photosByDate[dates[dates.length - 1]]);
         console.log('First photos:', photosByDate[dates[0]]);
         console.log('Last photos:', photosByDate[dates[dates.length - 1]]);
       }
@@ -837,7 +855,7 @@ export function AchievementsView() {
           </div>
         )}
         
-        {firstPhoto && lastPhoto && (
+        {progressPhotos.length > 0 && (
           <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
             <div className="flex items-center mb-4">
               <Camera className="w-5 h-5 text-gray-500 mr-2" />
@@ -846,9 +864,9 @@ export function AchievementsView() {
             
             <div className="space-y-4">
               <div>
-                <p className="text-xs text-gray-500 mb-1">Начало ({firstPhoto[0].date})</p>
+                <p className="text-xs text-gray-500 mb-1">Начало ({progressPhotos[0].date})</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {firstPhoto.map((photo, index) => (
+                  {progressPhotos.map((photo, index) => (
                     <img
                       key={index}
                       src={photo.url}
@@ -859,9 +877,9 @@ export function AchievementsView() {
                 </div>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Сейчас ({lastPhoto[0].date})</p>
+                <p className="text-xs text-gray-500 mb-1">Сейчас ({progressPhotos[progressPhotos.length - 1].date})</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {lastPhoto.map((photo, index) => (
+                  {progressPhotos.map((photo, index) => (
                     <img
                       key={index}
                       src={photo.url}
@@ -990,14 +1008,13 @@ export function AchievementsView() {
     console.log('Full chartData:', chartData);
 
     const handleEditClick = (measurement: Measurement) => {
-      setEditRowId(measurement.id);
-      setEditValues({ ...measurement });
+      setEditingMeasurement(measurement);
     };
 
     const handleInputChange = (field: keyof Measurement, value: string) => {
-      if (editValues) {
-        setEditValues({
-          ...editValues,
+      if (editingMeasurement) {
+        setEditingMeasurement({
+          ...editingMeasurement,
           [field]: field === 'date' ? value : Number(value)
         });
       }
@@ -1008,28 +1025,28 @@ export function AchievementsView() {
         const { error } = await supabase
           .from('client_measurements')
           .update({
-            weight: editValues?.weight,
-            height: editValues?.height,
-            chest: editValues?.chest,
-            waist: editValues?.waist,
-            pelvis: editValues?.pelvis,
-            biceps_right: editValues?.biceps_right,
-            biceps_left: editValues?.biceps_left,
-            wrist_right: editValues?.wrist_right,
-            wrist_left: editValues?.wrist_left,
-            stomach: editValues?.stomach,
-            thigh_right: editValues?.thigh_right,
-            thigh_left: editValues?.thigh_left,
-            calf_right: editValues?.calf_right,
-            calf_left: editValues?.calf_left,
-            date: editValues?.date
+            weight: editingMeasurement?.weight,
+            height: editingMeasurement?.height,
+            chest: editingMeasurement?.chest,
+            waist: editingMeasurement?.waist,
+            pelvis: editingMeasurement?.pelvis,
+            biceps_right: editingMeasurement?.biceps_right,
+            biceps_left: editingMeasurement?.biceps_left,
+            wrist_right: editingMeasurement?.wrist_right,
+            wrist_left: editingMeasurement?.wrist_left,
+            stomach: editingMeasurement?.stomach,
+            thigh_right: editingMeasurement?.thigh_right,
+            thigh_left: editingMeasurement?.thigh_left,
+            calf_right: editingMeasurement?.calf_right,
+            calf_left: editingMeasurement?.calf_left,
+            date: editingMeasurement?.date
           })
           .eq('id', measurement.id);
 
         if (error) throw error;
         
         fetchMeasurements(clientData?.id || '');
-        setEditRowId(null);
+        setEditingMeasurement(null);
         toast.success('Замеры обновлены');
       } catch (error) {
         console.error('Error updating measurement:', error);
@@ -1133,12 +1150,12 @@ export function AchievementsView() {
                 <tbody className="divide-y divide-gray-200">
                   {measurements.map((measurement, index) => (
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      {editRowId === measurement.id ? (
+                      {editingMeasurement === measurement ? (
                         <>
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="date"
-                              value={editValues?.date.split('T')[0] || ''}
+                              value={editingMeasurement?.date.split('T')[0] || ''}
                               onChange={(e) => handleInputChange('date', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1146,7 +1163,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.weight ?? ''}
+                              value={editingMeasurement?.weight ?? ''}
                               onChange={(e) => handleInputChange('weight', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1154,7 +1171,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.height ?? ''}
+                              value={editingMeasurement?.height ?? ''}
                               onChange={(e) => handleInputChange('height', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1162,7 +1179,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.chest ?? ''}
+                              value={editingMeasurement?.chest ?? ''}
                               onChange={(e) => handleInputChange('chest', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1170,7 +1187,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.waist ?? ''}
+                              value={editingMeasurement?.waist ?? ''}
                               onChange={(e) => handleInputChange('waist', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1178,7 +1195,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.stomach ?? ''}
+                              value={editingMeasurement?.stomach ?? ''}
                               onChange={(e) => handleInputChange('stomach', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1186,7 +1203,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.pelvis ?? ''}
+                              value={editingMeasurement?.pelvis ?? ''}
                               onChange={(e) => handleInputChange('pelvis', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1194,7 +1211,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.biceps_right ?? ''}
+                              value={editingMeasurement?.biceps_right ?? ''}
                               onChange={(e) => handleInputChange('biceps_right', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1202,7 +1219,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.biceps_left ?? ''}
+                              value={editingMeasurement?.biceps_left ?? ''}
                               onChange={(e) => handleInputChange('biceps_left', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1210,7 +1227,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.wrist_right ?? ''}
+                              value={editingMeasurement?.wrist_right ?? ''}
                               onChange={(e) => handleInputChange('wrist_right', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1218,7 +1235,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.wrist_left ?? ''}
+                              value={editingMeasurement?.wrist_left ?? ''}
                               onChange={(e) => handleInputChange('wrist_left', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1226,7 +1243,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.thigh_right ?? ''}
+                              value={editingMeasurement?.thigh_right ?? ''}
                               onChange={(e) => handleInputChange('thigh_right', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1234,7 +1251,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.thigh_left ?? ''}
+                              value={editingMeasurement?.thigh_left ?? ''}
                               onChange={(e) => handleInputChange('thigh_left', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1242,7 +1259,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.calf_right ?? ''}
+                              value={editingMeasurement?.calf_right ?? ''}
                               onChange={(e) => handleInputChange('calf_right', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1250,7 +1267,7 @@ export function AchievementsView() {
                           <td className="py-2 px-3 text-sm text-gray-700">
                             <input
                               type="number"
-                              value={editValues?.calf_left ?? ''}
+                              value={editingMeasurement?.calf_left ?? ''}
                               onChange={(e) => handleInputChange('calf_left', e.target.value)}
                               className="w-full p-1 border rounded"
                             />
@@ -1398,79 +1415,8 @@ export function AchievementsView() {
 
   const renderNutritionTab = () => (
     <div className="space-y-6 pb-4">
-      {nutritionStats && nutritionStats.entriesCount > 0 ? (
-        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-          <div className="flex items-center mb-4">
-            <LineChart className="w-5 h-5 text-gray-500 mr-2" />
-            <h3 className="font-semibold">Питание</h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-orange-500">{nutritionStats.entriesCount}</div>
-              <div className="text-sm text-gray-600">Записей о питании</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-red-500">{nutritionStats.averageProteins.toFixed(0)} г</div>
-              <div className="text-sm text-gray-600">Среднее белков</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-yellow-500">{nutritionStats.averageFats.toFixed(0)} г</div>
-              <div className="text-sm text-gray-600">Среднее жиров</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-500">{nutritionStats.averageCarbs.toFixed(0)} г</div>
-              <div className="text-sm text-gray-600">Средние углеводы</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-purple-500">{nutritionStats.averageCalories.toFixed(0)} ккал</div>
-              <div className="text-sm text-gray-600">Средние калории</div>
-            </div>
-          </div>
-          
-          <div className="mt-6">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Распределение макронутриентов</h4>
-            <div className="w-full h-6 bg-gray-200 rounded-full overflow-hidden flex">
-              <div 
-                className="bg-red-500 h-full" 
-                style={{ width: `${nutritionStats.averageProteins * 4 / (nutritionStats.averageProteins * 4 + nutritionStats.averageFats * 9 + nutritionStats.averageCarbs * 4) * 100}%` }}
-              ></div>
-              <div 
-                className="bg-yellow-500 h-full" 
-                style={{ width: `${nutritionStats.averageFats * 9 / (nutritionStats.averageProteins * 4 + nutritionStats.averageFats * 9 + nutritionStats.averageCarbs * 4) * 100}%` }}
-              ></div>
-              <div 
-                className="bg-green-500 h-full" 
-                style={{ width: `${nutritionStats.averageCarbs * 4 / (nutritionStats.averageProteins * 4 + nutritionStats.averageFats * 9 + nutritionStats.averageCarbs * 4) * 100}%` }}
-              ></div>
-            </div>
-            <div className="flex justify-between mt-2 text-xs">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
-                <span>Белки</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-1"></div>
-                <span>Жиры</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
-                <span>Углеводы</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-gray-50 rounded-lg p-6 text-center">
-          <LineChart className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">Нет данных о питании</p>
-          <button
-            onClick={() => navigate('/client/nutrition/new')}
-            className="flex flex-col items-center gap-2 w-1/4 p-3"
-          >
-            Добавить запись о питании
-          </button>
-        </div>
+      {clientData && clientData.id && (
+        <NutritionStatsView clientId={clientData.id} />
       )}
     </div>
   );
@@ -1486,7 +1432,7 @@ export function AchievementsView() {
   );
 
   const renderTabContent = () => {
-    switch (activeTab) {
+    switch (currentTab) {
       case 'overview':
         return renderOverviewTab();
       case 'workouts':
@@ -1568,9 +1514,9 @@ export function AchievementsView() {
             <div className="mb-6 overflow-x-auto scrollbar-hide">
               <div className="flex min-w-max border-b">
                 <button
-                  onClick={() => setActiveTab('overview')}
+                  onClick={() => setCurrentTab('overview')}
                   className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                    activeTab === 'overview'
+                    currentTab === 'overview'
                       ? 'text-orange-500 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
@@ -1578,9 +1524,9 @@ export function AchievementsView() {
                   Обзор
                 </button>
                 <button
-                  onClick={() => setActiveTab('workouts')}
+                  onClick={() => setCurrentTab('workouts')}
                   className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                    activeTab === 'workouts'
+                    currentTab === 'workouts'
                       ? 'text-orange-500 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
@@ -1588,9 +1534,9 @@ export function AchievementsView() {
                   Тренировки
                 </button>
                 <button
-                  onClick={() => setActiveTab('measurements')}
+                  onClick={() => setCurrentTab('measurements')}
                   className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                    activeTab === 'measurements'
+                    currentTab === 'measurements'
                       ? 'text-orange-500 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
@@ -1598,9 +1544,9 @@ export function AchievementsView() {
                   Замеры
                 </button>
                 <button
-                  onClick={() => setActiveTab('activity')}
+                  onClick={() => setCurrentTab('activity')}
                   className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                    activeTab === 'activity'
+                    currentTab === 'activity'
                       ? 'text-orange-500 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
@@ -1608,9 +1554,9 @@ export function AchievementsView() {
                   Активность
                 </button>
                 <button
-                  onClick={() => setActiveTab('nutrition')}
+                  onClick={() => setCurrentTab('nutrition')}
                   className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                    activeTab === 'nutrition'
+                    currentTab === 'nutrition'
                       ? 'text-orange-500 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
@@ -1618,9 +1564,9 @@ export function AchievementsView() {
                   Питание
                 </button>
                 <button
-                  onClick={() => setActiveTab('bodyComposition')}
+                  onClick={() => setCurrentTab('bodyComposition')}
                   className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                    activeTab === 'bodyComposition'
+                    currentTab === 'bodyComposition'
                       ? 'text-orange-500 border-b-2 border-orange-500'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}

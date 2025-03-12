@@ -18,6 +18,7 @@ import { ExercisesView } from './components/ExercisesView';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ActivityForm } from './components/ActivityForm';
 import { AchievementsView } from './components/AchievementsView';
+import { NutritionStatsView } from './components/NutritionStatsView';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -165,6 +166,11 @@ function App() {
         <Route path="/client/achievements" element={
           <ProtectedRoute allowedRole="client">
             <AchievementsView />
+          </ProtectedRoute>
+        } />
+        <Route path="/client/nutrition-stats" element={
+          <ProtectedRoute allowedRole="client">
+            <AchievementsView activeTab="nutrition" />
           </ProtectedRoute>
         } />
 
