@@ -39,9 +39,10 @@ export const formatPercent = (value: number): string => {
   return `${value.toFixed(1)}%`;
 };
 
-// Форматирование числа с разделителями тысяч
+// Форматирование числа (без разделителей тысяч)
 export const formatNumber = (num: number): string => {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  // Возвращаем число без разделителей тысяч
+  return num.toString();
 };
 
 // Получение разницы между датами в днях

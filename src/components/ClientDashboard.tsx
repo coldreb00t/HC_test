@@ -643,7 +643,7 @@ export function ClientDashboard() {
         title: 'Объем нагрузки',
         description: 'Общий объем нагрузки',
         icon: <Dumbbell className="w-6 h-6" />,
-        value: `${stats.workouts.totalVolume.toLocaleString()} кг`,
+        value: `${stats.workouts.totalVolume} кг`,
         color: 'bg-blue-500',
         bgImage: '/images/achievements/volume.jpg',
         motivationalPhrase: 'Каждый килограмм приближает тебя к цели!',
