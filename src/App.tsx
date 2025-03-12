@@ -82,7 +82,14 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: {
+            marginTop: '15vh', // Добавляем отступ сверху на 15% высоты экрана
+          },
+        }}
+      />
       <Routes>
         {/* Public routes */}
         <Route 
