@@ -60,19 +60,82 @@ export function ShareAchievementModal({
   const [captureComplete, setCaptureComplete] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [windowHeight, setWindowHeight] = useState(window.innerHeight);
   
   const achievementCardRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const prevDimensionsRef = useRef({ width: 0, height: 0 });
+  const generateImageRef = useRef(false);
+  const prevIsOpenRef = useRef(false);
 
   // Расчет прогресса до следующего зверя
   const progress = totalVolume > 0 && nextBeastThreshold > 0 
     ? Math.min(100, (totalVolume / nextBeastThreshold) * 100) 
     : 0;
 
-  // Фиксируем размеры карточки
-  const cardWidth = 320;
-  const cardHeight = 570;
+  // Адаптивные размеры карточки в зависимости от высоты экрана
+  const getCardDimensions = () => {
+    // Базовые размеры
+    const baseWidth = 320;
+    const baseHeight = 570;
+    
+    // Доступная высота (с учетом отступов и заголовка)
+    const availableHeight = windowHeight - 180; // Отступы + заголовок + кнопки
+    
+    // Если доступная высота меньше базовой высоты карточки
+    if (availableHeight < baseHeight) {
+      // Вычисляем коэффициент масштабирования
+      const scale = Math.max(0.6, availableHeight / baseHeight); // Минимум 60% от оригинала
+      
+      return {
+        width: Math.floor(baseWidth * scale),
+        height: Math.floor(baseHeight * scale)
+      };
+    }
+    
+    // Возвращаем базовые размеры, если экран достаточно большой
+    return { width: baseWidth, height: baseHeight };
+  };
+  
+  // Мемоизируем размеры карточки, чтобы они не пересчитывались при каждом рендере
+  const cardDimensions = React.useMemo(() => getCardDimensions(), [windowHeight]);
+  const cardWidth = cardDimensions.width;
+  const cardHeight = cardDimensions.height;
+
+  // Отслеживаем изменение размера окна
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowHeight(window.innerHeight);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Перегенерируем изображение при изменении размеров карточки
+  useEffect(() => {
+    // Функция для проверки и генерации изображения
+    const checkAndGenerateImage = () => {
+      if (isOpen && !loading && (cardWidth > 0 && cardHeight > 0)) {
+        // Проверяем, изменились ли размеры
+        if (prevDimensionsRef.current.width !== cardWidth || 
+            prevDimensionsRef.current.height !== cardHeight) {
+          // Обновляем предыдущие размеры
+          prevDimensionsRef.current = { width: cardWidth, height: cardHeight };
+          // Если модальное окно открыто и размеры изменились, перегенерируем изображение
+          console.log("Размеры карточки изменились, перегенерируем изображение");
+          generateImageRef.current = true;
+        }
+      }
+    };
+    
+    // Используем setTimeout, чтобы избежать бесконечных перерисовок
+    const timeoutId = setTimeout(checkAndGenerateImage, 100);
+    
+    // Очищаем таймаут при размонтировании компонента или изменении зависимостей
+    return () => clearTimeout(timeoutId);
+  }, [cardWidth, cardHeight, isOpen, loading]);
 
   // Проверяем поддержку нативного шаринга
   useEffect(() => {
@@ -83,43 +146,6 @@ export function ShareAchievementModal({
     );
   }, []);
 
-  // Загружаем изображение зверя при открытии модального окна
-  useEffect(() => {
-    if (isOpen) {
-      console.log("Модальное окно открыто, тип достижения:", isBeast ? "зверь" : "обычное");
-      console.log("Параметры достижения:", {
-        beastName,
-        totalVolume,
-        weightPhrase,
-        displayValue,
-        unit
-      });
-      
-      setLoading(true);
-
-      if (isBeast && beastImage) {
-      const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          // Генерируем изображение сразу после загрузки фона
-          generateShareImage();
-        };
-        img.onerror = () => {
-          console.error('Ошибка загрузки изображения зверя');
-          // Все равно пытаемся сгенерировать, но с градиентным фоном
-          generateShareImage();
-        };
-        img.src = beastImage;
-      } else {
-        // Для обычных достижений не нужно ждать загрузки изображения
-        // Запускаем генерацию с небольшой задержкой
-        setTimeout(() => {
-          generateShareImage();
-        }, 100);
-      }
-    }
-  }, [isOpen, beastImage, isBeast]);
-
   // Функция рисования на canvas для обычных достижений (не зверей)
   const drawRegularAchievementCard = async (canvas: HTMLCanvasElement): Promise<boolean> => {
     const ctx = canvas.getContext('2d');
@@ -127,10 +153,11 @@ export function ShareAchievementModal({
     
     console.log("Начинаем отрисовку карточки ОБЫЧНОГО достижения в стиле слайдера");
     
-    // Устанавливаем размеры canvas
-    canvas.width = cardWidth * 2;
-    canvas.height = cardHeight * 2;
-    ctx.scale(2, 2);
+    // Устанавливаем размеры canvas с учетом масштабирования для высокого DPI
+    const scale = 2; // Масштаб для высокого DPI
+    canvas.width = cardWidth * scale;
+    canvas.height = cardHeight * scale;
+    ctx.scale(scale, scale);
     
     try {
       // Сначала рисуем фоновое изображение или используем градиент
@@ -503,10 +530,11 @@ export function ShareAchievementModal({
       const ctx = canvas.getContext('2d');
       if (!ctx) return false;
       
-      // Устанавливаем размеры canvas
-      canvas.width = cardWidth * 2; // Увеличиваем разрешение в 2 раза для более четкого изображения
-      canvas.height = cardHeight * 2;
-      ctx.scale(2, 2); // Масштабируем контекст
+      // Устанавливаем размеры canvas с учетом масштабирования для высокого DPI
+      const scale = 2; // Масштаб для высокого DPI
+      canvas.width = cardWidth * scale;
+      canvas.height = cardHeight * scale;
+      ctx.scale(scale, scale);
       
       // Очищаем canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -716,10 +744,16 @@ export function ShareAchievementModal({
     }
   };
 
-  // Генерация изображения
-  const generateShareImage = async () => {
+  // Мемоизируем функцию generateShareImage, чтобы она не пересоздавалась при каждом рендере
+  const memoizedGenerateShareImage = React.useCallback(async () => {
     if (!canvasRef.current) {
       console.error("Canvas не найден");
+      return;
+    }
+    
+    // Если уже идет загрузка, не запускаем повторно
+    if (loading) {
+      console.log("Генерация изображения уже идет, пропускаем повторный запуск");
       return;
     }
     
@@ -744,9 +778,9 @@ export function ShareAchievementModal({
       }
       
       // Очищаем предыдущий URL, если он существует
-            if (imageUrlId) {
-              URL.revokeObjectURL(imageUrlId);
-            }
+      if (imageUrlId) {
+        URL.revokeObjectURL(imageUrlId);
+      }
       
       // Конвертируем dataUrl в Blob для более надежного шаринга
       const response = await fetch(dataUrl);
@@ -759,8 +793,8 @@ export function ShareAchievementModal({
         throw new Error('Изображение получилось слишком маленьким');
       }
       
-            const newImageUrl = URL.createObjectURL(blob);
-            setShareableImage(newImageUrl);
+      const newImageUrl = URL.createObjectURL(blob);
+      setShareableImage(newImageUrl);
       setImageUrlId(newImageUrl);
       console.log('Сгенерировано изображение для шаринга:', newImageUrl);
     } catch (error) {
@@ -769,7 +803,82 @@ export function ShareAchievementModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, imageUrlId]);
+
+  // Перегенерируем изображение при изменении размеров карточки
+  useEffect(() => {
+    // Функция для проверки и генерации изображения
+    const checkAndGenerateImage = () => {
+      if (isOpen && !loading && (cardWidth > 0 && cardHeight > 0)) {
+        // Проверяем, изменились ли размеры
+        if (prevDimensionsRef.current.width !== cardWidth || 
+            prevDimensionsRef.current.height !== cardHeight) {
+          // Обновляем предыдущие размеры
+          prevDimensionsRef.current = { width: cardWidth, height: cardHeight };
+          // Если модальное окно открыто и размеры изменились, перегенерируем изображение
+          console.log("Размеры карточки изменились, перегенерируем изображение");
+          memoizedGenerateShareImage();
+        }
+      }
+    };
+    
+    // Используем setTimeout, чтобы избежать бесконечных перерисовок
+    const timeoutId = setTimeout(checkAndGenerateImage, 100);
+    
+    // Очищаем таймаут при размонтировании компонента или изменении зависимостей
+    return () => clearTimeout(timeoutId);
+  }, [cardWidth, cardHeight, isOpen, loading, memoizedGenerateShareImage]);
+
+  // Загружаем изображение зверя при открытии модального окна
+  useEffect(() => {
+    // Проверяем, изменилось ли состояние isOpen с false на true
+    if (isOpen && !prevIsOpenRef.current) {
+      console.log("Модальное окно открыто, тип достижения:", isBeast ? "зверь" : "обычное");
+      console.log("Параметры достижения:", {
+        beastName,
+        totalVolume,
+        weightPhrase,
+        displayValue,
+        unit
+      });
+      
+      setLoading(true);
+
+      if (isBeast && beastImage) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          // Генерируем изображение сразу после загрузки фона
+          memoizedGenerateShareImage();
+        };
+        img.onerror = () => {
+          console.error('Ошибка загрузки изображения зверя');
+          // Все равно пытаемся сгенерировать, но с градиентным фоном
+          memoizedGenerateShareImage();
+        };
+        img.src = beastImage;
+      } else {
+        // Для обычных достижений не нужно ждать загрузки изображения
+        // Запускаем генерацию с небольшой задержкой
+        setTimeout(() => {
+          memoizedGenerateShareImage();
+        }, 100);
+      }
+    }
+    
+    // Обновляем ref для следующего рендера
+    prevIsOpenRef.current = isOpen;
+    
+    // Очищаем ресурсы при закрытии модального окна
+    if (!isOpen && prevIsOpenRef.current) {
+      // Если есть URL изображения, освобождаем его
+      if (imageUrlId) {
+        URL.revokeObjectURL(imageUrlId);
+        setImageUrlId(null);
+        setShareableImage(null);
+      }
+    }
+  }, [isOpen, beastImage, isBeast, memoizedGenerateShareImage, imageUrlId]);
 
   const handleCopyImage = async () => {
     if (!shareableImage) return false;
@@ -992,23 +1101,59 @@ export function ShareAchievementModal({
 
   if (!isOpen) return null;
 
+  // Определяем дополнительные классы в зависимости от размера экрана
+  const getModalClasses = () => {
+    // Для очень маленьких экранов (высота < 600px)
+    if (windowHeight < 600) {
+      return {
+        container: "fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-2 py-2 overflow-hidden",
+        modal: "bg-gray-900 rounded-xl max-w-md w-full p-3 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh]",
+        title: "text-base font-bold text-white mb-2 text-center",
+        buttonsContainer: "mt-2 space-y-1",
+        helpText: "text-gray-500 text-xs mt-1"
+      };
+    }
+    
+    // Для средних экранов (высота 600-800px)
+    if (windowHeight < 800) {
+      return {
+        container: "fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-3 py-3 overflow-hidden",
+        modal: "bg-gray-900 rounded-xl max-w-md w-full p-4 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh]",
+        title: "text-lg font-bold text-white mb-3 text-center",
+        buttonsContainer: "mt-3 space-y-2",
+        helpText: "text-gray-500 text-xs mt-1"
+      };
+    }
+    
+    // Для больших экранов (высота > 800px)
+    return {
+      container: "fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4 py-4 overflow-hidden",
+      modal: "bg-gray-900 rounded-xl max-w-md w-full p-5 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh]",
+      title: "text-xl font-bold text-white mb-4 text-center",
+      buttonsContainer: "mt-4 space-y-3",
+      helpText: "text-gray-500 text-sm mt-2"
+    };
+  };
+  
+  const classes = getModalClasses();
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
-      <div className="bg-gray-900 rounded-xl max-w-md w-full p-5 mx-auto relative border border-gray-800 shadow-2xl">
+    <div className={classes.container}>
+      <div className={classes.modal}>
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-800"
+          className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-800 z-10"
           aria-label="Закрыть"
           title="Закрыть"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-5 text-center">
+        <h2 className={classes.title}>
           {isBeast ? `Зверь ${beastName}` : 'Достижение'}
         </h2>
 
-        <div className="text-center">
+        <div className="text-center flex-shrink-0">
           <div className="beast-card-container relative group" ref={achievementCardRef} style={inlineStyles.cardContainer}>
             <canvas ref={canvasRef} style={inlineStyles.canvas} />
             {!loading && shareableImage && (
@@ -1046,33 +1191,33 @@ export function ShareAchievementModal({
           )}
 
           {!loading && shareableImage && (
-            <div className="mt-6 space-y-4">
+            <div className={classes.buttonsContainer}>
               <div className="flex justify-center gap-4">
                 {canNativeShare && (
                   <button
                     onClick={handleNativeShare}
-                    className="flex items-center justify-center p-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105 shadow-md"
+                    className="flex items-center justify-center p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105 shadow-md"
                     aria-label="Поделиться"
                     title="Поделиться"
                   >
-                    <Share className="w-7 h-7" />
+                    <Share className="w-6 h-6" />
                   </button>
                 )}
                 
                 <button
                   onClick={handleDownload}
-                  className="flex items-center justify-center p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 shadow-md"
+                  className="flex items-center justify-center p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 shadow-md"
                   aria-label="Скачать"
                   title="Скачать"
                 >
-                  <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                   </svg>
                 </button>
               </div>
               
-              <div className="text-center mt-2">
-                <p className="text-gray-500 text-sm">Нажмите на иконку, чтобы сохранить изображение</p>
+              <div className="text-center">
+                <p className={classes.helpText}>Нажмите на иконку, чтобы сохранить изображение</p>
               </div>
             </div>
           )}
