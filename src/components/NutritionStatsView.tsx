@@ -294,11 +294,15 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
     }> = {};
     
     nutritionStats.dailyEntries.forEach(entry => {
-      // Стандартизируем формат даты для сравнения
-      const entryDate = entry.date;
+      // Нормализуем дату для корректного сравнения
+      // Вытягиваем только YYYY-MM-DD часть из строки даты
+      const rawDate = entry.date;
+      const normalizedDate = rawDate.split('T')[0];
       
-      if (!entriesByDate[entryDate]) {
-        entriesByDate[entryDate] = {
+      console.log(`Нормализация даты питания: ${rawDate} -> ${normalizedDate}`);
+      
+      if (!entriesByDate[normalizedDate]) {
+        entriesByDate[normalizedDate] = {
           proteins: 0,
           fats: 0,
           carbs: 0,
@@ -306,10 +310,10 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
         };
       }
       
-      entriesByDate[entryDate].proteins += entry.proteins;
-      entriesByDate[entryDate].fats += entry.fats;
-      entriesByDate[entryDate].carbs += entry.carbs;
-      entriesByDate[entryDate].calories += entry.calories;
+      entriesByDate[normalizedDate].proteins += entry.proteins;
+      entriesByDate[normalizedDate].fats += entry.fats;
+      entriesByDate[normalizedDate].carbs += entry.carbs;
+      entriesByDate[normalizedDate].calories += entry.calories;
     });
     
     // Теперь анализируем по дням
@@ -318,7 +322,7 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
     
     Object.entries(entriesByDate).forEach(([date, values]) => {
       const hasWorkout = nutritionStats.workoutDays.includes(date);
-      console.log(`Дата ${date}: ${hasWorkout ? 'С тренировкой' : 'Без тренировки'}`);
+      console.log(`Сравнение дат: ${date} с тренировками ${nutritionStats.workoutDays.join(', ')} - ${hasWorkout ? 'С тренировкой' : 'Без тренировки'}`);
       
       if (hasWorkout) {
         daysWithWorkout.push(values.calories);
@@ -335,6 +339,8 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
       ? daysWithoutWorkout.reduce((sum, calories) => sum + calories, 0) / daysWithoutWorkout.length 
       : 0;
     
+    console.log('Дни с тренировками:', daysWithWorkout);
+    console.log('Дни без тренировок:', daysWithoutWorkout);
     console.log('Среднее калорий в дни с тренировками:', avgCaloriesWithWorkout);
     console.log('Среднее калорий в дни без тренировок:', avgCaloriesWithoutWorkout);
 
@@ -1025,30 +1031,72 @@ export const NutritionStatsView: React.FC<NutritionStatsViewProps> = ({ clientId
                       data={[
                         {
                           name: 'Белки',
-                          withWorkout: nutritionStats.dailyEntries.filter(e => nutritionStats.workoutDays.includes(e.date))
+                          withWorkout: nutritionStats.dailyEntries.filter(e => {
+                            // Нормализуем дату питания для сравнения с датами тренировок
+                            const normalizedDate = e.date.split('T')[0];
+                            return nutritionStats.workoutDays.includes(normalizedDate);
+                          })
                             .reduce((sum, e) => sum + e.proteins, 0) / 
-                            Math.max(1, nutritionStats.dailyEntries.filter(e => nutritionStats.workoutDays.includes(e.date)).length),
-                          withoutWorkout: nutritionStats.dailyEntries.filter(e => !nutritionStats.workoutDays.includes(e.date))
+                            Math.max(1, nutritionStats.dailyEntries.filter(e => {
+                              const normalizedDate = e.date.split('T')[0];
+                              return nutritionStats.workoutDays.includes(normalizedDate);
+                            }).length),
+                          withoutWorkout: nutritionStats.dailyEntries.filter(e => {
+                            // Нормализуем дату питания для сравнения с датами тренировок
+                            const normalizedDate = e.date.split('T')[0];
+                            return !nutritionStats.workoutDays.includes(normalizedDate);
+                          })
                             .reduce((sum, e) => sum + e.proteins, 0) / 
-                            Math.max(1, nutritionStats.dailyEntries.filter(e => !nutritionStats.workoutDays.includes(e.date)).length),
+                            Math.max(1, nutritionStats.dailyEntries.filter(e => {
+                              const normalizedDate = e.date.split('T')[0];
+                              return !nutritionStats.workoutDays.includes(normalizedDate);
+                            }).length),
                         },
                         {
                           name: 'Жиры',
-                          withWorkout: nutritionStats.dailyEntries.filter(e => nutritionStats.workoutDays.includes(e.date))
+                          withWorkout: nutritionStats.dailyEntries.filter(e => {
+                            // Нормализуем дату питания для сравнения с датами тренировок
+                            const normalizedDate = e.date.split('T')[0];
+                            return nutritionStats.workoutDays.includes(normalizedDate);
+                          })
                             .reduce((sum, e) => sum + e.fats, 0) / 
-                            Math.max(1, nutritionStats.dailyEntries.filter(e => nutritionStats.workoutDays.includes(e.date)).length),
-                          withoutWorkout: nutritionStats.dailyEntries.filter(e => !nutritionStats.workoutDays.includes(e.date))
+                            Math.max(1, nutritionStats.dailyEntries.filter(e => {
+                              const normalizedDate = e.date.split('T')[0];
+                              return nutritionStats.workoutDays.includes(normalizedDate);
+                            }).length),
+                          withoutWorkout: nutritionStats.dailyEntries.filter(e => {
+                            // Нормализуем дату питания для сравнения с датами тренировок
+                            const normalizedDate = e.date.split('T')[0];
+                            return !nutritionStats.workoutDays.includes(normalizedDate);
+                          })
                             .reduce((sum, e) => sum + e.fats, 0) / 
-                            Math.max(1, nutritionStats.dailyEntries.filter(e => !nutritionStats.workoutDays.includes(e.date)).length),
+                            Math.max(1, nutritionStats.dailyEntries.filter(e => {
+                              const normalizedDate = e.date.split('T')[0];
+                              return !nutritionStats.workoutDays.includes(normalizedDate);
+                            }).length),
                         },
                         {
                           name: 'Углеводы',
-                          withWorkout: nutritionStats.dailyEntries.filter(e => nutritionStats.workoutDays.includes(e.date))
+                          withWorkout: nutritionStats.dailyEntries.filter(e => {
+                            // Нормализуем дату питания для сравнения с датами тренировок
+                            const normalizedDate = e.date.split('T')[0];
+                            return nutritionStats.workoutDays.includes(normalizedDate);
+                          })
                             .reduce((sum, e) => sum + e.carbs, 0) / 
-                            Math.max(1, nutritionStats.dailyEntries.filter(e => nutritionStats.workoutDays.includes(e.date)).length),
-                          withoutWorkout: nutritionStats.dailyEntries.filter(e => !nutritionStats.workoutDays.includes(e.date))
+                            Math.max(1, nutritionStats.dailyEntries.filter(e => {
+                              const normalizedDate = e.date.split('T')[0];
+                              return nutritionStats.workoutDays.includes(normalizedDate);
+                            }).length),
+                          withoutWorkout: nutritionStats.dailyEntries.filter(e => {
+                            // Нормализуем дату питания для сравнения с датами тренировок
+                            const normalizedDate = e.date.split('T')[0];
+                            return !nutritionStats.workoutDays.includes(normalizedDate);
+                          })
                             .reduce((sum, e) => sum + e.carbs, 0) / 
-                            Math.max(1, nutritionStats.dailyEntries.filter(e => !nutritionStats.workoutDays.includes(e.date)).length),
+                            Math.max(1, nutritionStats.dailyEntries.filter(e => {
+                              const normalizedDate = e.date.split('T')[0];
+                              return !nutritionStats.workoutDays.includes(normalizedDate);
+                            }).length),
                         }
                       ]}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
