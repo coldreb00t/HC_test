@@ -703,24 +703,27 @@ export function NutritionView() {
     return 'text-red-500';
   };
 
-  // Функция для стилизации прогресс-бара
-  const getProgressBarStyle = (actual: number, target: number): React.CSSProperties => {
+  // Обновляем функцию для стилизации прогресс-бара с фиксированными цветами для каждого нутриента
+  const getProgressBarStyle = (actual: number, target: number, nutrientType: 'proteins' | 'fats' | 'carbs' | 'calories'): React.CSSProperties => {
     const percentage = getPercentage(actual, target);
     
-    // Определяем цвет в зависимости от процента выполнения
-    let color = '';
-    if (percentage === 0) {
-      color = '#e5e7eb'; // Светло-серый
-    } else if (percentage < 70) {
-      color = '#ef4444'; // Красный
-    } else if (percentage <= 90) {
-      color = '#d97706'; // Желтый
-    } else if (percentage <= 110) {
-      color = '#10b981'; // Зеленый
-    } else if (percentage <= 130) {
-      color = '#d97706'; // Желтый
-    } else {
-      color = '#ef4444'; // Красный
+    // Определяем фиксированный цвет для каждого типа нутриента
+    let color;
+    switch (nutrientType) {
+      case 'proteins':
+        color = '#10b981'; // Зеленый для белков
+        break;
+      case 'fats':
+        color = '#f59e0b'; // Желтый для жиров
+        break;
+      case 'carbs':
+        color = '#3b82f6'; // Синий для углеводов
+        break;
+      case 'calories':
+        color = '#8b5cf6'; // Лиловый для калорий
+        break;
+      default:
+        color = '#9ca3af'; // Серый по умолчанию
     }
     
     // Ограничиваем ширину максимум 200%
@@ -732,22 +735,26 @@ export function NutritionView() {
     };
   };
 
-  // Функция для стилизации бейджа с процентом
-  const getNutrientStyle = (actual: number, target: number): React.CSSProperties => {
+  // Обновляем функцию для стилизации бейджа с процентом для соответствия цветам нутриентов
+  const getNutrientStyle = (actual: number, target: number, nutrientType: 'proteins' | 'fats' | 'carbs' | 'calories'): React.CSSProperties => {
     const percentage = getPercentage(actual, target);
     
     if (percentage === 0) {
-      return { backgroundColor: '#f3f4f6', color: '#9ca3af' }; // Серый
-    } else if (percentage < 70) {
-      return { backgroundColor: '#fee2e2', color: '#ef4444' }; // Красный
-    } else if (percentage <= 90) {
-      return { backgroundColor: '#fef3c7', color: '#d97706' }; // Желтый
-    } else if (percentage <= 110) {
-      return { backgroundColor: '#d1fae5', color: '#10b981' }; // Зеленый
-    } else if (percentage <= 130) {
-      return { backgroundColor: '#fef3c7', color: '#d97706' }; // Желтый
-    } else {
-      return { backgroundColor: '#fee2e2', color: '#ef4444' }; // Красный
+      return { backgroundColor: '#f3f4f6', color: '#9ca3af' }; // Серый для нулевых значений
+    }
+    
+    // Определяем цвет в зависимости от типа нутриента
+    switch (nutrientType) {
+      case 'proteins':
+        return { backgroundColor: '#d1fae5', color: '#059669' }; // Зеленый для белков
+      case 'fats':
+        return { backgroundColor: '#fef3c7', color: '#d97706' }; // Желтый для жиров
+      case 'carbs':
+        return { backgroundColor: '#dbeafe', color: '#2563eb' }; // Синий для углеводов
+      case 'calories':
+        return { backgroundColor: '#ede9fe', color: '#7c3aed' }; // Лиловый для калорий
+      default:
+        return { backgroundColor: '#f3f4f6', color: '#9ca3af' }; // Серый по умолчанию
     }
   };
 
@@ -963,13 +970,13 @@ export function NutritionView() {
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-sm font-medium">Белки</span>
                               <div className="flex items-center text-sm">
-                                <span className={`${getTextColor(dayGroup.totals.proteins, nutritionNorms.proteins)} font-medium`}>
+                                <span className={`text-emerald-600 font-medium`}>
                                   {dayGroup.totals.proteins}г
                                 </span>
                                 <span className="mx-1 text-gray-400">/</span>
                                 <span className="text-gray-500">{nutritionNorms.proteins}г</span>
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md font-medium bg-opacity-20 whitespace-nowrap" 
-                                      style={getNutrientStyle(dayGroup.totals.proteins, nutritionNorms.proteins)}>
+                                      style={getNutrientStyle(dayGroup.totals.proteins, nutritionNorms.proteins, 'proteins')}>
                                   {getPercentage(dayGroup.totals.proteins, nutritionNorms.proteins)}%
                                 </span>
                               </div>
@@ -980,7 +987,7 @@ export function NutritionView() {
                               
                               {/* Заполнение */}
                               <div className="absolute top-0 left-0 h-full transition-all rounded-r-none rounded-l-full" 
-                                  style={getProgressBarStyle(dayGroup.totals.proteins, nutritionNorms.proteins)}>
+                                  style={getProgressBarStyle(dayGroup.totals.proteins, nutritionNorms.proteins, 'proteins')}>
                               </div>
                             </div>
                           </div>
@@ -990,13 +997,13 @@ export function NutritionView() {
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-sm font-medium">Жиры</span>
                               <div className="flex items-center text-sm">
-                                <span className={`${getTextColor(dayGroup.totals.fats, nutritionNorms.fats)} font-medium`}>
+                                <span className={`text-amber-600 font-medium`}>
                                   {dayGroup.totals.fats}г
                                 </span>
                                 <span className="mx-1 text-gray-400">/</span>
                                 <span className="text-gray-500">{nutritionNorms.fats}г</span>
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md font-medium bg-opacity-20 whitespace-nowrap" 
-                                      style={getNutrientStyle(dayGroup.totals.fats, nutritionNorms.fats)}>
+                                      style={getNutrientStyle(dayGroup.totals.fats, nutritionNorms.fats, 'fats')}>
                                   {getPercentage(dayGroup.totals.fats, nutritionNorms.fats)}%
                                 </span>
                               </div>
@@ -1007,7 +1014,7 @@ export function NutritionView() {
                               
                               {/* Заполнение */}
                               <div className="absolute top-0 left-0 h-full transition-all rounded-r-none rounded-l-full" 
-                                  style={getProgressBarStyle(dayGroup.totals.fats, nutritionNorms.fats)}>
+                                  style={getProgressBarStyle(dayGroup.totals.fats, nutritionNorms.fats, 'fats')}>
                               </div>
                             </div>
                           </div>
@@ -1017,13 +1024,13 @@ export function NutritionView() {
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-sm font-medium">Углеводы</span>
                               <div className="flex items-center text-sm">
-                                <span className={`${getTextColor(dayGroup.totals.carbs, nutritionNorms.carbs)} font-medium`}>
+                                <span className={`text-blue-600 font-medium`}>
                                   {dayGroup.totals.carbs}г
                                 </span>
                                 <span className="mx-1 text-gray-400">/</span>
                                 <span className="text-gray-500">{nutritionNorms.carbs}г</span>
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md font-medium bg-opacity-20 whitespace-nowrap" 
-                                      style={getNutrientStyle(dayGroup.totals.carbs, nutritionNorms.carbs)}>
+                                      style={getNutrientStyle(dayGroup.totals.carbs, nutritionNorms.carbs, 'carbs')}>
                                   {getPercentage(dayGroup.totals.carbs, nutritionNorms.carbs)}%
                                 </span>
                               </div>
@@ -1034,7 +1041,7 @@ export function NutritionView() {
                               
                               {/* Заполнение */}
                               <div className="absolute top-0 left-0 h-full transition-all rounded-r-none rounded-l-full" 
-                                  style={getProgressBarStyle(dayGroup.totals.carbs, nutritionNorms.carbs)}>
+                                  style={getProgressBarStyle(dayGroup.totals.carbs, nutritionNorms.carbs, 'carbs')}>
                               </div>
                             </div>
                           </div>
@@ -1044,13 +1051,13 @@ export function NutritionView() {
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-sm font-medium">Калории</span>
                               <div className="flex items-center text-sm">
-                                <span className={`${getTextColor(dayGroup.totals.calories, nutritionNorms.calories)} font-medium`}>
+                                <span className={`text-purple-600 font-medium`}>
                                   {dayGroup.totals.calories}ккал
                                 </span>
                                 <span className="mx-1 text-gray-400">/</span>
                                 <span className="text-gray-500">{nutritionNorms.calories}ккал</span>
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded-md font-medium bg-opacity-20 whitespace-nowrap" 
-                                      style={getNutrientStyle(dayGroup.totals.calories, nutritionNorms.calories)}>
+                                      style={getNutrientStyle(dayGroup.totals.calories, nutritionNorms.calories, 'calories')}>
                                   {getPercentage(dayGroup.totals.calories, nutritionNorms.calories)}%
                                 </span>
                               </div>
@@ -1061,7 +1068,7 @@ export function NutritionView() {
                               
                               {/* Заполнение */}
                               <div className="absolute top-0 left-0 h-full transition-all rounded-r-none rounded-l-full" 
-                                  style={getProgressBarStyle(dayGroup.totals.calories, nutritionNorms.calories)}>
+                                  style={getProgressBarStyle(dayGroup.totals.calories, nutritionNorms.calories, 'calories')}>
                               </div>
                             </div>
                           </div>
