@@ -838,22 +838,30 @@ export function ShareAchievementModal({
       // Формируем текст для Stories
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
       
-      // Используем универсальную ссылку на Telegram
-      const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(text)}`;
+      // Используем URL-схему Telegram для Stories
+      const telegramUrl = `tg://msg_url?url=${encodeURIComponent(imageUrl)}&text=${encodeURIComponent(text)}`;
       
-      // Открываем в новом окне/вкладке
-      window.open(telegramUrl, '_blank');
+      // Пробуем открыть Telegram
+      window.location.href = telegramUrl;
       
       // Очищаем временный URL после небольшой задержки
       setTimeout(() => {
         URL.revokeObjectURL(imageUrl);
       }, 1000);
 
-      // Добавляем инструкцию для пользователя
-      toast('Сохраните изображение и добавьте его в Stories', { type: 'info', duration: 5000 } as CustomToastOptions);
+      toast('Открываем Telegram...', { type: 'info' } as CustomToastOptions);
     } catch (error) {
       console.error('Ошибка при открытии Telegram:', error);
       toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
+      
+      // Если не удалось открыть через URL-схему, пробуем веб-версию
+      try {
+        const webUrl = `https://t.me/share/url?url=${encodeURIComponent(shareableImage)}`;
+        window.open(webUrl, '_blank');
+      } catch (webError) {
+        console.error('Ошибка при открытии веб-версии Telegram:', webError);
+        toast('Установите приложение Telegram для шаринга', { type: 'error' } as CustomToastOptions);
+      }
     }
   };
 
@@ -956,7 +964,7 @@ export function ShareAchievementModal({
                   className="flex items-center justify-center gap-2 p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-base font-semibold"
                 >
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06-.01.13-.02.2z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.14.27-.01.06-.01.13-.02.2z"/>
                   </svg>
                   <span>Telegram</span>
                 </button>
