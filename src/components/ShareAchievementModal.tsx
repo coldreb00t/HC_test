@@ -828,45 +828,19 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      // Определяем, является ли устройство iOS
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      
       // Формируем текст для Stories
       const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
       
-      // Пробуем сначала открыть нативное приложение
-      const telegramAppUrl = `tg://msg?text=${encodeURIComponent(text)}`;
+      // Используем универсальную ссылку для Telegram
+      const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
       
-      // Создаем невидимый iframe для проверки открытия приложения
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
+      // Открываем в текущем окне для WKWebView
+      window.location.href = telegramUrl;
       
-      // Устанавливаем таймаут для перехода на веб-версию, если приложение не открылось
-      setTimeout(() => {
-        // Если приложение не открылось, используем веб-версию
-        const webUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
-        window.open(webUrl, '_blank');
-        
-        // Показываем инструкцию для пользователя
-        toast('Сохраните изображение и добавьте его в Stories', { type: 'info', duration: 5000 } as CustomToastOptions);
-      }, 500);
-      
-      // Пробуем открыть приложение
-      iframe.src = telegramAppUrl;
-      
-      // Удаляем iframe после попытки открытия
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-      
+      // Показываем инструкцию для пользователя
+      toast('Переходим в Telegram...', { type: 'info', duration: 3000 } as CustomToastOptions);
     } catch (error) {
       console.error('Ошибка при открытии Telegram:', error);
-      
-      // Запасной вариант - открываем веб-версию
-      const webUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(`${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`)}`;
-      window.open(webUrl, '_blank');
-      
       toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
     }
   };
@@ -875,54 +849,13 @@ export function ShareAchievementModal({
     if (!shareableImage) return;
 
     try {
-      // Определяем, является ли устройство iOS
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      // Для WKWebView на iOS просто открываем изображение в полном размере
+      window.location.href = shareableImage;
       
-      if (isIOS) {
-        // Создаем элемент для сохранения в фотопленку на iOS
-        const a = document.createElement('a');
-        a.href = shareableImage;
-        a.download = `hardcase-beast-${beastName}.png`;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        
-        // Добавляем атрибуты для сохранения в фотопленку
-        a.setAttribute('data-downloadurl', ['image/png', a.download, a.href].join(':'));
-        a.setAttribute('data-saveas', 'true');
-        
-        // Добавляем в DOM и симулируем клик
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        // Показываем инструкцию
-        toast('Нажмите "Добавить в фото" для сохранения', { type: 'info', duration: 5000 } as CustomToastOptions);
-        
-        // Дополнительно открываем в новой вкладке для просмотра
-        setTimeout(() => {
-          window.open(shareableImage, '_blank');
-        }, 100);
-      } else {
-        // Для других платформ используем стандартный метод скачивания
-        const response = await fetch(shareableImage);
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `hardcase-beast-${beastName}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        
-        toast('Изображение сохранено', { type: 'success' } as CustomToastOptions);
-      }
+      toast('Удерживайте изображение для сохранения', { type: 'info', duration: 5000 } as CustomToastOptions);
     } catch (error) {
-      console.error('Ошибка при скачивании:', error);
-      toast('Не удалось скачать изображение', { type: 'error' } as CustomToastOptions);
-      
-      // Запасной вариант - открываем в новой вкладке
-      window.open(shareableImage, '_blank');
+      console.error('Ошибка при открытии изображения:', error);
+      toast('Не удалось открыть изображение', { type: 'error' } as CustomToastOptions);
     }
   };
 
