@@ -270,11 +270,27 @@ export function ClientDashboard() {
   const fetchAchievementsStats = async (_clientId: string) => {
     // Используем underscore для неиспользуемого параметра
     try {
-      // Поскольку таблица achievements не существует, просто устанавливаем значения по умолчанию
-      return {
+      console.log('Загрузка статистики достижений...');
+      
+      // Вместо пустых значений по умолчанию, создадим более интересные демонстрационные данные
+      // В реальном приложении здесь будет запрос к таблице достижений
+      
+      // Пример расчета выполненных достижений на основе текущих данных пользователя
+      const achievedCount = [
+        userStats.workouts.completedCount > 0, // Есть хотя бы одна завершенная тренировка
+        userStats.workouts.totalVolume > 0,   // Есть объем тренировок
+        Object.keys(userStats.activities.types).length > 0, // Есть активности
+        userStats.measurements.weightChange !== null, // Есть измерения веса
+        userStats.activities.totalMinutes > 0 // Есть общее время активности
+      ].filter(Boolean).length;
+      
+      const result = {
         total: 5, // Фиксированное количество возможных достижений
-        completed: 0 // Пока нет достижений
+        completed: achievedCount
       };
+      
+      console.log('Посчитана статистика достижений:', result);
+      return result;
     } catch (error) {
       console.error('Error fetching achievements stats:', error);
       return {
@@ -367,7 +383,7 @@ export function ClientDashboard() {
     console.log('Объем тренировок:', stats.workouts.totalVolume);
     
     // Получаем наиболее популярный тип активности
-    let topActivityType = 'Активность';
+    let topActivityType = 'Физические упражнения';
     let topActivityDuration = 0;
     
     Object.entries(stats.activities.types).forEach(([type, duration]) => {
@@ -380,11 +396,15 @@ export function ClientDashboard() {
     console.log('Самый популярный тип активности:', topActivityType, topActivityDuration);
     
     // Просто число завершенных тренировок
-    const completedTrainingsValue = stats.workouts.completedCount.toString();
+    const completedTrainingsValue = stats.workouts.completedCount > 0 
+      ? stats.workouts.completedCount.toString() 
+      : '0';
     console.log('Значение для отображения в достижении "Завершенные тренировки":', completedTrainingsValue);
     
     // Число с единицей измерения для общего объема нагрузки
-    const totalVolumeValue = `${stats.workouts.totalVolume} кг`;
+    const totalVolumeValue = stats.workouts.totalVolume > 0 
+      ? `${stats.workouts.totalVolume} кг` 
+      : '0 кг';
     console.log('Значение для отображения в достижении "Объем нагрузки":', totalVolumeValue);
     
     return [
@@ -411,7 +431,7 @@ export function ClientDashboard() {
         description: topActivityType,
         value: topActivityDuration > 0
           ? `${Math.floor(topActivityDuration / 60)} ч ${topActivityDuration % 60} мин`
-          : 'Нет данных',
+          : 'Добавь активность',
         icon: <Activity className="w-16 h-16 text-white" />,
         color: 'bg-green-500',
         bgImage: '/images/achievements/activity.jpg',
@@ -426,28 +446,30 @@ export function ClientDashboard() {
             : 'Изменение веса',
         value: stats.measurements.weightChange 
           ? `${Math.abs(stats.measurements.weightChange).toFixed(1)} кг` 
-          : 'Нет данных',
+          : 'Добавь замеры',
         icon: <Scale className="w-16 h-16 text-white" />,
         color: 'bg-purple-500',
         bgImage: '/images/achievements/progress.jpg',
-        motivationalPhrase: 'Каждый шаг в сторону изменения тела - это новая версия тебя!'
+        motivationalPhrase: 'Не сравнивай себя с другими, сравнивай с собой вчерашним!'
       },
-      // Пятое достижение - активность
+      // Пятое достижение - общая активность
       {
-        title: 'Активность',
-        description: 'Твоя общая физическая активность',
+        title: 'Общая активность',
+        description: 'Суммарное время движения',
         value: stats.activities.totalMinutes > 0 
           ? `${Math.floor(stats.activities.totalMinutes / 60)} ч ${stats.activities.totalMinutes % 60} мин` 
-          : 'Нет данных',
-        icon: <Activity className="w-16 h-16 text-white" />,
-        color: 'bg-green-500',
-        bgImage: '/images/achievements/general-activity.jpg',
-        motivationalPhrase: 'Движение - это жизнь. Продолжай двигаться!'
+          : 'Добавь активность',
+        icon: <Award className="w-16 h-16 text-white" />,
+        color: 'bg-yellow-500',
+        bgImage: '/images/achievements/trophies.jpg',
+        motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
       },
       {
         title: 'Подними зверя',
         description: 'Объем поднятого веса',
-        value: `${stats.workouts.totalVolume} кг`,
+        value: stats.workouts.totalVolume > 0 
+          ? `${stats.workouts.totalVolume} кг` 
+          : '0 кг',
         icon: <Scale className="w-16 h-16 text-white" />,
         color: 'bg-pink-500',
         bgImage: '/images/achievements/beast.jpg',
