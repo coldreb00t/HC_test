@@ -40,6 +40,7 @@ interface DayGroup {
     water: number;
     photoCount: number;
   };
+  isToday: boolean;
 }
 
 export function NutritionView() {
@@ -52,6 +53,14 @@ export function NutritionView() {
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  // Новое состояние для норм БЖУ
+  const [nutritionNorms, setNutritionNorms] = useState<{
+    weight: number;
+    proteins: number;
+    fats: number;
+    carbs: number;
+    calories: number;
+  } | null>(null);
   
   // Новое состояние для управления диалогом подтверждения удаления
   const [confirmDeleteDialog, setConfirmDeleteDialog] = useState({
@@ -89,6 +98,9 @@ export function NutritionView() {
         groups[baseDate].push(entry);
       });
       
+      // Получаем текущую дату в формате YYYY-MM-DD
+      const today = new Date().toISOString().split('T')[0];
+      
       // Преобразуем объект групп в массив с подсчетом итогов
       const groupsArray: DayGroup[] = Object.keys(groups)
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime()) // Сортировка по убыванию даты
@@ -121,11 +133,15 @@ export function NutritionView() {
             };
           }, { proteins: 0, fats: 0, carbs: 0, calories: 0, water: 0, photoCount: 0 });
           
+          // Отмечаем является ли эта дата текущей, для отображения норм
+          const isToday = getBaseDate(date) === today;
+          
           return {
             date,
             entries: entriesForDay,
             isOpen: false, // По умолчанию все группы закрыты
             totals,
+            isToday
           };
         });
       
@@ -189,6 +205,38 @@ export function NutritionView() {
         .single();
 
       if (clientError) throw clientError;
+
+      // Получаем последние измерения клиента для расчета норм БЖУ
+      const { data: measurements, error: measurementsError } = await supabase
+        .from('client_measurements')
+        .select('weight, date')
+        .eq('client_id', clientData.id)
+        .order('date', { ascending: false })
+        .limit(1);
+
+      if (measurementsError) {
+        console.error('Error fetching measurements:', measurementsError);
+      }
+
+      // Рассчитываем нормы БЖУ на основе последнего веса
+      if (measurements && measurements.length > 0 && measurements[0].weight) {
+        const weight = measurements[0].weight;
+        const proteinNorm = Math.round(weight * 2); // 2 г белка на 1 кг веса
+        const fatNorm = Math.round(weight * 1); // 1 г жира на 1 кг веса
+        const carbNorm = Math.round(weight * 3.5); // 3.5 г углеводов на 1 кг веса
+        const caloriesNorm = Math.round(proteinNorm * 4 + fatNorm * 9 + carbNorm * 4); // Калории из БЖУ
+
+        setNutritionNorms({
+          weight,
+          proteins: proteinNorm,
+          fats: fatNorm,
+          carbs: carbNorm,
+          calories: caloriesNorm
+        });
+      } else {
+        console.log('No weight measurement found for the client');
+        setNutritionNorms(null);
+      }
 
       const { data: entriesData, error: entriesError } = await supabase
         .from('client_nutrition')
@@ -825,7 +873,6 @@ export function NutritionView() {
                       
                       {/* Суммарные показатели */}
                       <div className="mt-1 text-sm text-gray-500 flex flex-wrap gap-3">
-                        <span>Записей: {dayGroup.entries.length}</span>
                         {(dayGroup.totals.proteins > 0 || dayGroup.totals.fats > 0 || dayGroup.totals.carbs > 0 || dayGroup.totals.calories > 0 || dayGroup.totals.water > 0) && (
                           <>
                             <span>Б: {dayGroup.totals.proteins}г</span>
@@ -833,9 +880,83 @@ export function NutritionView() {
                             <span>У: {dayGroup.totals.carbs}г</span>
                             <span>Ккал: {dayGroup.totals.calories}ккал</span>
                             <span>Вода: {dayGroup.totals.water}мл</span>
+                            <span>Записей: {dayGroup.entries.length}</span>
                           </>
                         )}
                       </div>
+                      
+                      {/* Рекомендуемые нормы БЖУ - показываем только для текущего дня */}
+                      {nutritionNorms && dayGroup.isToday && (dayGroup.isOpen || groupedEntries.filter(g => g.isToday).length === 1) && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          <div className="mb-1">
+                            <span className="font-medium">Рекомендуемые нормы (вес {nutritionNorms.weight} кг):</span>
+                          </div>
+                          
+                          {/* Белки */}
+                          <div className="flex items-center mb-1">
+                            <span className="w-16">Белки:</span>
+                            <div className="flex-1 mx-2">
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-red-500 h-full rounded-full"
+                                  style={{ 
+                                    width: `${Math.min(100, (dayGroup.totals.proteins / nutritionNorms.proteins) * 100)}%`,
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                            <span>{dayGroup.totals.proteins}г / {nutritionNorms.proteins}г</span>
+                          </div>
+                          
+                          {/* Жиры */}
+                          <div className="flex items-center mb-1">
+                            <span className="w-16">Жиры:</span>
+                            <div className="flex-1 mx-2">
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-yellow-500 h-full rounded-full"
+                                  style={{ 
+                                    width: `${Math.min(100, (dayGroup.totals.fats / nutritionNorms.fats) * 100)}%`,
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                            <span>{dayGroup.totals.fats}г / {nutritionNorms.fats}г</span>
+                          </div>
+                          
+                          {/* Углеводы */}
+                          <div className="flex items-center mb-1">
+                            <span className="w-16">Углеводы:</span>
+                            <div className="flex-1 mx-2">
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-green-500 h-full rounded-full"
+                                  style={{ 
+                                    width: `${Math.min(100, (dayGroup.totals.carbs / nutritionNorms.carbs) * 100)}%`,
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                            <span>{dayGroup.totals.carbs}г / {nutritionNorms.carbs}г</span>
+                          </div>
+                          
+                          {/* Калории */}
+                          <div className="flex items-center">
+                            <span className="w-16">Калории:</span>
+                            <div className="flex-1 mx-2">
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-purple-500 h-full rounded-full"
+                                  style={{ 
+                                    width: `${Math.min(100, (dayGroup.totals.calories / nutritionNorms.calories) * 100)}%`,
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                            <span>{dayGroup.totals.calories}ккал / {nutritionNorms.calories}ккал</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
