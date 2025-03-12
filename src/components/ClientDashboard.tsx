@@ -683,30 +683,38 @@ export function ClientDashboard() {
       },
       {
         title: 'Любимая активность',
-        description: 'Физические упражнения',
-        icon: <Activity className="w-16 h-16 text-white" />,
-        value: 'Добавь активность',
+        description: 'Твой любимый вид активности',
+        icon: <Activity className="w-6 h-6" />,
+        value: (() => {
+          // Находим самый популярный тип активности
+          const activityTypes = stats.activities.types;
+          if (Object.keys(activityTypes).length === 0) {
+            return 'Нет данных';
+          }
+          
+          // Найдем активность с максимальным временем
+          let maxActivity = '';
+          let maxTime = 0;
+          
+          Object.entries(activityTypes).forEach(([type, minutes]) => {
+            if (minutes > maxTime) {
+              maxTime = minutes;
+              maxActivity = type;
+            }
+          });
+          
+          // Если есть активность, возвращаем её с временем
+          if (maxActivity) {
+            const hours = Math.round(maxTime / 60);
+            const minText = hours === 1 ? 'час' : hours < 5 ? 'часа' : 'часов';
+            return `${maxActivity} - ${hours} ${minText}`;
+          }
+          
+          return 'Добавь активность';
+        })(),
         color: 'bg-green-500',
         bgImage: '/images/achievements/activity.jpg',
-        motivationalPhrase: 'Найди то, что приносит радость, и это уже не будет казаться тренировкой!'
-      },
-      {
-        title: 'Изменение тела',
-        description: 'Отслеживание прогресса',
-        value: 'Добавь замеры',
-        icon: <Scale className="w-16 h-16 text-white" />,
-        color: 'bg-purple-500',
-        bgImage: '/images/achievements/progress.jpg',
-        motivationalPhrase: 'Не сравнивай себя с другими, сравнивай с собой вчерашним!'
-      },
-      {
-        title: 'Общая активность',
-        description: 'Суммарное время движения',
-        icon: <Award className="w-16 h-16 text-white" />,
-        value: 'Добавь активность',
-        color: 'bg-yellow-500',
-        bgImage: '/images/achievements/trophies.jpg',
-        motivationalPhrase: 'Движение - это жизнь. Будь активен каждый день!'
+        motivationalPhrase: 'Найди то, что приносит радость, и делай это регулярно!',
       }
     ];
 
