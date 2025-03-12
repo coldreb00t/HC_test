@@ -53,6 +53,8 @@ export function NutritionView() {
   const [showFabMenu, setShowFabMenu] = useState(false);
   const [showMeasurementsModal, setShowMeasurementsModal] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  // Добавляем состояние для отображения/скрытия формы
+  const [isFormVisible, setIsFormVisible] = useState(false);
   // Новое состояние для норм БЖУ
   const [nutritionNorms, setNutritionNorms] = useState<{
     weight: number;
@@ -516,6 +518,9 @@ export function NutritionView() {
     // Очищаем предыдущий выбор фотографий
     setSelectedFiles([]);
     
+    // Показываем форму при редактировании
+    setIsFormVisible(true);
+    
     // Перемещаем взгляд к форме для удобства редактирования
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -771,143 +776,167 @@ export function NutritionView() {
             <Apple className="w-5 h-5 text-gray-400" />
           </div>
 
-          <form onSubmit={handleSubmit} className="mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Дата
-                </label>
-                <input
-                  type="date"
-                  value={newEntry.date}
-                  onChange={(e) => setNewEntry({ ...newEntry, date: e.target.value })}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
+          {/* Кнопка для отображения/скрытия формы */}
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={() => setIsFormVisible(!isFormVisible)}
+              className="w-full py-3 px-4 flex items-center justify-center gap-2 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
+            >
+              {isFormVisible ? (
+                <>
+                  <X className="w-5 h-5" />
+                  Скрыть форму
+                </>
+              ) : (
+                <>
+                  <Plus className="w-5 h-5" />
+                  {editingEntryId ? 'Редактировать запись' : 'Добавить запись о питании'}
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Форма ввода данных, отображаемая только когда isFormVisible = true */}
+          {isFormVisible && (
+            <form onSubmit={handleSubmit} className="mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Дата
+                  </label>
+                  <input
+                    type="date"
+                    value={newEntry.date}
+                    onChange={(e) => setNewEntry({ ...newEntry, date: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Белки (г)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    name="proteins"
+                    value={newEntry.proteins === null ? '' : newEntry.proteins}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Жиры (г)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    name="fats"
+                    value={newEntry.fats === null ? '' : newEntry.fats}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Углеводы (г)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    name="carbs"
+                    value={newEntry.carbs === null ? '' : newEntry.carbs}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Калории (ккал)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    name="calories"
+                    value={newEntry.calories === null ? '' : newEntry.calories}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Вода (мл)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    name="water"
+                    value={newEntry.water === null ? '' : newEntry.water}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={uploading}
+                    className="w-full p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                  >
+                    {uploading ? 'Сохранение...' : (editingEntryId ? 'Обновить' : 'Сохранить')}
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Белки (г)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  name="proteins"
-                  value={newEntry.proteins === null ? '' : newEntry.proteins}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Жиры (г)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  name="fats"
-                  value={newEntry.fats === null ? '' : newEntry.fats}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Углеводы (г)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  name="carbs"
-                  value={newEntry.carbs === null ? '' : newEntry.carbs}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Калории (ккал)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  name="calories"
-                  value={newEntry.calories === null ? '' : newEntry.calories}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Вода (мл)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  name="water"
-                  value={newEntry.water === null ? '' : newEntry.water}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="0"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  disabled={uploading}
-                  className="w-full p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+
+              <div className="space-y-4">
+                <div className="mb-4 space-y-4">
+                  {selectedFiles.map((photo, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={photo.preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full max-h-[200px] object-contain rounded-lg"
+                      />
+                      <button
+                        onClick={() => handleRemovePhoto(index)}
+                        className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-100"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  id="nutrition-photo-upload-area"
+                  className="w-full h-[200px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors"
                 >
-                  {uploading ? 'Сохранение...' : (editingEntryId ? 'Обновить' : 'Сохранить')}
-                </button>
-              </div>
-            </div>
+                  <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                  <p className="text-gray-500">Нажмите, чтобы добавить фото еды</p>
+                  <p className="text-sm text-gray-400 mt-1">JPG, PNG до 25MB</p>
+                </div>
 
-            <div className="space-y-4">
-              <div className="mb-4 space-y-4">
-                {selectedFiles.map((photo, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={photo.preview}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full max-h-[200px] object-contain rounded-lg"
-                    />
-                    <button
-                      onClick={() => handleRemovePhoto(index)}
-                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-100"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
               </div>
-
-              <div
-                id="nutrition-photo-upload-area"
-                className="w-full h-[200px] border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-colors"
-              >
-                <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                <p className="text-gray-500">Нажмите, чтобы добавить фото еды</p>
-                <p className="text-sm text-gray-400 mt-1">JPG, PNG до 25MB</p>
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-          </form>
+            </form>
+          )}
 
           {loading ? (
             <div className="flex justify-center items-center h-64">
