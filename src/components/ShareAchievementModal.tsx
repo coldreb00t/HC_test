@@ -752,25 +752,74 @@ export function ShareAchievementModal({
         const maxBeastNameWidth = cardWidth * 0.9; // Максимальная ширина для имени зверя
         
         if (beastNameWidth > maxBeastNameWidth) {
-          // Если текст все еще не помещается, разбиваем его на две строки
-          const words = beastNameUpperCase.split(' ');
-          let firstLine = '';
-          let secondLine = '';
+          // Если текст не помещается, сначала пробуем уменьшить шрифт
+          const scaleFactor = maxBeastNameWidth / beastNameWidth;
+          const newFontSize = Math.max(24, Math.floor(beastNameFontSize * scaleFactor));
           
-          if (words.length > 1) {
-            // Находим середину по количеству слов
-            const middleIndex = Math.ceil(words.length / 2);
+          // Если после уменьшения шрифт стал слишком маленьким, разбиваем на две строки
+          if (newFontSize < 28) {
+            const words = beastNameUpperCase.split(' ');
             
-            // Формируем две строки
-            firstLine = words.slice(0, middleIndex).join(' ');
-            secondLine = words.slice(middleIndex).join(' ');
-            
-            // Отрисовываем в две строки
-            ctx.fillText(firstLine, cardWidth / 2, 95);
-            ctx.fillText(secondLine, cardWidth / 2, 95 + beastNameFontSize + 5);
+            // Если имя состоит из нескольких слов
+            if (words.length > 1) {
+              // Находим оптимальное разделение на две строки
+              let firstLine = '';
+              let secondLine = '';
+              let currentWidth = 0;
+              
+              // Устанавливаем шрифт обратно на исходный размер для разделения на строки
+              ctx.font = `bold ${Math.min(36, beastNameFontSize)}px Inter, system-ui, sans-serif`;
+              
+              for (let i = 0; i < words.length; i++) {
+                const wordWidth = ctx.measureText(words[i] + ' ').width;
+                if (currentWidth + wordWidth <= maxBeastNameWidth * 0.9) {
+                  firstLine += words[i] + ' ';
+                  currentWidth += wordWidth;
+                } else {
+                  secondLine += words[i] + ' ';
+                }
+              }
+              
+              // Если вторая строка пустая (все слова поместились в первую)
+              if (secondLine === '') {
+                // Делим слова поровну между строками
+                firstLine = '';
+                secondLine = '';
+                const middleIndex = Math.ceil(words.length / 2);
+                
+                for (let i = 0; i < words.length; i++) {
+                  if (i < middleIndex) {
+                    firstLine += words[i] + ' ';
+                  } else {
+                    secondLine += words[i] + ' ';
+                  }
+                }
+              }
+              
+              // Проверяем, помещаются ли строки по отдельности
+              const firstLineWidth = ctx.measureText(firstLine.trim()).width;
+              const secondLineWidth = ctx.measureText(secondLine.trim()).width;
+              
+              // Если какая-то из строк все еще не помещается, уменьшаем шрифт
+              if (firstLineWidth > maxBeastNameWidth || secondLineWidth > maxBeastNameWidth) {
+                const maxLineWidth = Math.max(firstLineWidth, secondLineWidth);
+                const lineScaleFactor = maxBeastNameWidth / maxLineWidth;
+                const lineFontSize = Math.max(24, Math.floor(beastNameFontSize * lineScaleFactor));
+                ctx.font = `bold ${lineFontSize}px Inter, system-ui, sans-serif`;
+              }
+              
+              // Отрисовываем заголовок в две строки
+              const lineSpacing = parseInt(ctx.font) * 1.2;
+              ctx.fillText(firstLine.trim(), cardWidth / 2, 95);
+              ctx.fillText(secondLine.trim(), cardWidth / 2, 95 + lineSpacing);
+            } else {
+              // Если это одно длинное слово, просто уменьшаем шрифт
+              ctx.font = `bold ${newFontSize}px Inter, system-ui, sans-serif`;
+              ctx.fillText(beastNameUpperCase, cardWidth / 2, 110);
+            }
           } else {
-            // Если это одно длинное слово, просто уменьшаем шрифт еще больше
-            ctx.font = `bold ${Math.max(24, beastNameFontSize - 10)}px Inter, system-ui, sans-serif`;
+            // Если шрифт можно уменьшить до приемлемого размера
+            ctx.font = `bold ${newFontSize}px Inter, system-ui, sans-serif`;
             ctx.fillText(beastNameUpperCase, cardWidth / 2, 110);
           }
         } else {
