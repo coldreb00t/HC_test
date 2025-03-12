@@ -794,19 +794,19 @@ export function ShareAchievementModal({
     try {
       const response = await fetch(shareableImage);
       const blob = await response.blob();
-      const file = new File([blob], `hardcase-beast-${beastName}.png`, { type: 'image/png' });
+      const file = new File([blob], `hardcase-achievement-${beastName}.png`, { type: 'image/png' });
 
       // Проверяем поддержку шаринга файлов
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
-        title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+        title: `HARDCASE.TRAINING: ${isBeast ? `Зверь ${beastName}` : 'Достижение'}`,
         text: `${weightPhrase} - ${totalVolume} кг`,
         files: [file],
       });
       } else {
         // Если файлы не поддерживаются, пробуем шарить только текст
         await navigator.share({
-          title: `HARDCASE.TRAINING: Зверь ${beastName}`,
+          title: `HARDCASE.TRAINING: ${isBeast ? `Зверь ${beastName}` : 'Достижение'}`,
           text: `${weightPhrase} - ${totalVolume} кг\nhardcase.training`,
           url: 'https://hardcase.training'
         });
@@ -825,72 +825,19 @@ export function ShareAchievementModal({
     }
   };
 
-  const handleTelegramStories = async () => {
-    if (!shareableImage) return;
-
-    try {
-      // Формируем текст для шаринга
-      const text = `${beastName}\n${weightPhrase}\n${totalVolume} кг\nhardcase.training`;
-      
-      // Проверяем, доступен ли нативный мост для iOS
-      if (window.webkit?.messageHandlers?.shareHandler) {
-        // Показываем уведомление
-        toast('Подготовка данных для Telegram...', { type: 'info', duration: 2000 } as CustomToastOptions);
-        
-        // Получаем изображение как Blob
-        const response = await fetch(shareableImage);
-        const blob = await response.blob();
-        
-        // Конвертируем Blob в Base64
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = function() {
-          const base64data = reader.result?.toString().split(',')[1];
-          
-          // Отправляем сообщение в нативный код с дополнительными параметрами
-          window.webkit?.messageHandlers?.shareHandler?.postMessage({
-            action: 'shareToTelegram',
-            image: base64data,
-            text: text,
-            details: {
-              beastName: beastName,
-              weightPhrase: weightPhrase,
-              totalVolume: totalVolume,
-              userName: userName
-            }
-          });
-          
-          toast('Открываем Telegram...', { type: 'success', duration: 3000 } as CustomToastOptions);
-        };
-      } else {
-        // Запасной вариант - открываем Telegram с текстом (без изображения)
-        const telegramUrl = `https://t.me/share/url?url=https://hardcase.training&text=${encodeURIComponent(text)}`;
-        
-        // Показываем уведомление
-        toast('Открываем Telegram (только с текстом)...', { type: 'info', duration: 3000 } as CustomToastOptions);
-        
-        // Используем window.location.href вместо window.open для лучшей совместимости с WKWebView
-        window.location.href = telegramUrl;
-      }
-    } catch (error) {
-      console.error('Ошибка при подготовке к шерингу в Telegram:', error);
-      toast('Не удалось открыть Telegram', { type: 'error' } as CustomToastOptions);
-    }
-  };
-
   const handleDownload = async () => {
     if (!shareableImage) return;
 
     try {
+      // Показываем уведомление о начале процесса
+      toast('Сохранение изображения...', { type: 'info', duration: 2000 } as CustomToastOptions);
+      
+      // Получаем изображение как Blob
+      const response = await fetch(shareableImage);
+      const blob = await response.blob();
+      
       // Проверяем, доступен ли нативный мост для iOS
       if (window.webkit?.messageHandlers?.shareHandler) {
-        // Показываем уведомление
-        toast('Сохранение изображения...', { type: 'info', duration: 2000 } as CustomToastOptions);
-        
-        // Получаем изображение как Blob
-        const response = await fetch(shareableImage);
-        const blob = await response.blob();
-        
         // Конвертируем Blob в Base64
         const reader = new FileReader();
         reader.readAsDataURL(blob);
@@ -901,19 +848,25 @@ export function ShareAchievementModal({
           window.webkit?.messageHandlers?.shareHandler?.postMessage({
             action: 'saveImage',
             image: base64data,
-            filename: `hardcase-beast-${beastName}.png`
+            filename: `hardcase-achievement-${beastName}.png`
           });
-          
-          toast('Изображение сохранено', { type: 'success', duration: 3000 } as CustomToastOptions);
         };
       } else {
-        // Запасной вариант - просто открываем изображение в текущем окне
-        toast('Открываем изображение...', { type: 'info', duration: 3000 } as CustomToastOptions);
-        window.location.href = shareableImage;
+        // Для других платформ используем стандартный метод скачивания
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hardcase-achievement-${beastName}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast('Изображение сохранено', { type: 'success' } as CustomToastOptions);
       }
     } catch (error) {
-      console.error('Ошибка при открытии изображения:', error);
-      toast('Не удалось открыть изображение', { type: 'error' } as CustomToastOptions);
+      console.error('Ошибка при сохранении изображения:', error);
+      toast('Не удалось сохранить изображение', { type: 'error' } as CustomToastOptions);
     }
   };
 
