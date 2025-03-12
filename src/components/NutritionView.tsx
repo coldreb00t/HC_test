@@ -685,6 +685,18 @@ export function NutritionView() {
     }
   };
 
+  // Добавляем вспомогательную функцию для определения цвета прогресс-бара
+  const getProgressBarColor = (actual: number, target: number): string => {
+    const percentage = (actual / target) * 100;
+    
+    if (percentage === 0) return 'bg-gray-300'; // Нет данных
+    if (percentage < 70) return 'bg-red-500'; // Значительный недобор
+    if (percentage < 90) return 'bg-yellow-500'; // Небольшой недобор
+    if (percentage <= 110) return 'bg-green-500'; // В норме
+    if (percentage <= 130) return 'bg-yellow-500'; // Небольшой перебор
+    return 'bg-red-500'; // Значительный перебор
+  };
+
   return (
     <SidebarLayout
       menuItems={menuItems}
@@ -895,15 +907,26 @@ export function NutritionView() {
                           {/* Белки */}
                           <div className="flex items-center mb-1">
                             <span className="w-16">Белки:</span>
-                            <div className="flex-1 mx-2">
-                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
-                                <div 
-                                  className="bg-red-500 h-full rounded-full"
-                                  style={{ 
-                                    width: `${Math.min(100, (dayGroup.totals.proteins / nutritionNorms.proteins) * 100)}%`,
-                                  }}
-                                ></div>
+                            <div className="flex-1 mx-2 relative">
+                              {/* Фон с разделителями */}
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden flex">
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full"></div>
                               </div>
+                              
+                              {/* Маркер нормы (100%) */}
+                              <div className="absolute top-full left-1/2 w-0.5 h-2 bg-black transform -translate-x-1/2"></div>
+                              <div className="absolute top-full left-1/2 text-[9px] mt-1 transform -translate-x-1/2">100%</div>
+                              
+                              {/* Заполнение */}
+                              <div 
+                                className={`absolute top-0 left-0 h-2 rounded-full ${getProgressBarColor(dayGroup.totals.proteins, nutritionNorms.proteins)}`}
+                                style={{ 
+                                  width: `${Math.min(100, (dayGroup.totals.proteins / nutritionNorms.proteins) * 50 + 50)}%`,
+                                }}
+                              ></div>
                             </div>
                             <span>{dayGroup.totals.proteins}г / {nutritionNorms.proteins}г</span>
                           </div>
@@ -911,15 +934,26 @@ export function NutritionView() {
                           {/* Жиры */}
                           <div className="flex items-center mb-1">
                             <span className="w-16">Жиры:</span>
-                            <div className="flex-1 mx-2">
-                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
-                                <div 
-                                  className="bg-yellow-500 h-full rounded-full"
-                                  style={{ 
-                                    width: `${Math.min(100, (dayGroup.totals.fats / nutritionNorms.fats) * 100)}%`,
-                                  }}
-                                ></div>
+                            <div className="flex-1 mx-2 relative">
+                              {/* Фон с разделителями */}
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden flex">
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full"></div>
                               </div>
+                              
+                              {/* Маркер нормы (100%) */}
+                              <div className="absolute top-full left-1/2 w-0.5 h-2 bg-black transform -translate-x-1/2"></div>
+                              <div className="absolute top-full left-1/2 text-[9px] mt-1 transform -translate-x-1/2">100%</div>
+                              
+                              {/* Заполнение */}
+                              <div 
+                                className={`absolute top-0 left-0 h-2 rounded-full ${getProgressBarColor(dayGroup.totals.fats, nutritionNorms.fats)}`}
+                                style={{ 
+                                  width: `${Math.min(100, (dayGroup.totals.fats / nutritionNorms.fats) * 50 + 50)}%`,
+                                }}
+                              ></div>
                             </div>
                             <span>{dayGroup.totals.fats}г / {nutritionNorms.fats}г</span>
                           </div>
@@ -927,33 +961,62 @@ export function NutritionView() {
                           {/* Углеводы */}
                           <div className="flex items-center mb-1">
                             <span className="w-16">Углеводы:</span>
-                            <div className="flex-1 mx-2">
-                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
-                                <div 
-                                  className="bg-green-500 h-full rounded-full"
-                                  style={{ 
-                                    width: `${Math.min(100, (dayGroup.totals.carbs / nutritionNorms.carbs) * 100)}%`,
-                                  }}
-                                ></div>
+                            <div className="flex-1 mx-2 relative">
+                              {/* Фон с разделителями */}
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden flex">
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full"></div>
                               </div>
+                              
+                              {/* Маркер нормы (100%) */}
+                              <div className="absolute top-full left-1/2 w-0.5 h-2 bg-black transform -translate-x-1/2"></div>
+                              <div className="absolute top-full left-1/2 text-[9px] mt-1 transform -translate-x-1/2">100%</div>
+                              
+                              {/* Заполнение */}
+                              <div 
+                                className={`absolute top-0 left-0 h-2 rounded-full ${getProgressBarColor(dayGroup.totals.carbs, nutritionNorms.carbs)}`}
+                                style={{ 
+                                  width: `${Math.min(100, (dayGroup.totals.carbs / nutritionNorms.carbs) * 50 + 50)}%`,
+                                }}
+                              ></div>
                             </div>
                             <span>{dayGroup.totals.carbs}г / {nutritionNorms.carbs}г</span>
                           </div>
                           
                           {/* Калории */}
-                          <div className="flex items-center">
+                          <div className="flex items-center mb-4">
                             <span className="w-16">Калории:</span>
-                            <div className="flex-1 mx-2">
-                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden">
-                                <div 
-                                  className="bg-purple-500 h-full rounded-full"
-                                  style={{ 
-                                    width: `${Math.min(100, (dayGroup.totals.calories / nutritionNorms.calories) * 100)}%`,
-                                  }}
-                                ></div>
+                            <div className="flex-1 mx-2 relative">
+                              {/* Фон с разделителями */}
+                              <div className="bg-gray-200 h-2 rounded-full overflow-hidden flex">
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full border-r border-white"></div>
+                                <div className="w-1/4 h-full"></div>
                               </div>
+                              
+                              {/* Маркер нормы (100%) */}
+                              <div className="absolute top-full left-1/2 w-0.5 h-2 bg-black transform -translate-x-1/2"></div>
+                              <div className="absolute top-full left-1/2 text-[9px] mt-1 transform -translate-x-1/2">100%</div>
+                              
+                              {/* Заполнение */}
+                              <div 
+                                className={`absolute top-0 left-0 h-2 rounded-full ${getProgressBarColor(dayGroup.totals.calories, nutritionNorms.calories)}`}
+                                style={{ 
+                                  width: `${Math.min(100, (dayGroup.totals.calories / nutritionNorms.calories) * 50 + 50)}%`,
+                                }}
+                              ></div>
                             </div>
                             <span>{dayGroup.totals.calories}ккал / {nutritionNorms.calories}ккал</span>
+                          </div>
+                          
+                          <div className="text-[9px] flex justify-between mt-1 text-gray-400">
+                            <span>0%</span>
+                            <span>50%</span>
+                            <span>150%</span>
+                            <span>200%</span>
                           </div>
                         </div>
                       )}
