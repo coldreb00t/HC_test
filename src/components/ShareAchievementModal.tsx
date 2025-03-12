@@ -1107,7 +1107,7 @@ export function ShareAchievementModal({
     if (windowHeight < 600) {
       return {
         container: "fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-2 py-2 overflow-hidden",
-        modal: "bg-gray-900 rounded-xl max-w-md w-full p-3 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh]",
+        modal: "bg-gray-900 rounded-xl max-w-md w-full p-3 pt-6 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh] shadow-[0_0_25px_rgba(0,0,0,0.5)]",
         title: "text-base font-bold text-white mb-2 text-center",
         buttonsContainer: "mt-2 space-y-1",
         helpText: "text-gray-500 text-xs mt-1"
@@ -1118,7 +1118,7 @@ export function ShareAchievementModal({
     if (windowHeight < 800) {
       return {
         container: "fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-3 py-3 overflow-hidden",
-        modal: "bg-gray-900 rounded-xl max-w-md w-full p-4 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh]",
+        modal: "bg-gray-900 rounded-xl max-w-md w-full p-4 pt-8 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh] shadow-[0_0_25px_rgba(0,0,0,0.5)]",
         title: "text-lg font-bold text-white mb-3 text-center",
         buttonsContainer: "mt-3 space-y-2",
         helpText: "text-gray-500 text-xs mt-1"
@@ -1128,7 +1128,7 @@ export function ShareAchievementModal({
     // Для больших экранов (высота > 800px)
     return {
       container: "fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4 py-4 overflow-hidden",
-      modal: "bg-gray-900 rounded-xl max-w-md w-full p-5 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh]",
+      modal: "bg-gray-900 rounded-xl max-w-md w-full p-5 pt-10 mx-auto relative border border-gray-800 shadow-2xl flex flex-col max-h-[98vh] shadow-[0_0_25px_rgba(0,0,0,0.5)]",
       title: "text-xl font-bold text-white mb-4 text-center",
       buttonsContainer: "mt-4 space-y-3",
       helpText: "text-gray-500 text-sm mt-2"
@@ -1142,7 +1142,7 @@ export function ShareAchievementModal({
       <div className={classes.modal}>
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-800 z-10"
+          className="absolute top-1 right-1 text-white bg-gray-800 hover:bg-gray-700 transition-colors p-1.5 rounded-full z-20"
           aria-label="Закрыть"
           title="Закрыть"
         >
@@ -1157,25 +1157,26 @@ export function ShareAchievementModal({
           <div className="beast-card-container relative group" ref={achievementCardRef} style={inlineStyles.cardContainer}>
             <canvas ref={canvasRef} style={inlineStyles.canvas} />
             {!loading && shareableImage && (
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                <div className="flex gap-3">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="absolute bottom-6 flex gap-4 bg-black bg-opacity-40 px-4 py-3 rounded-full animate-fadeIn">
                   {canNativeShare && (
                     <button
                       onClick={handleNativeShare}
-                      className="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-all duration-200 transform hover:scale-110 shadow-lg"
+                      className="p-3.5 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-all duration-200 transform hover:scale-110 shadow-lg animate-bounce-once"
                       aria-label="Поделиться"
                       title="Поделиться"
                     >
-                      <Share className="w-6 h-6" />
+                      <Share className="w-7 h-7" />
                     </button>
                   )}
                   <button
                     onClick={handleDownload}
-                    className="p-3 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 transform hover:scale-110 shadow-lg"
+                    className="p-3.5 bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 transform hover:scale-110 shadow-lg relative"
                     aria-label="Скачать"
                     title="Скачать"
                   >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <span className="absolute inset-0 rounded-full animate-ping bg-green-400 opacity-75"></span>
+                    <svg className="w-7 h-7 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                     </svg>
                   </button>
@@ -1191,34 +1192,8 @@ export function ShareAchievementModal({
           )}
 
           {!loading && shareableImage && (
-            <div className={classes.buttonsContainer}>
-              <div className="flex justify-center gap-4">
-                {canNativeShare && (
-                  <button
-                    onClick={handleNativeShare}
-                    className="flex items-center justify-center p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 transform hover:scale-105 shadow-md"
-                    aria-label="Поделиться"
-                    title="Поделиться"
-                  >
-                    <Share className="w-6 h-6" />
-                  </button>
-                )}
-                
-                <button
-                  onClick={handleDownload}
-                  className="flex items-center justify-center p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 shadow-md"
-                  aria-label="Скачать"
-                  title="Скачать"
-                >
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="text-center">
-                <p className={classes.helpText}>Нажмите на иконку, чтобы сохранить изображение</p>
-              </div>
+            <div className="text-center mt-3">
+              <p className={classes.helpText}>Используйте зеленую кнопку для сохранения изображения</p>
             </div>
           )}
         </div>

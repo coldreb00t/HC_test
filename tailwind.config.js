@@ -17,6 +17,16 @@ export default {
         'safe-left': 'env(safe-area-inset-left)',
         'safe-right': 'env(safe-area-inset-right)',
       },
+      animation: {
+        'fadeIn': 'fadeIn 0.5s ease-in-out',
+        'bounce-once': 'bounce 1s ease-in-out 1',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+      },
     },
   },
   plugins: [],
