@@ -573,11 +573,11 @@ export function AchievementsView() {
         title: "Прогресс",
         description: "Первое измерение тела",
         icon: <Scale className="w-5 h-5 text-orange-500" />,
-        value: measurements.length > 0 ? "Достигнуто!" : "Не выполнено",
+        value: (measurements.length > 0 || (bodyMeasurements != null && bodyMeasurements.length > 0)) ? "Достигнуто!" : "Не выполнено",
         bgImage: '',
         achievementImage: '/src/assets/achievements/personal_record.png',
         motivationalPhrase: 'Отслеживай свой прогресс и достигай новых высот!',
-        achieved: measurements.length > 0
+        achieved: measurements.length > 0 || (bodyMeasurements != null && bodyMeasurements.length > 0)
       },
       {
         title: "Активность",
