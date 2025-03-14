@@ -2,40 +2,42 @@
  * Константы для маршрутов навигации в приложении
  */
 export const ROUTES = {
+  ROOT: {
+    AUTH: 'Auth',
+    CLIENT: 'Client',
+    TRAINER: 'Trainer',
+    USER_TYPE: 'UserType'
+  },
+
   // Авторизация
   AUTH: {
+    STACK: 'AuthStack',
     LOGIN: 'Login',
     REGISTER: 'Register',
     FORGOT_PASSWORD: 'ForgotPassword',
-    RESET_PASSWORD: 'ResetPassword',
   },
   
   // Клиентская часть
   CLIENT: {
     // Основные экраны
-    MAIN_TAB: 'ClientMainTab',
+    STACK: 'ClientStack',
+    TABS: 'ClientTabs',
     HOME: 'ClientHome',
     WORKOUTS: 'ClientWorkouts',
     PROFILE: 'ClientProfile',
+    PROGRESS: 'ClientProgress',
     
     // Детальные экраны
     WORKOUT_DETAILS: 'WorkoutDetails',
     EXERCISE_DETAILS: 'ExerciseDetails',
     EDIT_PROFILE: 'ClientEditProfile',
-    DASHBOARD: 'ClientDashboard',
-    PROGRESS_PHOTOS: 'ProgressPhotos',
-    PHOTO_UPLOAD: 'PhotoUpload',
-    MEASUREMENTS: 'Measurements',
-    MEASUREMENTS_UPLOAD: 'MeasurementsUpload',
-    NUTRITION: 'Nutrition',
-    ACTIVITY: 'ActivityForm',
-    ACHIEVEMENTS: 'Achievements'
   },
   
   // Тренерская часть
   TRAINER: {
     // Основные экраны
-    MAIN_TAB: 'TrainerMainTab',
+    STACK: 'TrainerStack',
+    TABS: 'TrainerTabs',
     HOME: 'TrainerHome',
     CLIENTS: 'TrainerClients',
     WORKOUTS: 'TrainerWorkouts',
@@ -43,18 +45,16 @@ export const ROUTES = {
     
     // Детальные экраны
     CLIENT_DETAILS: 'ClientDetails',
-    ADD_CLIENT: 'AddClient',
-    WORKOUT_DETAILS: 'TrainerWorkoutDetails',
+    WORKOUT_DETAILS: 'WorkoutDetails',
+    EXERCISE_DETAILS: 'ExerciseDetails',
     CREATE_WORKOUT: 'CreateWorkout',
     EDIT_WORKOUT: 'EditWorkout',
     EDIT_PROFILE: 'TrainerEditProfile',
-    DASHBOARD: 'TrainerDashboard',
-    EXERCISES: 'Exercises'
   },
   
   // Общие
   COMMON: {
-    ONBOARDING: 'Onboarding',
+    EXERCISES: 'Exercises',
     USER_TYPE: 'UserType',
   }
 }; 

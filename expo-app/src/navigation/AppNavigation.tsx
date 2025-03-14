@@ -15,15 +15,18 @@ import UserTypeScreen from '../screens/auth/UserTypeScreen';
 import ClientStack from './ClientStack';
 import TrainerStack from './TrainerStack';
 
+// Импорт типов навигации
+import { RootStackParamList } from '../types/navigation.types';
+
 // Импорт констант и сервисов
 import { ROUTES } from '../constants/routes';
 import { supabase } from '../lib/supabase';
 
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<RootStackParamList>();
 
 const AppNavigation = () => {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [userType, setUserType] = useState<'client' | 'trainer' | null>(null);
   
   useEffect(() => {
@@ -99,10 +102,19 @@ const AppNavigation = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f97316" />
+        <ActivityIndicator size="large" color="#4361ee" />
       </View>
     );
   }
+  
+  // Функция для рендеринга стека аутентификации
+  const AuthStack = () => (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+    </Stack.Navigator>
+  );
   
   return (
     <SafeAreaProvider>
@@ -113,21 +125,17 @@ const AppNavigation = () => {
             userType ? (
               // Маршруты в зависимости от типа пользователя
               userType === 'client' ? (
-                <Stack.Screen name={ROUTES.CLIENT.MAIN} component={ClientStack} />
+                <Stack.Screen name="Client" component={ClientStack} />
               ) : (
-                <Stack.Screen name={ROUTES.TRAINER.MAIN} component={TrainerStack} />
+                <Stack.Screen name="Trainer" component={TrainerStack} />
               )
             ) : (
               // Если тип пользователя не определен, показываем экран выбора
-              <Stack.Screen name={ROUTES.COMMON.USER_TYPE} component={UserTypeScreen} />
+              <Stack.Screen name="UserType" component={UserTypeScreen} />
             )
           ) : (
             // Маршруты для неаутентифицированных пользователей
-            <>
-              <Stack.Screen name={ROUTES.AUTH.LOGIN} component={LoginScreen} />
-              <Stack.Screen name={ROUTES.AUTH.REGISTER} component={RegisterScreen} />
-              <Stack.Screen name={ROUTES.AUTH.FORGOT_PASSWORD} component={ForgotPasswordScreen} />
-            </>
+            <Stack.Screen name="Auth" component={AuthStack} />
           )}
         </Stack.Navigator>
       </NavigationContainer>
@@ -141,7 +149,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f8f9fa',
   },
 });
 
