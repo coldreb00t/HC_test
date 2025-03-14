@@ -32,7 +32,7 @@ export type ClientStackParamList = {
   ClientEditProfile: undefined;
 };
 
-// Типы для стека тренера
+// Типы для стека тренера (старый вариант с вложенными табами)
 export type TrainerStackParamList = {
   TrainerTabs: NavigatorScreenParams<TrainerTabParamList>;
   WorkoutDetails: { workoutId: string };
@@ -40,6 +40,19 @@ export type TrainerStackParamList = {
   ClientDetails: { clientId: string };
   CreateWorkout: { clientId?: string };
   EditWorkout: { workoutId: string };
+};
+
+// Новый тип для упрощенного стека тренера без вложенных табов
+export type TrainerParamList = {
+  // Основные экраны
+  TrainerHome: undefined;
+  TrainerClients: undefined;
+  TrainerWorkouts: undefined;
+  
+  // Детальные экраны
+  ClientDetails: { clientId: string };
+  WorkoutDetails: { workoutId: string };
+  CreateWorkout: { clientId?: string };
 };
 
 // Типы для корневого стека навигации
@@ -51,7 +64,7 @@ export type RootStackParamList = {
   Client: NavigatorScreenParams<ClientStackParamList>;
   
   // Маршруты для тренера
-  Trainer: NavigatorScreenParams<TrainerStackParamList>;
+  Trainer: NavigatorScreenParams<TrainerParamList>;
   
   // Общие маршруты
   UserType: undefined;
@@ -63,4 +76,4 @@ export type AuthScreenNames = keyof AuthStackParamList;
 export type ClientTabNames = keyof ClientTabParamList;
 export type TrainerTabNames = keyof TrainerTabParamList;
 export type ClientScreenNames = keyof ClientStackParamList;
-export type TrainerScreenNames = keyof TrainerStackParamList; 
+export type TrainerScreenNames = keyof TrainerParamList; 

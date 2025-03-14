@@ -1,20 +1,27 @@
-import { Session } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import errorHandler, { ErrorType } from '../utils/errorHandler';
 
 // Ключи для хранения данных
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_ROLE_KEY = 'user_role';
+const USER_TYPE_KEY = '@hardcase_user_type';
 
 export type UserRole = 'client' | 'trainer' | null;
+
+// Типы пользователей
+export type UserType = 'client' | 'trainer' | null;
 
 // Интерфейс для результата аутентификации
 export interface AuthResult {
   success: boolean;
   session?: Session | null;
+  user?: User | null;
   error?: any;
   role?: UserRole;
+  userType?: UserType;
 }
 
 // Вход пользователя по email и паролю
@@ -22,7 +29,7 @@ export const signIn = async (email: string, password: string): Promise<AuthResul
   try {
     // Выполняем запрос на вход
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
@@ -30,19 +37,24 @@ export const signIn = async (email: string, password: string): Promise<AuthResul
       throw error;
     }
 
-    // Определяем роль пользователя
-    const role = await determineUserRole(data.user?.id);
+    // Если успешный вход, определяем тип пользователя
+    let userType: UserType = null;
     
+    if (data.user) {
+      userType = await determineUserType(data.user.id);
+    }
+
     // Сохраняем токен авторизации и роль
     if (data.session) {
       await storeAuthToken(data.session.refresh_token);
-      await storeUserRole(role);
+      await storeUserRole(userType as UserRole);
     }
 
     return {
       success: true,
       session: data.session,
-      role,
+      user: data.user,
+      userType,
     };
   } catch (error) {
     const appError = await errorHandler.handleError(error, {
@@ -64,71 +76,71 @@ export const signUp = async (
   userData: { 
     firstName: string; 
     lastName: string; 
-    role: UserRole; 
+    userType: UserType; 
     phone?: string;
+    specialty?: string;
+    bio?: string;
   }
 ): Promise<AuthResult> => {
   try {
     // Регистрируем пользователя
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
-      options: {
-        data: {
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          role: userData.role,
-          phone: userData.phone || null,
-        },
-      },
     });
 
     if (error) {
       throw error;
     }
 
-    // Если регистрация прошла успешно и не требуется подтверждение email
-    if (data.session) {
-      // В зависимости от роли, создаем запись в соответствующей таблице
-      if (userData.role === 'client') {
-        const { error: clientError } = await supabase
-          .from('clients')
-          .insert({
-            user_id: data.user?.id,
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            email: email,
-            phone: userData.phone,
-          });
-
-        if (clientError) {
-          throw clientError;
-        }
-      } else if (userData.role === 'trainer') {
+    if (data.user) {
+      // Создаем запись в таблице в зависимости от типа пользователя
+      if (userData.userType === 'trainer') {
         const { error: trainerError } = await supabase
           .from('trainers')
-          .insert({
-            user_id: data.user?.id,
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            email: email,
-            phone: userData.phone,
-          });
+          .insert([
+            {
+              user_id: data.user.id,
+              first_name: userData.firstName,
+              last_name: userData.lastName,
+              email: userData.email || email,
+              phone: userData.phone || '',
+              specialty: userData.specialty || '',
+              bio: userData.bio || '',
+            },
+          ]);
 
         if (trainerError) {
           throw trainerError;
+        }
+      } else if (userData.userType === 'client') {
+        const { error: clientError } = await supabase
+          .from('clients')
+          .insert([
+            {
+              user_id: data.user.id,
+              first_name: userData.firstName,
+              last_name: userData.lastName,
+              email: userData.email || email,
+              phone: userData.phone || '',
+            },
+          ]);
+
+        if (clientError) {
+          throw clientError;
         }
       }
 
       // Сохраняем токен и роль
       await storeAuthToken(data.session.refresh_token);
-      await storeUserRole(userData.role);
+      await storeUserRole(userData.userType as UserRole);
     }
 
     return {
       success: true,
       session: data.session,
-      role: userData.role,
+      user: data.user,
+      userType: userData.userType,
     };
   } catch (error) {
     const appError = await errorHandler.handleError(error, {
@@ -155,6 +167,7 @@ export const signOut = async (): Promise<boolean> => {
     // Удаляем сохраненные данные
     await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_ROLE_KEY);
+    await clearUserType();
     
     return true;
   } catch (error) {
@@ -191,11 +204,12 @@ export const checkSession = async (): Promise<AuthResult> => {
         }
         
         if (refreshData.session) {
-          const role = await determineUserRole(refreshData.user?.id);
+          const userType = await determineUserType(refreshData.user?.id);
           return {
             success: true,
             session: refreshData.session,
-            role,
+            user: refreshData.user,
+            userType,
           };
         }
       }
@@ -207,13 +221,24 @@ export const checkSession = async (): Promise<AuthResult> => {
       };
     }
     
-    // Если сессия активна, определяем роль пользователя
-    const role = await determineUserRole(data.session.user.id);
+    // Если сессия активна, получаем тип пользователя
+    let userType: UserType = null;
+    
+    if (data.session.user) {
+      // Сначала пытаемся получить из хранилища
+      userType = await getUserType();
+      
+      // Если не найдено, определяем по данным из БД
+      if (!userType) {
+        userType = await determineUserType(data.session.user.id);
+      }
+    }
     
     return {
       success: true,
       session: data.session,
-      role,
+      user: data.session.user,
+      userType,
     };
   } catch (error) {
     // Если ошибка связана с сетью, не показываем уведомление
@@ -236,7 +261,7 @@ export const resetPassword = async (email: string): Promise<boolean> => {
   try {
     // Отправляем запрос на восстановление пароля
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'hardcase://reset-password',
+      redirectTo: 'exp://127.0.0.1:19000/--/reset-password',
     });
     
     if (error) {
@@ -278,56 +303,38 @@ export const updatePassword = async (newPassword: string): Promise<boolean> => {
   }
 };
 
-// Определение роли пользователя
-export const determineUserRole = async (userId?: string): Promise<UserRole> => {
-  if (!userId) {
-    // Пытаемся получить роль из хранилища
-    const storedRole = await getUserRole();
-    if (storedRole) {
-      return storedRole as UserRole;
-    }
-    return null;
-  }
-  
+// Определение типа пользователя
+export const determineUserType = async (userId: string): Promise<UserType> => {
   try {
-    // Проверяем, является ли пользователь клиентом
-    const { data: clientData, error: clientError } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (clientError) {
-      throw clientError;
-    }
-    
-    if (clientData) {
-      await storeUserRole('client');
-      return 'client';
-    }
-    
-    // Проверяем, является ли пользователь тренером
+    // Проверяем, существует ли запись о пользователе как о тренере
     const { data: trainerData, error: trainerError } = await supabase
       .from('trainers')
       .select('id')
       .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (trainerError) {
-      throw trainerError;
-    }
-    
-    if (trainerData) {
-      await storeUserRole('trainer');
+      .single();
+
+    if (trainerData && !trainerError) {
+      await saveUserType('trainer');
       return 'trainer';
     }
-    
+
+    // Проверяем, существует ли запись о пользователе как о клиенте
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (clientData && !clientError) {
+      await saveUserType('client');
+      return 'client';
+    }
+
+    // Если не найдены записи ни тренера, ни клиента
+    await clearUserType();
     return null;
   } catch (error) {
-    await errorHandler.handleError(error, {
-      showToast: false,
-    });
-    
+    console.error('Ошибка при определении типа пользователя:', error);
     return null;
   }
 };
@@ -372,6 +379,31 @@ const getUserRole = async (): Promise<string | null> => {
   }
 };
 
+// Сохранение типа пользователя в AsyncStorage
+export const saveUserType = async (userType: UserType): Promise<void> => {
+  if (userType) {
+    await AsyncStorage.setItem(USER_TYPE_KEY, userType);
+  } else {
+    await clearUserType();
+  }
+};
+
+// Получение типа пользователя из AsyncStorage
+export const getUserType = async (): Promise<UserType> => {
+  try {
+    const type = await AsyncStorage.getItem(USER_TYPE_KEY);
+    return (type as UserType) || null;
+  } catch (error) {
+    console.error('Ошибка при получении типа пользователя:', error);
+    return null;
+  }
+};
+
+// Очистка типа пользователя из AsyncStorage
+export const clearUserType = async (): Promise<void> => {
+  await AsyncStorage.removeItem(USER_TYPE_KEY);
+};
+
 export default {
   signIn,
   signUp,
@@ -379,5 +411,8 @@ export default {
   checkSession,
   resetPassword,
   updatePassword,
-  determineUserRole,
+  determineUserType,
+  saveUserType,
+  getUserType,
+  clearUserType,
 }; 

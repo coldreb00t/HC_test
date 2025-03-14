@@ -56,5 +56,13 @@ export const ROUTES = {
   COMMON: {
     EXERCISES: 'Exercises',
     USER_TYPE: 'UserType',
-  }
+  },
+
+  // Прямые маршруты для TrainerStack (для упрощения навигации)
+  TRAINER_DASHBOARD: 'TrainerHome',
+  TRAINER_CLIENTS: 'TrainerClients',
+  TRAINER_WORKOUTS: 'TrainerWorkouts',
+  CLIENT_DETAILS: 'ClientDetails',
+  CREATE_WORKOUT: 'CreateWorkout',
+  WORKOUT_DETAILS: 'WorkoutDetails',
 }; 

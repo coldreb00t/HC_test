@@ -4,10 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import { supabase } from '../api/supabase';
 import { useTheme } from './ThemeContext';
+import authService, { UserType } from '../services/authService';
 
-// Типы данных
-export type UserType = 'client' | 'trainer' | null;
-
+// Интерфейс контекста авторизации
 export interface AuthContextType {
   user: User | null;
   userType: UserType;
@@ -59,12 +58,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (currentSession?.user) {
           setUser(currentSession.user);
           
-          // Загружаем сохраненный тип пользователя
-          const savedUserType = await AsyncStorage.getItem('@hardcase_user_type');
-          if (savedUserType) {
-            setUserTypeState(savedUserType as UserType);
+          // Используем authService для определения типа пользователя
+          const userType = await authService.getUserType();
+          if (userType) {
+            setUserTypeState(userType);
           } else {
-            // Если не сохранен, определим тип по данным пользователя
+            // Если тип не сохранен, определяем его по данным из БД
             await determineUserType(currentSession.user.id);
           }
         }
@@ -80,7 +79,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             await determineUserType(newSession.user.id);
           } else if (event === 'SIGNED_OUT') {
             setUserTypeState(null);
-            await AsyncStorage.removeItem('@hardcase_user_type');
+            await authService.clearUserType();
           }
         });
         
@@ -103,38 +102,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loadUserSession();
   }, []);
 
-  // Определение типа пользователя (клиент или тренер) по ID пользователя
+  // Определение типа пользователя с помощью authService
   const determineUserType = async (userId: string) => {
     try {
-      // Проверяем, существует ли запись о пользователе как о тренере
-      const { data: trainerData, error: trainerError } = await supabase
-        .from('trainers')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-
-      if (trainerData && !trainerError) {
-        setUserTypeState('trainer');
-        await AsyncStorage.setItem('@hardcase_user_type', 'trainer');
-        return;
-      }
-
-      // Проверяем, существует ли запись о пользователе как о клиенте
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-
-      if (clientData && !clientError) {
-        setUserTypeState('client');
-        await AsyncStorage.setItem('@hardcase_user_type', 'client');
-        return;
-      }
-
-      // Если не нашли ни клиента, ни тренера, то тип не определен
-      setUserTypeState(null);
-      await AsyncStorage.removeItem('@hardcase_user_type');
+      const userType = await authService.determineUserType(userId);
+      setUserTypeState(userType);
     } catch (error) {
       console.error('Ошибка при определении типа пользователя:', error);
       setUserTypeState(null);
@@ -144,11 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Сохранение типа пользователя
   const setUserType = async (type: UserType) => {
     setUserTypeState(type);
-    if (type) {
-      await AsyncStorage.setItem('@hardcase_user_type', type);
-    } else {
-      await AsyncStorage.removeItem('@hardcase_user_type');
-    }
+    await authService.saveUserType(type);
   };
 
   // Вход в систему
@@ -196,86 +164,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // Регистрируем пользователя
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      // Используем функцию из authService
+      const result = await authService.signUp(email, password, {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        userType: userData.userType,
+        phone: userData.phone,
+        specialty: userData.specialty,
+        bio: userData.bio,
       });
 
-      if (error) {
+      if (!result.success) {
         Toast.show({
           type: 'error',
           text1: 'Ошибка регистрации',
-          text2: error.message,
+          text2: result.error?.message || 'Не удалось зарегистрироваться',
           visibilityTime: 4000,
         });
-        return { error };
+        return { error: result.error };
       }
 
-      if (data.user) {
-        // Создаем запись в базе данных в зависимости от типа пользователя
-        if (userData.userType === 'trainer') {
-          const { error: trainerError } = await supabase
-            .from('trainers')
-            .insert([
-              {
-                user_id: data.user.id,
-                first_name: userData.firstName,
-                last_name: userData.lastName,
-                email: userData.email,
-                phone: userData.phone,
-                specialty: userData.specialty || '',
-                bio: userData.bio || '',
-              },
-            ]);
+      Toast.show({
+        type: 'success',
+        text1: 'Успешно',
+        text2: 'Регистрация выполнена успешно',
+        visibilityTime: 2000,
+      });
 
-          if (trainerError) {
-            Toast.show({
-              type: 'error',
-              text1: 'Ошибка создания профиля',
-              text2: trainerError.message,
-              visibilityTime: 4000,
-            });
-            return { error: trainerError };
-          }
-
-          await setUserType('trainer');
-        } else if (userData.userType === 'client') {
-          const { error: clientError } = await supabase
-            .from('clients')
-            .insert([
-              {
-                user_id: data.user.id,
-                first_name: userData.firstName,
-                last_name: userData.lastName,
-                email: userData.email,
-                phone: userData.phone,
-                trainer_id: userData.trainerId || null,
-              },
-            ]);
-
-          if (clientError) {
-            Toast.show({
-              type: 'error',
-              text1: 'Ошибка создания профиля',
-              text2: clientError.message,
-              visibilityTime: 4000,
-            });
-            return { error: clientError };
-          }
-
-          await setUserType('client');
-        }
-
-        Toast.show({
-          type: 'success',
-          text1: 'Успешно',
-          text2: 'Регистрация выполнена успешно',
-          visibilityTime: 2000,
-        });
+      // Устанавливаем тип пользователя в состояние
+      if (result.userType) {
+        setUserTypeState(result.userType);
       }
 
-      return { user: data.user };
+      return { user: result.user || null };
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -293,18 +214,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       setIsLoading(true);
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setUserTypeState(null);
-      await AsyncStorage.removeItem('@hardcase_user_type');
+      const success = await authService.signOut();
       
-      Toast.show({
-        type: 'success',
-        text1: 'Выход выполнен',
-        text2: 'Вы успешно вышли из системы',
-        visibilityTime: 2000,
-      });
+      if (success) {
+        setUser(null);
+        setSession(null);
+        setUserTypeState(null);
+        
+        Toast.show({
+          type: 'success',
+          text1: 'Выход выполнен',
+          text2: 'Вы успешно вышли из системы',
+          visibilityTime: 2000,
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Ошибка при выходе',
+          text2: 'Не удалось выйти из системы',
+          visibilityTime: 4000,
+        });
+      }
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -322,18 +252,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'exp://127.0.0.1:19000/--/reset-password',
-      });
-
-      if (error) {
+      const success = await authService.resetPassword(email);
+      
+      if (!success) {
         Toast.show({
           type: 'error',
           text1: 'Ошибка сброса пароля',
-          text2: error.message,
+          text2: 'Не удалось отправить инструкции по сбросу пароля',
           visibilityTime: 4000,
         });
-        return { error };
+        return { error: 'Не удалось отправить инструкции по сбросу пароля' };
       }
 
       Toast.show({
@@ -343,7 +271,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         visibilityTime: 4000,
       });
 
-      return { data };
+      return { data: 'success' };
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -362,18 +290,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      const { data, error } = await supabase.auth.updateUser({
-        password,
-      });
-
-      if (error) {
+      const success = await authService.updatePassword(password);
+      
+      if (!success) {
         Toast.show({
           type: 'error',
           text1: 'Ошибка обновления пароля',
-          text2: error.message,
+          text2: 'Не удалось обновить пароль',
           visibilityTime: 4000,
         });
-        return { error };
+        return { error: 'Не удалось обновить пароль' };
       }
 
       Toast.show({
@@ -383,7 +309,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         visibilityTime: 2000,
       });
 
-      return { data };
+      return { data: 'success' };
     } catch (error: any) {
       Toast.show({
         type: 'error',

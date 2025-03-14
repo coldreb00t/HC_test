@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { LogBox } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 
 /**
  * Игнорирование предупреждений, которые не влияют на функциональность
@@ -52,34 +53,65 @@ export const checkNetworkConnection = async () => {
 };
 
 /**
- * Подготовка приложения при запуске
+ * Утилита для подготовки приложения перед запуском
+ * Выполняет первоначальную настройку и инициализацию компонентов
  */
+
+// Инициализация Sentry для отслеживания ошибок
+const initSentry = () => {
+  if (Constants.expoConfig?.extra?.sentryDsn) {
+    Sentry.init({
+      dsn: Constants.expoConfig.extra.sentryDsn,
+      enableAutoSessionTracking: true,
+      tracesSampleRate: 1.0,
+      debug: __DEV__,
+      environment: __DEV__ ? 'development' : 'production',
+    });
+    return true;
+  }
+  return false;
+};
+
+// Загрузка последних настроек пользователя
+const loadUserPreferences = async () => {
+  try {
+    const themePreference = await AsyncStorage.getItem('userThemePreference');
+    const notificationSettings = await AsyncStorage.getItem('notificationSettings');
+    
+    // Здесь можно инициализировать глобальное состояние на основе этих настроек
+    
+    return {
+      themePreference: themePreference ? JSON.parse(themePreference) : null,
+      notificationSettings: notificationSettings ? JSON.parse(notificationSettings) : null,
+    };
+  } catch (error) {
+    console.warn('Ошибка при загрузке настроек пользователя:', error);
+    return {
+      themePreference: null,
+      notificationSettings: null,
+    };
+  }
+};
+
+// Основная функция подготовки приложения
 export const prepareApp = async () => {
   try {
-    // Игнорирование предупреждений
-    setupLogIgnore();
-
-    // Проверка интернет-соединения
-    const networkState = await checkNetworkConnection();
-    console.log('Network state:', networkState);
-
-    // Получение информации об устройстве
-    const deviceInfo = await getDeviceInfo();
-    console.log('Device info:', deviceInfo);
-
-    // Загрузка настроек пользователя из AsyncStorage
-    const userSettings = await AsyncStorage.getItem('@hardcase_user_settings');
-    const settings = userSettings ? JSON.parse(userSettings) : null;
-    console.log('User settings loaded:', settings ? 'yes' : 'no');
+    // Инициализация Sentry
+    const sentryInitialized = initSentry();
+    console.log('Sentry инициализирован:', sentryInitialized);
     
-    // Здесь можно выполнить другие задачи по подготовке приложения
-    // - Предварительная загрузка данных
-    // - Проверка обновлений
-    // - Аналитика запуска
+    // Загрузка настроек пользователя
+    const userPreferences = await loadUserPreferences();
+    console.log('Настройки пользователя загружены');
+    
+    // Другие действия по подготовке приложения
+    // Например, проверка доступности сервера, загрузка начальных данных и т.д.
     
     return true;
   } catch (error) {
     console.error('Ошибка при подготовке приложения:', error);
+    // Отправляем ошибку в Sentry, если он инициализирован
+    Sentry.captureException(error);
     return false;
   }
 }; 
