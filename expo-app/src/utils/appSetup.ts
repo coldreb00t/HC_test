@@ -1,0 +1,85 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+import { LogBox } from 'react-native';
+
+/**
+ * Игнорирование предупреждений, которые не влияют на функциональность
+ */
+export const setupLogIgnore = () => {
+  LogBox.ignoreLogs([
+    'Sending `onAnimatedValueUpdate` with no listeners registered.',
+    'Non-serializable values were found in the navigation state.',
+    'Require cycle:',
+    'Setting a timer for a long period',
+    'The action "NAVIGATE"',
+    'NativeBase:',
+    '[Reanimated]',
+  ]);
+};
+
+/**
+ * Получение информации об устройстве пользователя
+ */
+export const getDeviceInfo = async () => {
+  const deviceInfo = {
+    deviceName: Device.deviceName || 'Unknown',
+    deviceType: Device.deviceType || 0,
+    osName: Device.osName || 'Unknown',
+    osVersion: Device.osVersion || 'Unknown',
+    manufacturer: await Device.getManufacturerAsync() || 'Unknown',
+    brand: Device.brand || 'Unknown',
+    modelName: Device.modelName || 'Unknown',
+    platform: Platform.OS,
+    appVersion: Constants.manifest?.version || '1.0.0',
+  };
+
+  return deviceInfo;
+};
+
+/**
+ * Проверка подключения к интернету
+ */
+export const checkNetworkConnection = async () => {
+  const state = await NetInfo.fetch();
+  return {
+    isConnected: state.isConnected || false,
+    type: state.type,
+    isInternetReachable: state.isInternetReachable,
+  };
+};
+
+/**
+ * Подготовка приложения при запуске
+ */
+export const prepareApp = async () => {
+  try {
+    // Игнорирование предупреждений
+    setupLogIgnore();
+
+    // Проверка интернет-соединения
+    const networkState = await checkNetworkConnection();
+    console.log('Network state:', networkState);
+
+    // Получение информации об устройстве
+    const deviceInfo = await getDeviceInfo();
+    console.log('Device info:', deviceInfo);
+
+    // Загрузка настроек пользователя из AsyncStorage
+    const userSettings = await AsyncStorage.getItem('@hardcase_user_settings');
+    const settings = userSettings ? JSON.parse(userSettings) : null;
+    console.log('User settings loaded:', settings ? 'yes' : 'no');
+    
+    // Здесь можно выполнить другие задачи по подготовке приложения
+    // - Предварительная загрузка данных
+    // - Проверка обновлений
+    // - Аналитика запуска
+    
+    return true;
+  } catch (error) {
+    console.error('Ошибка при подготовке приложения:', error);
+    return false;
+  }
+}; 
