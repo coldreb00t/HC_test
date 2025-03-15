@@ -12,8 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import * as Icons from '@expo/vector-icons/Feather';
-import { supabase } from '../lib/supabase';
+import { Feather } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 import Toast from 'react-native-toast-message';
 
 interface WorkoutSet {
@@ -321,13 +321,10 @@ const WorkoutDetailsScreen = () => {
             </Text>
           </View>
           <View style={styles.exerciseHeaderRight}>
-            <Icons.ChevronDown 
+            <Feather 
+              name="chevron-down"
               size={20} 
               color="#6b7280" 
-              style={[
-                styles.expandIcon,
-                isExpanded && styles.expandIconRotated
-              ]} 
             />
           </View>
         </TouchableOpacity>
@@ -411,7 +408,7 @@ const WorkoutDetailsScreen = () => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>Вернуться назад</Text>
+          <Feather name="arrow-left" size={20} color="#4b5563" />
         </TouchableOpacity>
       </View>
     );
@@ -425,7 +422,7 @@ const WorkoutDetailsScreen = () => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Icons.ArrowLeft size={20} color="#4b5563" />
+          <Feather name="arrow-left" size={20} color="#4b5563" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{workout.name}</Text>
         <View style={styles.placeholderRight} />

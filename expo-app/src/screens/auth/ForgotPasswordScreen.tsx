@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import * as Icons from '@expo/vector-icons/Feather';
+import { Feather } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import Toast from 'react-native-toast-message';
 import { ROUTES } from '../../constants/routes';
@@ -80,15 +80,13 @@ const ForgotPasswordScreen = () => {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Icons.ArrowLeft size={24} color="#4b5563" />
+            <Feather name="arrow-left" size={24} color="#4b5563" />
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
-            <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+            <View style={styles.logoPlaceholder}>
+              <Text style={styles.logoText}>HARDCASE</Text>
+            </View>
           </View>
           
           <Text style={styles.title}>Восстановление пароля</Text>
@@ -103,7 +101,7 @@ const ForgotPasswordScreen = () => {
             {/* Email поле */}
             {!emailSent && (
               <View style={styles.inputContainer}>
-                <Icons.Mail size={20} color="#6b7280" style={styles.inputIcon} />
+                <Feather name="mail" size={20} color="#6b7280" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email"
@@ -197,9 +195,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logo: {
+  logoPlaceholder: {
     width: 80,
     height: 80,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
   },
   title: {
     fontSize: 24,

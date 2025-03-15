@@ -30,11 +30,11 @@ export const getDeviceInfo = async () => {
     deviceType: Device.deviceType || 0,
     osName: Device.osName || 'Unknown',
     osVersion: Device.osVersion || 'Unknown',
-    manufacturer: await Device.getManufacturerAsync() || 'Unknown',
+    manufacturer: Device.manufacturer || 'Unknown',
     brand: Device.brand || 'Unknown',
     modelName: Device.modelName || 'Unknown',
     platform: Platform.OS,
-    appVersion: Constants.manifest?.version || '1.0.0',
+    appVersion: Constants.expoConfig?.version || '1.0.0',
   };
 
   return deviceInfo;

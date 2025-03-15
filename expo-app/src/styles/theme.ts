@@ -14,6 +14,7 @@ export type ThemeColors = {
   danger: string;
   warning: string;
   info: string;
+  error: string;
   background: string;
   card: string;
   text: string;
@@ -26,6 +27,7 @@ export type ThemeColors = {
   black: string;
   transparent: string;
   overlay: string;
+  notification: string;
 };
 
 // Цветовая схема для светлой темы
@@ -40,6 +42,7 @@ export const lightColors: ThemeColors = {
   danger: '#ef4444',
   warning: '#eab308',
   info: '#0ea5e9',
+  error: '#ef4444',
   background: '#f8f9fa',
   card: '#ffffff',
   text: '#111827',
@@ -52,6 +55,7 @@ export const lightColors: ThemeColors = {
   black: '#000000',
   transparent: 'transparent',
   overlay: 'rgba(0, 0, 0, 0.5)',
+  notification: '#ef4444',
 };
 
 // Цветовая схема для темной темы
@@ -66,6 +70,7 @@ export const darkColors: ThemeColors = {
   danger: '#f87171',
   warning: '#fbbf24',
   info: '#38bdf8',
+  error: '#f87171',
   background: '#111827',
   card: '#1f2937',
   text: '#f9fafb',
@@ -78,6 +83,7 @@ export const darkColors: ThemeColors = {
   black: '#000000',
   transparent: 'transparent',
   overlay: 'rgba(0, 0, 0, 0.7)',
+  notification: '#f87171',
 };
 
 // Типы для размеров

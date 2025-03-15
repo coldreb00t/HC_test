@@ -154,11 +154,9 @@ const RegisterScreen = () => {
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
-            <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+            <View style={styles.logoPlaceholder}>
+              <Text style={styles.logoText}>HARDCASE</Text>
+            </View>
             <Text style={styles.appName}>HARDCASE</Text>
           </View>
           
@@ -354,10 +352,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
-  logo: {
+  logoPlaceholder: {
     width: 70,
     height: 70,
-    marginBottom: 12,
+    borderRadius: 35,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#f97316',
+    letterSpacing: 2,
   },
   appName: {
     fontSize: 24,

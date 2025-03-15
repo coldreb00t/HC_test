@@ -244,6 +244,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
       }
     } catch (error: any) {
+      console.error('Ошибка при выходе из системы:', error);
       Toast.show({
         type: 'error',
         text1: 'Ошибка при выходе',
@@ -255,35 +256,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Сброс пароля
+  // Восстановление пароля
   const forgotPassword = async (email: string) => {
     try {
       setIsLoading(true);
-      
-      const success = await authService.resetPassword(email);
-      
-      if (!success) {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'hardcase://reset-password',
+      });
+
+      if (error) {
         Toast.show({
           type: 'error',
-          text1: 'Ошибка сброса пароля',
-          text2: 'Не удалось отправить инструкции по сбросу пароля',
+          text1: 'Ошибка',
+          text2: error.message,
           visibilityTime: 4000,
         });
-        return { error: 'Не удалось отправить инструкции по сбросу пароля' };
+        return { error };
       }
 
       Toast.show({
         type: 'success',
         text1: 'Успешно',
-        text2: 'Инструкция по сбросу пароля отправлена на вашу почту',
-        visibilityTime: 4000,
+        text2: 'Инструкции по сбросу пароля отправлены на вашу почту',
+        visibilityTime: 3000,
       });
 
-      return { data: 'success' };
+      return { data };
     } catch (error: any) {
+      console.error('Ошибка при сбросе пароля:', error);
       Toast.show({
         type: 'error',
-        text1: 'Ошибка сброса пароля',
+        text1: 'Ошибка',
         text2: error.message || 'Произошла неизвестная ошибка',
         visibilityTime: 4000,
       });
@@ -297,31 +300,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const updatePassword = async (password: string) => {
     try {
       setIsLoading(true);
-      
-      const success = await authService.updatePassword(password);
-      
-      if (!success) {
+      const { data, error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) {
         Toast.show({
           type: 'error',
-          text1: 'Ошибка обновления пароля',
-          text2: 'Не удалось обновить пароль',
+          text1: 'Ошибка',
+          text2: error.message,
           visibilityTime: 4000,
         });
-        return { error: 'Не удалось обновить пароль' };
+        return { error };
       }
 
       Toast.show({
         type: 'success',
         text1: 'Успешно',
         text2: 'Пароль успешно обновлен',
-        visibilityTime: 2000,
+        visibilityTime: 3000,
       });
 
-      return { data: 'success' };
+      return { data };
     } catch (error: any) {
+      console.error('Ошибка при обновлении пароля:', error);
       Toast.show({
         type: 'error',
-        text1: 'Ошибка обновления пароля',
+        text1: 'Ошибка',
         text2: error.message || 'Произошла неизвестная ошибка',
         visibilityTime: 4000,
       });

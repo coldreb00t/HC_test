@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import * as SplashScreen from 'expo-splash-screen';
 
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants/routes';
@@ -19,21 +18,6 @@ const AppNavigation = () => {
   const { isAuthenticated, userType, isLoading } = useAuth();
   const { colors } = useTheme();
   
-  // Эффект для скрытия SplashScreen после инициализации аутентификации
-  useEffect(() => {
-    const hideSplashScreen = async () => {
-      if (!isLoading) {
-        // Задержка для плавности
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await SplashScreen.hideAsync().catch((error) => {
-          console.warn('Ошибка при скрытии splash screen:', error);
-        });
-      }
-    };
-    
-    hideSplashScreen();
-  }, [isLoading]);
-
   // Показываем загрузочный экран, пока идет проверка аутентификации
   if (isLoading) {
     return (

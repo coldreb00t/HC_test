@@ -27,6 +27,7 @@ export default {
   web: {
     favicon: "./assets/favicon.png"
   },
+  newArchEnabled: true,
   // Здесь определяем дополнительные переменные окружения
   extra: {
     supabaseUrl: "https://wyniaaklkkytpsabbciy.supabase.co",

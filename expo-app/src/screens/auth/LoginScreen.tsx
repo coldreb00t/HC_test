@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Image, TouchableOpacity, Keyboard, Platform } from 'react-native';
+import { View, StyleSheet, Image, TouchableOpacity, Keyboard, Platform, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { ROUTES } from '../../constants/routes';
@@ -116,15 +116,11 @@ const LoginScreen = () => {
       {isSubmitting && <ThemedLoader fullscreen text="Выполняется вход..." />}
 
       <View style={styles.header}>
-        <Image 
-          source={
-            isDarkMode 
-              ? require('../../../assets/images/logo-dark.png') 
-              : require('../../../assets/images/logo-light.png')
-          } 
-          style={styles.logo} 
-          resizeMode="contain" 
-        />
+        <View style={styles.logoContainer}>
+          <View style={[styles.logoPlaceholder, { backgroundColor: isDarkMode ? '#333' : '#4361ee' }]}>
+            <Text style={styles.logoText}>HARDCASE</Text>
+          </View>
+        </View>
         <ThemedText variant="h1" centered style={styles.title}>
           HARDCASE
         </ThemedText>
@@ -211,10 +207,20 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 30,
   },
-  logo: {
+  logoContainer: {
     width: 80,
     height: 80,
     marginBottom: 16,
+  },
+  logoPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 40,
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   title: {
     marginBottom: 8,

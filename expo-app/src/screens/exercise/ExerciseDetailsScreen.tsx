@@ -13,8 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import * as Icons from '@expo/vector-icons/Feather';
-import { supabase } from '../lib/supabase';
+import { Feather } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 import Toast from 'react-native-toast-message';
 
 type RootStackParamList = {
@@ -195,7 +195,7 @@ const ExerciseDetailsScreen = () => {
           style={styles.backButton} 
           onPress={() => navigation.goBack()}
         >
-          <Icons.ArrowLeft size={24} color="#111827" />
+          <Feather name="arrow-left" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Детали упражнения</Text>
         <View style={styles.placeholder} />
@@ -230,19 +230,19 @@ const ExerciseDetailsScreen = () => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Рекомендации</Text>
               <View style={styles.tipContainer}>
-                <Icons.Check size={20} color="#10b981" style={styles.tipIcon} />
+                <Feather name="check" size={20} color="#10b981" style={styles.tipIcon} />
                 <Text style={styles.tipText}>
                   Следите за правильной техникой выполнения
                 </Text>
               </View>
               <View style={styles.tipContainer}>
-                <Icons.Check size={20} color="#10b981" style={styles.tipIcon} />
+                <Feather name="check" size={20} color="#10b981" style={styles.tipIcon} />
                 <Text style={styles.tipText}>
                   Начинайте с меньшего веса и постепенно увеличивайте нагрузку
                 </Text>
               </View>
               <View style={styles.tipContainer}>
-                <Icons.Check size={20} color="#10b981" style={styles.tipIcon} />
+                <Feather name="check" size={20} color="#10b981" style={styles.tipIcon} />
                 <Text style={styles.tipText}>
                   Делайте разминку перед выполнением упражнения
                 </Text>
