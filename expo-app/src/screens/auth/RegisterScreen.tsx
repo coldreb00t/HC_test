@@ -15,11 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Feather } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
 import Toast from 'react-native-toast-message';
-import { RootStackParamList } from '../../../App';
+import { AuthStackParamList } from '../../types/navigation.types';
+import { useAuth } from '../../context/AuthContext';
+import { ROUTES } from '../../constants/routes';
+import { supabase } from '../../lib/supabase';
 
-type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;
+type RegisterScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Register'>;
 
 const RegisterScreen = () => {
   const navigation = useNavigation<RegisterScreenNavigationProp>();
@@ -148,7 +150,7 @@ const RegisterScreen = () => {
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Icons.ArrowLeft size={24} color="#4b5563" />
+            <Feather name="arrow-left" size={24} color="#000000" />
           </TouchableOpacity>
           
           <View style={styles.logoContainer}>
@@ -205,7 +207,7 @@ const RegisterScreen = () => {
             
             {/* Имя */}
             <View style={styles.inputContainer}>
-              <Icons.User size={20} color="#6b7280" style={styles.inputIcon} />
+              <Feather name="user" size={20} color="#6b7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Имя"
@@ -217,7 +219,7 @@ const RegisterScreen = () => {
             
             {/* Фамилия */}
             <View style={styles.inputContainer}>
-              <Icons.Users size={20} color="#6b7280" style={styles.inputIcon} />
+              <Feather name="user" size={20} color="#6b7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Фамилия"
@@ -229,7 +231,7 @@ const RegisterScreen = () => {
             
             {/* Email */}
             <View style={styles.inputContainer}>
-              <Icons.Mail size={20} color="#6b7280" style={styles.inputIcon} />
+              <Feather name="mail" size={20} color="#6b7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Email"
@@ -243,7 +245,7 @@ const RegisterScreen = () => {
             
             {/* Пароль */}
             <View style={styles.inputContainer}>
-              <Icons.Lock size={20} color="#6b7280" style={styles.inputIcon} />
+              <Feather name="lock" size={20} color="#6b7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Пароль"
@@ -256,7 +258,7 @@ const RegisterScreen = () => {
                 onPress={toggleShowPassword}
                 style={styles.inputRightIcon}
               >
-                <Icons.Eye 
+                <Feather name="eye" 
                   size={20} 
                   color="#6b7280" 
                   style={{ opacity: showPassword ? 1 : 0.5 }}
@@ -266,7 +268,7 @@ const RegisterScreen = () => {
             
             {/* Подтверждение пароля */}
             <View style={styles.inputContainer}>
-              <Icons.Lock size={20} color="#6b7280" style={styles.inputIcon} />
+              <Feather name="lock" size={20} color="#6b7280" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Подтвердите пароль"
@@ -279,7 +281,7 @@ const RegisterScreen = () => {
                 onPress={toggleShowPassword}
                 style={styles.inputRightIcon}
               >
-                <Icons.Eye 
+                <Feather name="eye" 
                   size={20} 
                   color="#6b7280" 
                   style={{ opacity: showPassword ? 1 : 0.5 }}

@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.38.0",
     "@types/dom-to-image": "^2.6.7",
     "dom-to-image": "^2.6.0",
+    "expo": "^52.0.39",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.279.0",
     "react": "^18.2.0",

@@ -105,11 +105,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Определение типа пользователя с помощью authService
   const determineUserType = async (userId: string) => {
     try {
-      const userType = await authService.determineUserType(userId);
-      setUserTypeState(userType);
+      // Используем метод из authService для определения типа пользователя
+      const type = await authService.determineUserType(userId);
+      
+      // Устанавливаем тип пользователя в state и сохраняем в хранилище
+      if (type) {
+        setUserTypeState(type);
+        await authService.saveUserType(type);
+      }
+      
+      return type;
     } catch (error) {
-      console.error('Ошибка при определении типа пользователя:', error);
-      setUserTypeState(null);
+      console.error('Ошибка определения типа пользователя:', error);
+      return null;
     }
   };
 
